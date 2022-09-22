@@ -21,7 +21,7 @@ class SOM(InMemoryDataset):
         import networkx as nx
         from networkx.readwrite import json_graph
 
-        with open('dta/graph.json', 'r') as f:
+        with open('data/graph.json', 'r') as f:
             G = nx.Graph(json_graph.node_link_graph(json.load(f)))
 
         x = np.load('data/features.npy')

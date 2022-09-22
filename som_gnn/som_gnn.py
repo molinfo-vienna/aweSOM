@@ -146,7 +146,7 @@ def compute_features_from_mols(mols):
 if __name__ == "__main__":
     
     # Import data from sdf file
-    df = PandasTools.LoadSDF('db_preprocessed.sdf', removeHs=True)
+    df = PandasTools.LoadSDF('data/db_preprocessed.sdf', removeHs=True)
     df['soms_new'] = df['soms_new'].map(ast.literal_eval)
 
     # Generate networkx graphs from mols and save them in a json file
@@ -197,4 +197,3 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True)
-    
