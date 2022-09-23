@@ -5,14 +5,25 @@ SOM_GNN
 [![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main)
 
 
-A short description of the project (less than one line).
+A Graph Neural Network (GNN) for the prediction of Sites of Metabolism (SoMs).
+
+### Installation
+
+### Example Usage
+
+#### Dataset Generation
+
+#### Model Training
+
+#### Model Testing
+
 
 ### Copyright
 
-Copyright (c) 2022, Molecular Informatics - University of Vienna
+Copyright (c) 2022, Roxane Jacob - University of Vienna
 
 
-#### Acknowledgements
+### Acknowledgements
  
 Project based on the 
 [Computational Molecular Science Python Cookiecutter](https://github.com/molssi/cookiecutter-cms) version 1.1.
