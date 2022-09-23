@@ -68,7 +68,7 @@ def process_data(path):
     df["G"] = df["ROMol"].apply(mol_to_nx)
 
     G = nx.disjoint_union_all(df["G"].to_list())
-    with open('load_data/data/graph.json', 'w') as f:
+    with open('data/graph.json', 'w') as f:
             f.write(json.dumps(json_graph.node_link_data(G)))
 
     # Generate and save labels
@@ -79,13 +79,13 @@ def process_data(path):
     ohe = OneHotEncoder(sparse=False, dtype=np.compat.long)
     labels_ohe = ohe.fit_transform((df_labeled["label"].to_numpy()).reshape(-1,1))
     # 3)    Save labels to .npy file
-    np.save('load_data/data/labels.npy', labels_ohe)
+    np.save('data/labels.npy', labels_ohe)
 
     # Save mol ids (this will hep us know which graph corresponds to which molecule when generating the PYG dataset)
     df_labeled["mol_id"] = df_labeled["mol_id"].astype(int).to_numpy()
-    np.save('load_data/data/mol_ids.npy', df_labeled["mol_id"].to_numpy())
+    np.save('data/mol_ids.npy', df_labeled["mol_id"].to_numpy())
 
     # Generate and save features
     mols_list = df.ROMol.tolist()
     features = features_from_mols(mols_list)
-    np.save('load_data/data/features.npy', features.numpy())
+    np.save('data/features.npy', features.numpy())

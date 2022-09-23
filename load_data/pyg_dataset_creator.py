@@ -45,16 +45,16 @@ class SOM(InMemoryDataset):
         return ['data.pt']
 
     def process(self):
-        with open('load_data/data/graph.json', 'r') as f:
+        with open('data/graph.json', 'r') as f:
             G = nx.Graph(json_graph.node_link_graph(json.load(f)))
 
-        x = np.load('load_data/data/features.npy')
+        x = np.load('data/features.npy')
         x = torch.from_numpy(x).to(torch.float)
 
-        y = np.load('load_data/data/labels.npy')
+        y = np.load('data/labels.npy')
         y = torch.from_numpy(y).to(torch.long)
 
-        mol_ids = torch.from_numpy(np.load('load_data/data/mol_ids.npy')).to(torch.long)
+        mol_ids = torch.from_numpy(np.load('data/mol_ids.npy')).to(torch.long)
         unique_mols_ids = torch.unique(mol_ids).tolist()
 
         data_list = []
