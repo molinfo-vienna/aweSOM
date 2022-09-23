@@ -12,7 +12,7 @@ def main():
     """
 
     # Process SDF input data to create PyTorch Geometric custom dataset
-    process_data(path='load_data/data/db_preprocessed.sdf')
+    process_data(path='data/db_preprocessed.sdf')
 
     # Create/Load Custom PyTorch Geometric Dataset
     dataset = SOM(root='data')
