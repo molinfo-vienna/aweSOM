@@ -9,7 +9,7 @@ A short description of the project (less than one line).
 
 ### Copyright
 
-Copyright (c) 2022, Roxane Jacob - COMP3D Group - University of Vienna
+Copyright (c) 2022, Molecular Informatics - University of Vienna
 
 
 #### Acknowledgements
