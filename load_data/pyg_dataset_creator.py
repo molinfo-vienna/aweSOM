@@ -52,7 +52,7 @@ class SOM(InMemoryDataset):
         x = torch.from_numpy(x).to(torch.float)
 
         y = np.load('data/labels.npy')
-        y = torch.from_numpy(y).to(torch.long)
+        y = torch.from_numpy(y)
 
         mol_ids = torch.from_numpy(np.load('data/mol_ids.npy')).to(torch.long)
         unique_mols_ids = torch.unique(mol_ids).tolist()
@@ -67,7 +67,7 @@ class SOM(InMemoryDataset):
                 edge_index = edge_index - edge_index.min()  # resets the edges labeling within a molecular graph (every edge_index tensor starts with node 0)
                 #edge_index, _ = remove_self_loops(edge_index)
 
-                data = Data(edge_index=edge_index, x=x[mask], y=(y[mask]).to(torch.long))
+                data = Data(edge_index=edge_index, x=x[mask], y=(y[mask]).to(torch.float))
 
                 if self.pre_filter is not None:
                     data = self.pre_filter(data)
