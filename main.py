@@ -5,6 +5,34 @@ from sklearn.metrics import f1_score
 from load_data.process_input_data import process_data
 from load_data.pyg_dataset_creator import SOM
 from models.mlp import MLP
+from models.graph_neural_nets import GCN, GIN
+
+def train(model, loader):
+        model.train()
+        criterion= torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+        loss = 0
+        for data in loader:
+            optimizer.zero_grad()  # Clear gradients
+            _, out = model(data.x, data.edge_index)  # Perform a forward pass
+            batch_loss = criterion(out, data.y.to(float))  # Compute loss function
+            loss += batch_loss.item()
+            batch_loss.backward()  # Derive gradients
+            optimizer.step()  # Update parameters based on gradients
+        return loss
+
+@torch.no_grad()
+def test(model, loader):
+    model.eval()
+    predictions = []
+    true_labels = []
+    for data in loader:
+        _, out = model(data.x, data.edge_index)  # Perform a forward pass
+        predictions.append(out.argmax(dim=1))   # Store the class with the highest probability for each data point
+        true_labels.append(data.y.argmax(dim=1))  # Store the true label of each data point in a more convenient format to compute F1 score
+    pred, true = torch.cat(predictions, dim=0).numpy(), torch.cat(true_labels, dim=0).numpy()
+    accuracy = (pred == true).sum() / len(true)
+    return accuracy
 
 
 def main():
@@ -40,42 +68,41 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True)
 
-    
-    # Initialize MLP model
-    model = MLP(in_dim=dataset.num_features, h_dim=16, out_dim=dataset.num_classes)
-    print(model)
 
-    def train(loader):
-        model.train()
-        criterion= torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=1e-3)
-        loss = 0
-        for data in loader:
-            optimizer.zero_grad()  # Clear gradients
-            out = model(data.x)  # Perform a forward pass
-            batch_loss = criterion(out, data.y)  # Compute loss function
-            loss += batch_loss.item()
-            batch_loss.backward()  # Derive gradients
-            optimizer.step()  # Update parameters based on gradients
-        return loss
+    """
+    -------------------------------------
+    --Initialize, Train and Test Models--
+    ------------------------------------- 
+    """
 
-    @torch.no_grad
-    def test(loader):
-        model.eval()
-        predictions = []
-        true_labels = []
-        for data in loader:
-            out = model(data.x)  # Perform a forward pass
-            predictions.append(out.argmax(dim=1).float())   # Store the class with the highest probability for each data point
-            true_labels.append(data.y)  # Store the true label of each data point in a more convenient format to compute F1 score
-        true, pred = torch.cat(true_labels, dim=0).numpy(), torch.cat(predictions, dim=0).numpy()
-        return f1_score(true, pred, average='micro')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    # MLP model
+    mlp_model = MLP(in_dim=dataset.num_features, h_dim=32, out_dim=dataset.num_classes).to(device)
+    print(mlp_model)
+
+    # for epoch in range(10):
+    #     training_loss= train(mlp_model, train_loader)
+    #     val_acc = test(mlp_model, val_loader)
+    #     print(f'Epoch: {epoch}, Training Loss: {training_loss}, Validation Accuracy: {val_acc}.')
+
+    # GCN model
+    gcn_model = GCN(in_dim=dataset.num_features, h_dim=32, out_dim=dataset.num_classes).to(device)
+    print(gcn_model)
+
+    # for epoch in range(10):
+    #     training_loss = train(gcn_model, train_loader)
+    #     val_acc = test(gcn_model, val_loader)
+    #     print(f'Epoch: {epoch}, Training Loss: {training_loss}, Validation Accuracy: {val_acc}.')
+
+    # GIN model
+    gin_model = GIN(in_dim=dataset.num_features, h_dim=32, out_dim=dataset.num_classes).to(device)
+    print(gin_model)
 
     for epoch in range(10):
-        training_loss = train(train_loader)
-        val_f1 = test(val_loader)
-        print(f'Epoch: {epoch}, Training Loss: {training_loss}, Validation F1-Score: {val_f1}.')
-
+        training_loss = train(gin_model, train_loader)
+        val_acc = test(gin_model, val_loader)
+        print(f'Epoch: {epoch}, Training Loss: {training_loss}, Validation Accuracy: {val_acc}.')
 
 if __name__ == "__main__":
     main()
