@@ -15,7 +15,7 @@ def train(model, loader):
         for data in loader:
             optimizer.zero_grad()  # Clear gradients
             _, out = model(data.x, data.edge_index)  # Perform a forward pass
-            batch_loss = criterion(out, data.y.to(float))  # Compute loss function
+            batch_loss = criterion(out, data.y.to(torch.long))  # Compute loss function
             loss += batch_loss.item()
             batch_loss.backward()  # Derive gradients
             optimizer.step()  # Update parameters based on gradients
@@ -29,7 +29,7 @@ def test(model, loader):
     for data in loader:
         _, out = model(data.x, data.edge_index)  # Perform a forward pass
         predictions.append(out.argmax(dim=1))   # Store the class with the highest probability for each data point
-        true_labels.append(data.y.argmax(dim=1))  # Store the true label of each data point in a more convenient format to compute F1 score
+        true_labels.append(data.y)
     pred, true = torch.cat(predictions, dim=0).numpy(), torch.cat(true_labels, dim=0).numpy()
     accuracy = (pred == true).sum() / len(true)
     return accuracy
