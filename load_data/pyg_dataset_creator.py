@@ -65,7 +65,6 @@ class SOM(InMemoryDataset):
                 G_s = G.subgraph(np.flatnonzero(mask).tolist())  # select a subgraph G_s from G corresponding to the atoms from the mol with the current mol_id
                 edge_index = torch.tensor(list(G_s.edges)).t().contiguous()  # gets a tensor containing the edge indices from the OutEdgeView representation
                 edge_index = edge_index - edge_index.min()  # resets the edges labeling within a molecular graph (every edge_index tensor starts with node 0)
-                #edge_index, _ = remove_self_loops(edge_index)
 
                 data = Data(edge_index=edge_index, x=x[mask], y=(y[mask]).to(torch.float))
 

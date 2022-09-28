@@ -76,10 +76,11 @@ def process_data(path):
     #       with the label True if the atom is a SoM and false otherwise.
     df_labeled = df.groupby('mol_id', as_index=False).apply(labels_generator)
     # 2)    One-hot-encode labels
-    ohe = OneHotEncoder(sparse=False, dtype=np.compat.long)
-    labels_ohe = ohe.fit_transform((df_labeled["label"].to_numpy()).reshape(-1,1))
+    #ohe = OneHotEncoder(sparse=False, dtype=np.compat.long)
+    #labels_ohe = ohe.fit_transform((df_labeled["label"].to_numpy()).reshape(-1,1))
     # 3)    Save labels to .npy file
-    np.save('data/labels.npy', labels_ohe)
+    #np.save('data/labels.npy', labels_ohe)
+    np.save('data/labels.npy', (df_labeled["label"].to_numpy()).reshape(-1,1).astype(int)[:,0])
 
     # Save mol ids (this will hep us know which graph corresponds to which molecule when generating the PYG dataset)
     df_labeled["mol_id"] = df_labeled["mol_id"].astype(int).to_numpy()
