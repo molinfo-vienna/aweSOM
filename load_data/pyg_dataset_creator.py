@@ -27,8 +27,8 @@ class SOM(InMemoryDataset):
             final dataset. (default: :obj:`None`)
 
     Stats:
-        - #graphs: 2216
-        - #node_features: 48
+        - #graphs: 2253
+        - #node_features: 9
         - #classes: 2
     """
 

@@ -44,7 +44,7 @@ def main():
     """
 
     # Process SDF input data to create PyTorch Geometric custom dataset
-    #process_data(path='data/db_preprocessed.sdf')
+    process_data(path='data/db_preprocessed.sdf')
 
     # Create/Load Custom PyTorch Geometric Dataset
     dataset = SOM(root='data')
@@ -76,6 +76,7 @@ def main():
     """
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(device)
 
     # MLP model
     mlp_model = MLP(in_dim=dataset.num_features, h_dim=32, out_dim=dataset.num_classes).to(device)

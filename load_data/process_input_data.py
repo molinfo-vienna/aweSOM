@@ -3,13 +3,11 @@ import json
 import networkx as nx
 from networkx.readwrite import json_graph
 import numpy as np
+from rdkit import Chem
 from rdkit.Chem import PandasTools
-from sklearn.preprocessing import OneHotEncoder
+from tqdm import tqdm
 
-from load_data.compute_features import features_from_mols
-
-
-def mol_to_nx(mol):
+def mol_to_nx(mol_id, mol, soms):
     """Takes as input an RDKit mol object and return its corresponding NetworkX Graph.
 
     Args:
@@ -19,38 +17,53 @@ def mol_to_nx(mol):
         G (NetworkX.Graph)
     """
     G = nx.Graph()
-
     for atom in mol.GetAtoms():
-        G.add_node(atom.GetIdx(),
-                   atomic_num=atom.GetAtomicNum(),
-                   formal_charge=atom.GetFormalCharge(),
-                   chiral_tag=atom.GetChiralTag(),
-                   hybridization=atom.GetHybridization(),
-                   num_explicit_hs=atom.GetNumExplicitHs(),
-                   is_aromatic=atom.GetIsAromatic())
+        G.add_node( atom.GetIdx(),
+                    atomic_num=atom.GetAtomicNum(),
+                    degree=atom.GetDegree(),
+                    formal_charge=atom.GetFormalCharge(),
+                    hybridization=atom.GetHybridization(),
+                    num_hs=atom.GetTotalNumHs(),
+                    is_in_ring=atom.IsInRing(),
+                    is_aromatic=atom.GetIsAromatic(),
+                    vdw_radius = Chem.GetPeriodicTable().GetRvdw(atom.GetAtomicNum()),
+                    covalent_radius = Chem.GetPeriodicTable().GetRcovalent(atom.GetAtomicNum()),
+                    mol_id=int(mol_id),
+                    is_som=(atom.GetIdx() in soms))
     for bond in mol.GetBonds():
         G.add_edge(bond.GetBeginAtomIdx(),
-                   bond.GetEndAtomIdx(),
-                   bond_type=bond.GetBondType())
+                   bond.GetEndAtomIdx())
     return G
 
 
-def labels_generator(df_group):
-    """
+def compute_features_tensor(G):
 
-    Args:
-        df_group (Pandas DataFrame GroupBy object)
+    # get features dimension:
+    num_nodes = len(G.nodes)
+    num_features=len(G.nodes[0])-2
 
-    Returns:
-        df_group (Pandas DataFrame GroupBy object)
-    """
-    assert len(df_group) == 1
-    soms = df_group.soms_new.iloc[0]
-    mol = df_group.ROMol.iloc[0]
-    df_group['atom'] = [range(mol.GetNumAtoms())]
-    df_group = df_group.explode('atom')
-    df_group['label'] = [(atom_idx in soms) for atom_idx in range(mol.GetNumAtoms())]
-    return df_group
+    # construct features matrix of shape (number of atoms, number of features)
+    features = np.zeros((num_nodes, num_features))
+
+    # write features to features matrix
+    for i in tqdm(range(num_nodes)):
+        current_node = G.nodes[i]
+
+        atomic_num = [current_node['atomic_num']]
+        degree = [current_node['degree']]
+        formal_charge = [current_node['formal_charge']]
+        hybridization = [current_node['hybridization']]
+        num_hs = [current_node['num_hs']]
+        is_in_ring = [int(current_node['is_in_ring'])]
+        is_aromatic = [int(current_node['is_aromatic'])]
+        vdw_radius = [current_node['vdw_radius']]
+        covalent_radius = [current_node['covalent_radius']]
+
+        node_features_vector = atomic_num + degree + formal_charge + hybridization + num_hs + is_in_ring + is_aromatic + vdw_radius + covalent_radius
+
+        features[i,:] = np.array(node_features_vector)
+
+    return features
 
 
 def process_data(path):
@@ -65,28 +78,25 @@ def process_data(path):
     df['soms_new'] = df['soms_new'].map(ast.literal_eval)
 
     # Generate networkx graphs from mols and save them in a json file
-    df["G"] = df["ROMol"].apply(mol_to_nx)
-
+    df["G"] = df.apply(lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms_new), axis=1)
     G = nx.disjoint_union_all(df["G"].to_list())
     with open('data/graph.json', 'w') as f:
             f.write(json.dumps(json_graph.node_link_data(G)))
 
-    # Generate and save labels
-    # 1)    Create a new df which does not contain 1 mol per row anymore, but 1 atom per row
-    #       with the label True if the atom is a SoM and false otherwise.
-    df_labeled = df.groupby('mol_id', as_index=False).apply(labels_generator)
-    # 2)    One-hot-encode labels
-    #ohe = OneHotEncoder(sparse=False, dtype=np.compat.long)
-    #labels_ohe = ohe.fit_transform((df_labeled["label"].to_numpy()).reshape(-1,1))
-    # 3)    Save labels to .npy file
-    #np.save('data/labels.npy', labels_ohe)
-    np.save('data/labels.npy', (df_labeled["label"].to_numpy()).reshape(-1,1).astype(int)[:,0])
+    # Generate and save list of labels
+    labels = []
+    for i in range(len(G.nodes)):
+        labels.append(int(G.nodes[i]['is_som']))
+    labels = np.array(labels)
+    np.save('data/labels.npy', labels)
 
-    # Save mol ids (this will hep us know which graph corresponds to which molecule when generating the PYG dataset)
-    df_labeled["mol_id"] = df_labeled["mol_id"].astype(int).to_numpy()
-    np.save('data/mol_ids.npy', df_labeled["mol_id"].to_numpy())
+    # Generate and save list of mol ids
+    mol_ids = []
+    for i in range(len(G.nodes)):
+        mol_ids.append(G.nodes[i]['mol_id'])
+    mol_ids = np.array(mol_ids)
+    np.save('data/mol_ids.npy', mol_ids)
 
-    # Generate and save features
-    mols_list = df.ROMol.tolist()
-    features = features_from_mols(mols_list)
-    np.save('data/features.npy', features.numpy())
+    # Compute features matrix and save it to features.npy
+    features = compute_features_tensor(G)
+    np.save('data/features.npy', features)
