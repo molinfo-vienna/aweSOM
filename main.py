@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import random
 import torch
 from torch_geometric.loader import DataLoader
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, auc, roc_curve, confusion_matrix, ConfusionMatrixDisplay
@@ -7,40 +8,13 @@ from sklearn.utils.class_weight import compute_class_weight
 
 from load_data.process_input_data import process_data
 from load_data.pyg_dataset_creator import SOM
-from models.graph_neural_nets import GCN, GIN
-
-def train(model, loader, class_weights):
-        model.train()
-        optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=1e-3)
-        criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights))
-        loss = 0
-        total_num_instances = 0
-        for data in loader:
-            optimizer.zero_grad()  # Clear gradients
-            _, out = model(data.x, data.edge_index)  # Perform a forward pass
-            batch_loss = criterion(out, data.y.T.long())  # Compute loss function
-            loss += batch_loss * len(data.batch)
-            total_num_instances += len(data.batch)
-            batch_loss.backward()  # Derive gradients
-            optimizer.step()  # Update parameters based on gradients
-        loss /= total_num_instances
-        return loss
-
-@torch.no_grad()
-def test(model, loader):
-    model.eval()
-    predictions = []
-    true_labels = []
-    for data in loader:
-        _, out = model(data.x, data.edge_index)  # Perform a forward pass
-        predictions.append(out.argmax(dim=1))   # Store the class with the highest probability for each data point
-        true_labels.append(data.y)
-    pred, true = torch.cat(predictions, dim=0).numpy(), torch.cat(true_labels, dim=0).numpy()
-    return pred, true
+from models.graph_neural_nets import GIN, train, test
 
 
 def main():
 
+    random.seed(42)
+    np.random.seed(42)
     torch.manual_seed(42)
 
     """
@@ -92,21 +66,10 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(device)
 
-    # GCN model
-    gcn_model = GCN(in_dim=dataset.num_features, h_dim=32, out_dim=dataset.num_classes).to(device)
-    print(gcn_model)
-
-    # for epoch in range(10):
-    #     training_loss = train(gcn_model, train_loader, class_weights)
-    #     val_pred, val_true = test(gcn_model, val_loader)
-    #     val_acc = accuracy_score(val_pred, val_true)
-    #     print(f'Epoch: {epoch}, Training Loss: {training_loss}, Validation Accuracy: {val_acc}.')
-
-    # GIN model
     gin_model = GIN(in_dim=dataset.num_features, h_dim=32, out_dim=dataset.num_classes).to(device)
     print(gin_model)
 
-    for epoch in range(10):
+    for epoch in range(20):
         training_loss = train(gin_model, train_loader, class_weights)
         val_pred, val_true = test(gin_model, val_loader)
         val_acc = accuracy_score(val_pred, val_true)
@@ -146,7 +109,6 @@ def main():
     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
     disp.plot()
     plt.show()
-
 
 if __name__ == "__main__":
     main()
