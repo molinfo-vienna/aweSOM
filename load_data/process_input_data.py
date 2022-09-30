@@ -11,10 +11,10 @@ def mol_to_nx(mol_id, mol, soms):
     """Takes as input an RDKit mol object and return its corresponding NetworkX Graph.
 
     Args:
-        mol (RDKit mol object)
+        mol (RDKit Mol object)
 
     Returns:
-        G (NetworkX.Graph)
+        G (NetworkX Graph object)
     """
     G = nx.Graph()
     for atom in mol.GetAtoms():
@@ -36,7 +36,16 @@ def mol_to_nx(mol_id, mol, soms):
     return G
 
 
-def compute_features_tensor(G):
+def compute_features_matrix(G):
+    """Takes as input a NetworkX Graph object (which already contains the 
+    features for each individual nodes) and extracts/returns its corresponding feature matrix.
+
+    Args:
+        G (NetworkX Graph object)
+
+    Returns:
+        _features (numpy array): a numpy array of dimension (number_of_nodes, number_of_features)
+    """
 
     # get features dimension:
     num_nodes = len(G.nodes)
@@ -98,5 +107,5 @@ def process_data(path):
     np.save('data/mol_ids.npy', mol_ids)
 
     # Compute features matrix and save it to features.npy
-    features = compute_features_tensor(G)
+    features = compute_features_matrix(G)
     np.save('data/features.npy', features)
