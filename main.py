@@ -18,9 +18,9 @@ def main():
     torch.manual_seed(42)
 
     """
-        -------------------------------------
-        ------------Loading Data-------------
-        ------------------------------------- 
+        --------------------------------------
+        --------------Load Data---------------
+        --------------------------------------
     """
 
     # Process SDF input data to create PyTorch Geometric custom dataset
@@ -58,9 +58,9 @@ def main():
 
 
     """
-    -------------------------------------
-    --Initialize, Train and Test Models--
-    ------------------------------------- 
+    --------------------------------------
+      Initialize, Train, Test Neural Net 
+    --------------------------------------
     """
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
