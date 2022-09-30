@@ -1,0 +1,6 @@
+networkx
+numpy
+rdkit
+sklearn
+torch
+tqdm
