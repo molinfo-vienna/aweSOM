@@ -19,17 +19,26 @@ def mol_to_nx(mol_id, mol, soms):
     G = nx.Graph()
     for atom in mol.GetAtoms():
         G.add_node( atom.GetIdx(),
-                    atomic_num=atom.GetAtomicNum(),
-                    degree=atom.GetDegree(),
-                    formal_charge=atom.GetFormalCharge(),
-                    hybridization=atom.GetHybridization(),
-                    num_hs=atom.GetTotalNumHs(),
-                    is_in_ring=atom.IsInRing(),
-                    is_aromatic=atom.GetIsAromatic(),
+                    atomic_num = atom.GetAtomicNum(),
+                    mass = atom.GetMass(),
+                    degree = atom.GetTotalDegree(),
+                    valence = atom.GetTotalValence(),
+                    formal_charge = atom.GetFormalCharge(),
+                    hybridization = atom.GetHybridization(),
+                    num_hs = atom.GetTotalNumHs(),
+                    is_in_ring_3 = atom.IsInRingSize(3),
+                    is_in_ring_4 = atom.IsInRingSize(4),
+                    is_in_ring_5 = atom.IsInRingSize(5),
+                    is_in_ring_6 = atom.IsInRingSize(6),
+                    is_in_ring_7 = atom.IsInRingSize(7),
+                    is_in_ring_8 = atom.IsInRingSize(8),
+                    is_aromatic = atom.GetIsAromatic(),
                     vdw_radius = Chem.GetPeriodicTable().GetRvdw(atom.GetAtomicNum()),
                     covalent_radius = Chem.GetPeriodicTable().GetRcovalent(atom.GetAtomicNum()),
-                    mol_id=int(mol_id),
-                    is_som=(atom.GetIdx() in soms))
+                    # the next two elements are later used to compute the labels but will of course
+                    # not be used as features!
+                    mol_id = int(mol_id),
+                    is_som = (atom.GetIdx() in soms))
     for bond in mol.GetBonds():
         G.add_edge(bond.GetBeginAtomIdx(),
                    bond.GetEndAtomIdx())
@@ -59,16 +68,26 @@ def compute_features_matrix(G):
         current_node = G.nodes[i]
 
         atomic_num = [current_node['atomic_num']]
+        mass = [current_node['mass']]
         degree = [current_node['degree']]
+        valence = [current_node['valence']]
         formal_charge = [current_node['formal_charge']]
         hybridization = [current_node['hybridization']]
         num_hs = [current_node['num_hs']]
-        is_in_ring = [int(current_node['is_in_ring'])]
+        is_in_ring_3 = [int(current_node['is_in_ring_3'])]
+        is_in_ring_4 = [int(current_node['is_in_ring_4'])]
+        is_in_ring_5 = [int(current_node['is_in_ring_5'])]
+        is_in_ring_6 = [int(current_node['is_in_ring_6'])]
+        is_in_ring_7 = [int(current_node['is_in_ring_7'])]
+        is_in_ring_8 = [int(current_node['is_in_ring_8'])]
         is_aromatic = [int(current_node['is_aromatic'])]
         vdw_radius = [current_node['vdw_radius']]
         covalent_radius = [current_node['covalent_radius']]
 
-        node_features_vector = atomic_num + degree + formal_charge + hybridization + num_hs + is_in_ring + is_aromatic + vdw_radius + covalent_radius
+        node_features_vector = atomic_num + mass + degree + valence + formal_charge + \
+            hybridization + num_hs + is_in_ring_3 + is_in_ring_4 + is_in_ring_5 + \
+                is_in_ring_6 + is_in_ring_7 + is_in_ring_8 +is_aromatic + vdw_radius + \
+                    covalent_radius
 
         features[i,:] = np.array(node_features_vector)
 

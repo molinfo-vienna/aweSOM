@@ -3,9 +3,9 @@ import torch.nn.functional as F
 from torch.nn import Sequential, Linear, BatchNorm1d, ReLU
 from torch_geometric.nn import GINConv
 
-def train(model, loader, class_weights):
+def train(model, loader, class_weights, lr, weight_decay):
         model.train()
-        optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=1e-3)
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
         criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights))
         loss = 0
         total_num_instances = 0
