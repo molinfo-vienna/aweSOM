@@ -38,7 +38,7 @@ class SOM(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return ['features.npy', 'mol_ids.npy', 'graph.json', 'labels.npy']
+        return ['node_features.npy', 'edge_features.npy', 'mol_ids.npy', 'graph.json', 'labels.npy']
 
     @property
     def processed_file_names(self):
@@ -48,8 +48,11 @@ class SOM(InMemoryDataset):
         with open('data/graph.json', 'r') as f:
             G = nx.Graph(json_graph.node_link_graph(json.load(f)))
 
-        x = np.load('data/features.npy')
-        x = torch.from_numpy(x).to(torch.float)
+        node_features = np.load('data/node_features.npy')
+        node_features = torch.from_numpy(node_features).to(torch.float)
+
+        edge_features = np.load('data/edge_features.npy')
+        edge_features = torch.from_numpy(edge_features).to(torch.float)
 
         y = np.load('data/labels.npy')
         y = torch.from_numpy(y)
@@ -64,9 +67,9 @@ class SOM(InMemoryDataset):
                 mask = mol_ids == mol_id  # mask is an array of trues and falses showing where mol_ids is equal to mol_id
                 G_s = G.subgraph(np.flatnonzero(mask).tolist())  # select a subgraph G_s from G corresponding to the atoms from the mol with the current mol_id
                 edge_index = torch.tensor(list(G_s.edges)).t().contiguous()  # gets a tensor containing the edge indices from the OutEdgeView representation
-                edge_index = edge_index - edge_index.min()  # resets the edges labeling within a molecular graph (every edge_index tensor starts with node 0)
+                edge_index_reset = edge_index - edge_index.min()  # resets the edges labeling within a molecular graph (every edge_index tensor starts with node 0)
 
-                data = Data(edge_index=edge_index, x=x[mask], y=(y[mask]).to(torch.float))
+                data = Data(x=node_features[mask], edge_index=edge_index_reset, y=(y[mask]).to(torch.float))
 
                 if self.pre_filter is not None:
                     data = self.pre_filter(data)

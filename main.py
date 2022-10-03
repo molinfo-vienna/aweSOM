@@ -4,8 +4,8 @@ import random
 import torch
 from torch_geometric.loader import DataLoader
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, matthews_corrcoef, \
-    auc, roc_curve, ConfusionMatrixDisplay, PrecisionRecallDisplay
+from sklearn.metrics import matthews_corrcoef, \
+    auc, roc_curve, RocCurveDisplay, ConfusionMatrixDisplay, PrecisionRecallDisplay
 from sklearn.utils.class_weight import compute_class_weight
 
 from load_data.process_input_data import process_data
@@ -57,7 +57,6 @@ def main():
         total_num_instances += len(data.y)
     class_weights /= total_num_instances
 
-
     """
     --------------------------------------
       Initialize, Train, Test Neural Net 
@@ -67,23 +66,24 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(device)
 
-    gin_model = GIN(in_dim=dataset.num_features, h_dim=32, out_dim=dataset.num_classes).to(device)
+    gin_model = GIN(in_dim=dataset.num_features, h_dim=64, out_dim=dataset.num_classes).to(device)
     print(gin_model)
 
     for epoch in range(30):
         training_loss = train(gin_model, train_loader, class_weights, lr=1e-3, weight_decay=1e-4)
         val_pred, val_true = test(gin_model, val_loader)
-        val_mcc = matthews_corrcoef(val_pred, val_true)
+        val_mcc = matthews_corrcoef(val_true, val_pred)
         print(f'Epoch: {epoch}, Training Loss: {training_loss}, Validation MCC: {val_mcc}.')
 
-    test_pred, test_true = test(gin_model, test_loader)
-    test_acc = accuracy_score(test_pred, test_true)
-    test_mcc = matthews_corrcoef(test_pred, test_true)
-    print(  f'Classification accuracy on the test set: {test_acc}.\n'
-            f'MCC on the test set: {test_mcc}.\n')
+    val_mcc_averaged = 0
+    for _ in range(10):
+        val_pred, val_true = test(gin_model, val_loader)
+        val_mcc_averaged += matthews_corrcoef(val_true, val_pred)
+    val_mcc_averaged /= 10
+    print(f'MCC validation set: {val_mcc_averaged}.')
 
     # Compute and display ROC curve
-    fpr, tpr, _ = roc_curve(test_true, test_pred)
+    fpr, tpr, _ = roc_curve(val_true, val_pred)
     roc_auc = auc(fpr, tpr)
 
     plt.figure()
@@ -99,17 +99,16 @@ def main():
     plt.ylim([0.0, 1.05])
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
-    plt.title("Receiver operating characteristic example")
+    plt.title("ROC Curve, Validaion Set")
     plt.legend(loc="lower right")
     plt.show()
 
     # Compute and display precision/recall curve
-
-    PrecisionRecallDisplay.from_predictions(test_true, test_pred)
+    PrecisionRecallDisplay.from_predictions(val_true, val_pred)
     plt.show()
 
     # Compute and display confusion matrix
-    ConfusionMatrixDisplay.from_predictions(test_true, test_pred)
+    ConfusionMatrixDisplay.from_predictions(val_true, val_pred)
     plt.show()
 
 if __name__ == "__main__":
