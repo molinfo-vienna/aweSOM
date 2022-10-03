@@ -3,7 +3,9 @@ import numpy as np
 import random
 import torch
 from torch_geometric.loader import DataLoader
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, auc, roc_curve, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, matthews_corrcoef, \
+    auc, roc_curve, ConfusionMatrixDisplay, PrecisionRecallDisplay
 from sklearn.utils.class_weight import compute_class_weight
 
 from load_data.process_input_data import process_data
@@ -35,9 +37,8 @@ def main():
     print(f'Number of classes: {dataset.num_classes}')
 
     # Training/Validation/Test Split
-    train_dataset = dataset[:int(len(dataset)*0.8)]
-    val_dataset = dataset[int(len(dataset)*0.8):int(len(dataset)*0.9)]
-    test_dataset = dataset[int(len(dataset)*0.9):]
+    train_dataset, test_dataset = train_test_split(dataset, test_size=(1/10), random_state=42, shuffle=True)
+    train_dataset, val_dataset = train_test_split(train_dataset, test_size=(1/9), random_state=42, shuffle=True)
 
     print(f'Training set: {len(train_dataset)} graphs.')
     print(f'Validation set: {len(val_dataset)} graphs.')
@@ -69,19 +70,17 @@ def main():
     gin_model = GIN(in_dim=dataset.num_features, h_dim=32, out_dim=dataset.num_classes).to(device)
     print(gin_model)
 
-    for epoch in range(20):
-        training_loss = train(gin_model, train_loader, class_weights)
+    for epoch in range(30):
+        training_loss = train(gin_model, train_loader, class_weights, lr=1e-3, weight_decay=1e-4)
         val_pred, val_true = test(gin_model, val_loader)
-        val_acc = accuracy_score(val_pred, val_true)
-        print(f'Epoch: {epoch}, Training Loss: {training_loss}, Validation Accuracy: {val_acc}.')
+        val_mcc = matthews_corrcoef(val_pred, val_true)
+        print(f'Epoch: {epoch}, Training Loss: {training_loss}, Validation MCC: {val_mcc}.')
 
     test_pred, test_true = test(gin_model, test_loader)
     test_acc = accuracy_score(test_pred, test_true)
-    test_f1 = f1_score(test_pred, test_true)
-    test_roc_auc = roc_auc_score(test_pred, test_true)
+    test_mcc = matthews_corrcoef(test_pred, test_true)
     print(  f'Classification accuracy on the test set: {test_acc}.\n'
-            f'F1 score on the test set: {test_f1}.\n'
-            f'ROC AUC score on the test set: {test_roc_auc}.\n')
+            f'MCC on the test set: {test_mcc}.\n')
 
     # Compute and display ROC curve
     fpr, tpr, _ = roc_curve(test_true, test_pred)
@@ -104,10 +103,13 @@ def main():
     plt.legend(loc="lower right")
     plt.show()
 
+    # Compute and display precision/recall curve
+
+    PrecisionRecallDisplay.from_predictions(test_true, test_pred)
+    plt.show()
+
     # Compute and display confusion matrix
-    cm = confusion_matrix(test_true, test_pred)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-    disp.plot()
+    ConfusionMatrixDisplay.from_predictions(test_true, test_pred)
     plt.show()
 
 if __name__ == "__main__":
