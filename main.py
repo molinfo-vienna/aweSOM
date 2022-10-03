@@ -101,15 +101,15 @@ def main():
     plt.ylabel("True Positive Rate")
     plt.title("ROC Curve, Validaion Set")
     plt.legend(loc="lower right")
-    plt.show()
+    plt.savefig('output/roc_curve.png')
 
     # Compute and display precision/recall curve
     PrecisionRecallDisplay.from_predictions(val_true, val_pred)
-    plt.show()
+    plt.savefig('output/precision_recall_curve.png')
 
     # Compute and display confusion matrix
     ConfusionMatrixDisplay.from_predictions(val_true, val_pred)
-    plt.show()
+    plt.savefig('output/confusion_matrix.png')
 
 if __name__ == "__main__":
     main()
