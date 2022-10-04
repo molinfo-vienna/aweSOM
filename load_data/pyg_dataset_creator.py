@@ -51,25 +51,28 @@ class SOM(InMemoryDataset):
         node_features = np.load('data/node_features.npy')
         node_features = torch.from_numpy(node_features).to(torch.float)
 
-        edge_features = np.load('data/edge_features.npy')
-        edge_features = torch.from_numpy(edge_features).to(torch.float)
-
         y = np.load('data/labels.npy')
         y = torch.from_numpy(y)
 
         mol_ids = torch.from_numpy(np.load('data/mol_ids.npy')).to(torch.long)
-        unique_mols_ids = torch.unique(mol_ids).tolist()
+        unique_mol_ids = torch.unique(mol_ids).tolist()
 
         data_list = []
 
-        for mol_id in (unique_mols_ids):
+        for mol_id in (unique_mol_ids):
             try:
                 mask = mol_ids == mol_id  # mask is an array of trues and falses showing where mol_ids is equal to mol_id
                 G_s = G.subgraph(np.flatnonzero(mask).tolist())  # select a subgraph G_s from G corresponding to the atoms from the mol with the current mol_id
                 edge_index = torch.tensor(list(G_s.edges)).t().contiguous()  # gets a tensor containing the edge indices from the OutEdgeView representation
                 edge_index_reset = edge_index - edge_index.min()  # resets the edges labeling within a molecular graph (every edge_index tensor starts with node 0)
+                edge_attr = torch.empty(len(G_s.edges), 4)
+                for i, edge in enumerate(list(G_s.edges)):
+                    edge_attr[i, 0] = G_s.get_edge_data(edge[0], edge[1])['bond_type']
+                    edge_attr[i, 1] = G_s.get_edge_data(edge[0], edge[1])['bond_is_aromatic']
+                    edge_attr[i, 2] = G_s.get_edge_data(edge[0], edge[1])['bond_is_conjugated']
+                    edge_attr[i, 3] = G_s.get_edge_data(edge[0], edge[1])['bond_stereo']
 
-                data = Data(x=node_features[mask], edge_index=edge_index_reset, y=(y[mask]).to(torch.float))
+                data = Data(x=node_features[mask], edge_index=edge_index_reset, edge_attr=edge_attr, y=(y[mask]).to(torch.float))
 
                 if self.pre_filter is not None:
                     data = self.pre_filter(data)
