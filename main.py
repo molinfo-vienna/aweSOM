@@ -64,7 +64,6 @@ def main():
     """
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(device)
 
     gin_model = GIN(in_dim=dataset.num_features, h_dim=64, out_dim=dataset.num_classes).to(device)
     print(gin_model)
