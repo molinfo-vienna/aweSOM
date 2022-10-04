@@ -75,17 +75,9 @@ def main():
         val_mcc = matthews_corrcoef(val_true, val_pred)
         print(f'Epoch: {epoch}, Training Loss: {training_loss}, Validation MCC: {val_mcc}.')
 
-    val_mcc_averaged = 0
-    for _ in range(10):
-        val_pred, val_true = test(gin_model, val_loader)
-        val_mcc_averaged += matthews_corrcoef(val_true, val_pred)
-    val_mcc_averaged /= 10
-    print(f'MCC validation set: {val_mcc_averaged}.')
-
     # Compute and display ROC curve
     fpr, tpr, _ = roc_curve(val_true, val_pred)
     roc_auc = auc(fpr, tpr)
-
     plt.figure()
     plt.plot(
         fpr,
@@ -99,7 +91,7 @@ def main():
     plt.ylim([0.0, 1.05])
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
-    plt.title("ROC Curve, Validaion Set")
+    plt.title("ROC Curve, Validation Set")
     plt.legend(loc="lower right")
     plt.savefig('output/roc_curve.png')
 
