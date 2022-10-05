@@ -51,17 +51,23 @@ class GIN(torch.nn.Module):
                                         ReLU(),
                                         Linear(h_dim, h_dim),
                                         ReLU()), edge_dim=4)
-        self.lin1 = Linear(h_dim*3, h_dim*3)
-        self.lin2 = Linear(h_dim*3, out_dim)
+        self.conv4 = GINEConv(Sequential(Linear(h_dim, h_dim),
+                                        BatchNorm1d(h_dim, h_dim),
+                                        ReLU(),
+                                        Linear(h_dim, h_dim),
+                                        ReLU()), edge_dim=4)
+        self.lin1 = Linear(h_dim*4, h_dim*4)
+        self.lin2 = Linear(h_dim*4, out_dim)
 
     def forward(self, x, edge_index, edge_attr):
         # Node embeddings
         h1 = self.conv1(x, edge_index, edge_attr)
         h2 = self.conv2(h1, edge_index, edge_attr)
         h3 = self.conv3(h2, edge_index, edge_attr)
+        h4 = self.conv3(h3, edge_index, edge_attr)
 
         # Concatenate embeddings
-        h = torch.cat((h1, h2, h3), dim=1)
+        h = torch.cat((h1, h2, h3, h4), dim=1)
 
         # Classify
         h = self.lin1(h)

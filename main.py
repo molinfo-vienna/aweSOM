@@ -65,7 +65,7 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    gin_model = GIN(in_dim=dataset.num_features, h_dim=64, out_dim=dataset.num_classes).to(device)
+    gin_model = GIN(in_dim=dataset.num_features, h_dim=128, out_dim=dataset.num_classes).to(device)
     print(gin_model)
 
     for epoch in range(30):
