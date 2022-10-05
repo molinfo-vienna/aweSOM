@@ -5,12 +5,11 @@ import torch
 from torch_geometric.loader import DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import matthews_corrcoef, \
-    auc, roc_curve, RocCurveDisplay, ConfusionMatrixDisplay, PrecisionRecallDisplay
+    auc, roc_curve, ConfusionMatrixDisplay, PrecisionRecallDisplay
 from sklearn.utils.class_weight import compute_class_weight
-
-from load_data.process_input_data import process_data
-from load_data.pyg_dataset_creator import SOM
-from models.graph_neural_nets import GIN, train, test
+from src.process_input_data import process_data
+from src.pyg_dataset_creator import SOM
+from src.graph_neural_nets import GIN, train, test
 
 
 def main():
@@ -26,7 +25,7 @@ def main():
     """
 
     # Process SDF input data to create PyTorch Geometric custom dataset
-    #process_data(path='data/db_preprocessed.sdf')
+    process_data(path='data/dataset.sdf')
 
     # Create/Load Custom PyTorch Geometric Dataset
     dataset = SOM(root='data')
