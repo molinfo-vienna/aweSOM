@@ -17,7 +17,7 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
 
-import som_gnn
+import som_gnn as som_gnn
 
 
 # -- Project information -----------------------------------------------------

@@ -17,7 +17,7 @@ class SOM(InMemoryDataset):
             :obj:`torch_geometric.data.Data` object and returns a transformed
             version. The data object will be transformed before every access.
             (default: :obj:`None`)
-        pre_trasnform (callable, optional): A function/transform that takes in
+        pre_transform (callable, optional): A function/transform that takes in
             an :obj:`torch_geometric.data.Data` object and returns a
             transformed version. The data object will be transformed before
             being saved to disk. (default: :obj:`None`)
@@ -38,7 +38,7 @@ class SOM(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return ['node_features.npy', 'edge_features.npy', 'mol_ids.npy', 'graph.json', 'labels.npy']
+        return ['node_features.npy', 'mol_ids.npy', 'graph.json', 'labels.npy']
 
     @property
     def processed_file_names(self):
