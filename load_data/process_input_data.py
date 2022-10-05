@@ -97,38 +97,38 @@ def compute_node_features_matrix(G):
 
     return features
 
-def compute_edge_features_matrix(G):
-    """Takes as input a NetworkX Graph object (which already contains the 
-    features for each individual edge) and extracts/returns its corresponding edge features matrix.
+# def compute_edge_features_matrix(G):
+#     """Takes as input a NetworkX Graph object (which already contains the 
+#     features for each individual edge) and extracts/returns its corresponding edge features matrix.
 
-    Args:
-        G (NetworkX Graph object)
+#     Args:
+#         G (NetworkX Graph object)
 
-    Returns:
-        _features (numpy array): a numpy array of dimension (number of edges, number of edge features)
-    """
+#     Returns:
+#         _features (numpy array): a numpy array of dimension (number of edges, number of edge features)
+#     """
 
-    # get features dimension:
-    num_edges = len(G.edges)
-    num_features = 4  # Need to automate this later, but this will do for now.
+#     # get features dimension:
+#     num_edges = len(G.edges)
+#     num_features = 4  # Need to automate this later, but this will do for now.
 
-    # construct features matrix of shape (number of edges, number of features)
-    features = np.zeros((num_edges, num_features))
+#     # construct features matrix of shape (number of edges, number of features)
+#     features = np.zeros((num_edges, num_features))
 
-    # write features to features matrix
-    for i, edge in tqdm(enumerate(G.edges)):
-        start, end = edge
-        bond_type = [G.get_edge_data(start, end)['bond_type']]
-        bond_is_aromatic = [G.get_edge_data(start, end)['bond_is_aromatic']]
-        bond_is_conjugated = [G.get_edge_data(start, end)['bond_is_conjugated']]
-        bond_stereo = [G.get_edge_data(start, end)['bond_stereo']]
+#     # write features to features matrix
+#     for i, edge in tqdm(enumerate(G.edges)):
+#         start, end = edge
+#         bond_type = [G.get_edge_data(start, end)['bond_type']]
+#         bond_is_aromatic = [G.get_edge_data(start, end)['bond_is_aromatic']]
+#         bond_is_conjugated = [G.get_edge_data(start, end)['bond_is_conjugated']]
+#         bond_stereo = [G.get_edge_data(start, end)['bond_stereo']]
 
-        edge_features_vector = bond_type + bond_is_aromatic + \
-            bond_is_conjugated + bond_stereo
+#         edge_features_vector = bond_type + bond_is_aromatic + \
+#             bond_is_conjugated + bond_stereo
 
-        features[i,:] = np.array(edge_features_vector)
+#         features[i,:] = np.array(edge_features_vector)
 
-    return features
+#     return features
 
 
 def process_data(path):
@@ -166,6 +166,6 @@ def process_data(path):
     node_features = compute_node_features_matrix(G)
     np.save('data/node_features.npy', node_features)
 
-    # Compute edge features matrix and save it to edge_features.npy
-    edge_features = compute_edge_features_matrix(G)
-    np.save('data/edge_features.npy', edge_features)
+    # # Compute edge features matrix and save it to edge_features.npy
+    # edge_features = compute_edge_features_matrix(G)
+    # np.save('data/edge_features.npy', edge_features)
