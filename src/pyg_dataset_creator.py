@@ -1,4 +1,5 @@
 import json
+import logging
 import networkx as nx
 from networkx.readwrite import json_graph
 import numpy as np
@@ -82,6 +83,6 @@ class SOM(InMemoryDataset):
 
                 data_list.append(data)
             except:
-                print("An error occurred on molecule ", mol_id)
+                logging.warning("An error occurred on molecule ", mol_id)
 
         torch.save(self.collate(data_list), self.processed_paths[0])
