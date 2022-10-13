@@ -20,7 +20,6 @@ def mol_to_nx(mol_id, mol, soms):
     for atom in mol.GetAtoms():
         G.add_node( atom.GetIdx(),
                     atomic_num = atom.GetAtomicNum(),
-                    mass = atom.GetMass(),
                     degree = atom.GetTotalDegree(),
                     valence = atom.GetTotalValence(),
                     formal_charge = atom.GetFormalCharge(),
@@ -48,6 +47,12 @@ def mol_to_nx(mol_id, mol, soms):
                    bond_stereo = bond.GetStereo())
     return G
 
+def one_hot_encoding(x, permitted_list):
+    if x not in permitted_list:
+        x = permitted_list[-1]
+    binary_encoding = [int(boolean_value) for boolean_value in list(map(lambda s: x == s, permitted_list))]
+    return binary_encoding
+
 
 def compute_node_features_matrix(G):
     """Takes as input a NetworkX Graph object (which already contains the 
@@ -60,24 +65,18 @@ def compute_node_features_matrix(G):
         _features (numpy array): a numpy array of dimension (number of nodes, number of node features)
     """
 
-    # get features dimension:
     num_nodes = len(G.nodes)
-    num_features=len(G.nodes[0])-2
-
-    # construct features matrix of shape (number of atoms, number of features)
-    features = np.zeros((num_nodes, num_features))
 
     # write features to features matrix
     for i in tqdm(range(num_nodes)):
         current_node = G.nodes[i]
 
-        atomic_num = [current_node['atomic_num']]
-        mass = [current_node['mass']]
-        degree = [current_node['degree']]
-        valence = [current_node['valence']]
-        formal_charge = [current_node['formal_charge']]
-        hybridization = [current_node['hybridization']]
-        num_hs = [current_node['num_hs']]
+        atomic_num = one_hot_encoding(current_node['atomic_num'], [1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53])
+        degree = one_hot_encoding(current_node['degree'], [0, 1, 2, 3, 4])
+        valence = one_hot_encoding(current_node['valence'], [0, 1, 2, 3, 4, 5, 6])
+        formal_charge = one_hot_encoding(current_node['formal_charge'], [-3, -2, -1, 0, 1, 2, 3])
+        hybridization = one_hot_encoding(str(current_node['hybridization']), ["S", "SP", "SP2", "SP3", "SP3D", "SP3D2"])
+        num_hs = one_hot_encoding(current_node['num_hs'], [0, 1, 2, 3])
         is_in_ring_3 = [int(current_node['is_in_ring_3'])]
         is_in_ring_4 = [int(current_node['is_in_ring_4'])]
         is_in_ring_5 = [int(current_node['is_in_ring_5'])]
@@ -88,12 +87,15 @@ def compute_node_features_matrix(G):
         vdw_radius = [current_node['vdw_radius']]
         covalent_radius = [current_node['covalent_radius']]
 
-        node_features_vector = atomic_num + mass + degree + valence + formal_charge + \
+        features_vector = atomic_num + degree + valence + formal_charge + \
             hybridization + num_hs + is_in_ring_3 + is_in_ring_4 + is_in_ring_5 + \
                 is_in_ring_6 + is_in_ring_7 + is_in_ring_8 +is_aromatic + vdw_radius + \
                     covalent_radius
 
-        features[i,:] = np.array(node_features_vector)
+        if i == 0:
+            # construct features matrix of shape (number of atoms, number of features)
+            features = np.zeros((num_nodes, len(features_vector)))
+        features[i,:] = np.array(features_vector)
 
     return features
 
