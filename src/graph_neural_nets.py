@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from torch.nn import Sequential, Linear, BatchNorm1d, ReLU, Dropout,LeakyReLU
+from torch.nn import Sequential, Linear, BatchNorm1d, Dropout,LeakyReLU
 from torch_geometric.nn import GINEConv
 
 def train(model, loader, class_weights, lr, weight_decay):
@@ -59,7 +59,6 @@ class GIN(torch.nn.Module):
         h1 = self.conv1(x, edge_index, edge_attr)
         h2 = self.conv2(h1, edge_index, edge_attr)
         h3 = self.conv3(h2, edge_index, edge_attr)
-        # h4 = self.conv3(h3, edge_index, edge_attr)
 
         # Concatenate embeddings
         h = torch.cat((h1, h2, h3), dim=1)
