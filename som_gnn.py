@@ -1,16 +1,22 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import random
-import torch
-from torch_geometric.loader import DataLoader
+from ray import tune
+from ray.tune import CLIReporter
+from ray.tune.schedulers import ASHAScheduler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import matthews_corrcoef, accuracy_score, \
     jaccard_score, precision_score, recall_score, auc, \
     roc_curve, ConfusionMatrixDisplay, PrecisionRecallDisplay
 from sklearn.utils.class_weight import compute_class_weight
+import torch
+from torch_geometric.loader import DataLoader
+
 from src.process_input_data import process_data
 from src.pyg_dataset_creator import SOM
 from src.graph_neural_nets import GIN, train, test
+
+
 
 
 def main():
@@ -25,8 +31,10 @@ def main():
         --------------------------------------
     """
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     # Process SDF input data to create PyTorch Geometric custom dataset
-    process_data(path='data/dataset.sdf')
+    #process_data(path='data/dataset.sdf')
 
     # Create/Load Custom PyTorch Geometric Dataset
     dataset = SOM(root='data')
@@ -63,14 +71,12 @@ def main():
     --------------------------------------
     """
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     gin_model = GIN(in_dim=dataset.num_features, h_dim=128, out_dim=dataset.num_classes).to(device)
     print(gin_model)
 
     for epoch in range(40):
-        training_loss = train(gin_model, train_loader, class_weights, lr=1e-3, weight_decay=1e-4)
-        val_pred, val_true = test(gin_model, val_loader)
+        training_loss = train(gin_model, train_loader, class_weights, lr=1e-3, weight_decay=1e-4, device=device)
+        val_pred, val_true = test(gin_model, val_loader, device=device)
         val_mcc = matthews_corrcoef(val_true, val_pred)
         val_acc = accuracy_score(val_true, val_pred)
         val_jacc = jaccard_score(val_true, val_pred)

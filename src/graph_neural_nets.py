@@ -3,13 +3,14 @@ import torch.nn.functional as F
 from torch.nn import Sequential, Linear, BatchNorm1d, Dropout,LeakyReLU
 from torch_geometric.nn import GINEConv
 
-def train(model, loader, class_weights, lr, weight_decay):
+def train(model, loader, class_weights, lr, weight_decay, device):
         model.train()
         optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-        criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights))
+        criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
         loss = 0
         total_num_instances = 0
         for data in loader:
+            data = data.to(device)
             optimizer.zero_grad()  # Clear gradients
             _, out = model(data.x, data.edge_index, data.edge_attr)  # Perform a forward pass
             batch_loss = criterion(out, data.y.T.long())  # Compute loss function
@@ -21,15 +22,16 @@ def train(model, loader, class_weights, lr, weight_decay):
         return loss
 
 @torch.no_grad()
-def test(model, loader):
+def test(model, loader, device):
     model.eval()
     predictions = []
     true_labels = []
     for data in loader:
+        data = data.to(device)
         _, out = model(data.x, data.edge_index, data.edge_attr)  # Perform a forward pass
         predictions.append(out.argmax(dim=1))   # Store the class with the highest probability for each data point
         true_labels.append(data.y)
-    pred, true = torch.cat(predictions, dim=0).numpy(), torch.cat(true_labels, dim=0).numpy()
+    pred, true = torch.cat(predictions, dim=0).cpu().numpy(), torch.cat(true_labels, dim=0).cpu().numpy()
     return pred, true
 
 
@@ -39,22 +41,23 @@ class GIN(torch.nn.Module):
         self.conv1 = GINEConv(Sequential(Linear(in_dim, h_dim),
                                         BatchNorm1d(h_dim, h_dim),
                                         LeakyReLU(),
-                                        Dropout(p=0.2)
+                                        Dropout(p=0.3)
                                         ), edge_dim=4)
         self.conv2 = GINEConv(Sequential(Linear(h_dim, h_dim),
                                         BatchNorm1d(h_dim, h_dim),
                                         LeakyReLU(),
-                                        Dropout(p=0.2)
+                                        Dropout(p=0.3)
                                         ), edge_dim=4)
         self.conv3 = GINEConv(Sequential(Linear(h_dim, h_dim),
                                         BatchNorm1d(h_dim, h_dim),
                                         LeakyReLU(),
-                                        Dropout(p=0.2)
+                                        Dropout(p=0.3)
                                         ), edge_dim=4)
         self.lin1 = Linear(h_dim*3, h_dim*3)
         self.lin2 = Linear(h_dim*3, out_dim)
 
     def forward(self, x, edge_index, edge_attr):
+
         # Node embeddings
         h1 = self.conv1(x, edge_index, edge_attr)
         h2 = self.conv2(h1, edge_index, edge_attr)
@@ -64,7 +67,6 @@ class GIN(torch.nn.Module):
         h = torch.cat((h1, h2, h3), dim=1)
 
         # h_g=torch.nn.global_pooling(h[0:45])
-
 
         # Classify
         h = self.lin1(h)
