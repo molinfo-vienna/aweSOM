@@ -12,6 +12,7 @@ from torch_geometric.loader import DataLoader
 from src.process_input_data import process_data
 from src.pyg_dataset_creator import SOM
 from src.graph_neural_nets import GIN, GAT, train, test
+from src.utils import EarlyStopping
 
 
 
@@ -72,21 +73,30 @@ def main():
     model = GAT(in_dim=dataset.num_features, h_dim=128, out_dim=dataset.num_classes, num_heads=8).to(device)
     print(model)
 
+    early_stopping = EarlyStopping(patience=10, delta=0.01)
+
     for epoch in range(80):
-        training_loss = train(model, train_loader, class_weights, lr=1e-4, weight_decay=1e-4, device=device)
-        val_pred, val_true = test(model, val_loader, device=device)
+        train_loss = train(model, train_loader, class_weights, lr=1e-4, weight_decay=1e-4, device=device)
+        val_loss, val_pred, val_true = test(model, val_loader, class_weights, device=device)
+
         val_mcc = matthews_corrcoef(val_true, val_pred)
         val_acc = accuracy_score(val_true, val_pred)
         val_jacc = jaccard_score(val_true, val_pred)
         val_prec = precision_score(val_true, val_pred)
         val_rec = recall_score(val_true, val_pred)
         print(  f'Epoch: {epoch}, ' 
-                f'Training Loss: {training_loss:.2f}, '
+                f'Train Loss: {train_loss:.2f}, '
+                f'Val Loss: {val_loss:.2f}, '
                 f'Val MCC: {val_mcc:.2f}, '
                 f'Val Top-1-Accuracy : {val_acc:.2f}, '
                 f'Val Jaccard Score: {val_jacc:.2f}, '
                 f'Val Precision {val_prec:.2f}, '
                 f'Val Recall: {val_rec:.2f}.')
+
+        early_stopping(criterion=val_loss, opt_mode='min', model=model)
+        if early_stopping.early_stop:
+            print("Early stopping")
+            break
 
     # Compute and display ROC curve
     fpr, tpr, _ = roc_curve(val_true, val_pred)

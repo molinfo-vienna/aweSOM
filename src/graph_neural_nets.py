@@ -22,17 +22,24 @@ def train(model, loader, class_weights, lr, weight_decay, device):
         return loss
 
 @torch.no_grad()
-def test(model, loader, device):
+def test(model, loader, class_weights, device):
     model.eval()
+    criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
+    loss = 0
+    total_num_instances = 0
     predictions = []
     true_labels = []
     for data in loader:
         data = data.to(device)
         _, out = model(data.x, data.edge_index, data.edge_attr)  # Perform a forward pass
+        batch_loss = criterion(out, data.y.T.long())  # Compute loss function
+        loss += batch_loss * len(data.batch)
+        total_num_instances += len(data.batch)
         predictions.append(out.argmax(dim=1))   # Store the class with the highest probability for each data point
         true_labels.append(data.y)
     pred, true = torch.cat(predictions, dim=0).cpu().numpy(), torch.cat(true_labels, dim=0).cpu().numpy()
-    return pred, true
+    loss /= total_num_instances
+    return loss, pred, true
 
 
 class GIN(torch.nn.Module):
