@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.nn import Sequential, Linear, BatchNorm1d, Dropout,LeakyReLU
-from torch_geometric.nn import GINEConv
+from torch_geometric.nn import GINEConv, GATConv
 
 def train(model, loader, class_weights, lr, weight_decay, device):
         model.train()
@@ -41,27 +41,77 @@ class GIN(torch.nn.Module):
         self.conv1 = GINEConv(Sequential(Linear(in_dim, h_dim),
                                         BatchNorm1d(h_dim, h_dim),
                                         LeakyReLU(),
-                                        Dropout(p=0.3)
+                                        Dropout(p=0.5)
                                         ), edge_dim=4)
         self.conv2 = GINEConv(Sequential(Linear(h_dim, h_dim),
                                         BatchNorm1d(h_dim, h_dim),
                                         LeakyReLU(),
-                                        Dropout(p=0.3)
+                                        Dropout(p=0.5)
                                         ), edge_dim=4)
         self.conv3 = GINEConv(Sequential(Linear(h_dim, h_dim),
                                         BatchNorm1d(h_dim, h_dim),
                                         LeakyReLU(),
-                                        Dropout(p=0.3)
+                                        Dropout(p=0.5)
                                         ), edge_dim=4)
         self.lin1 = Linear(h_dim*3, h_dim*3)
         self.lin2 = Linear(h_dim*3, out_dim)
 
-    def forward(self, x, edge_index, edge_attr):
+    def forward(self, x, edge_index, edge_features):
 
         # Node embeddings
-        h1 = self.conv1(x, edge_index, edge_attr)
-        h2 = self.conv2(h1, edge_index, edge_attr)
-        h3 = self.conv3(h2, edge_index, edge_attr)
+        h1 = self.conv1(x, edge_index, edge_features)
+        h2 = self.conv2(h1, edge_index, edge_features)
+        h3 = self.conv3(h2, edge_index, edge_features)
+
+        # Concatenate embeddings
+        h = torch.cat((h1, h2, h3), dim=1)
+
+        # h_g=torch.nn.global_pooling(h[0:45])
+
+        # Classify
+        h = self.lin1(h)
+        h = h.relu()
+        h = self.lin2(h)
+
+        return h, F.softmax(h, dim=1)
+
+
+class GAT(torch.nn.Module):
+    def __init__(self, in_dim, h_dim, out_dim, num_heads):
+        super().__init__()
+        self.conv1 = GATConv(in_channels=in_dim, 
+                            out_channels=h_dim, 
+                            heads=num_heads, 
+                            concat=True, 
+                            negative_slope=0.2, 
+                            dropout=0.3, 
+                            add_self_loops=False, 
+                            edge_dim=4, bias=True)
+        self.conv2 = GATConv(in_channels=h_dim * num_heads, 
+                            out_channels=h_dim, 
+                            heads=num_heads, 
+                            concat=True, 
+                            negative_slope=0.2, 
+                            dropout=0.3, 
+                            add_self_loops=False, 
+                            edge_dim=4, bias=True)
+        self.conv3 = GATConv(in_channels=h_dim * num_heads, 
+                            out_channels=h_dim, 
+                            heads=num_heads, 
+                            concat=True, 
+                            negative_slope=0.2, 
+                            dropout=0.3, 
+                            add_self_loops=False, 
+                            edge_dim=4, bias=True)
+        self.lin1 = Linear(h_dim*num_heads*3, h_dim*num_heads*3)
+        self.lin2 = Linear(h_dim*num_heads*3, out_dim)
+
+    def forward(self, x, edge_index, edge_features):
+
+        # Node embeddings
+        h1 = self.conv1(x, edge_index, edge_features)
+        h2 = self.conv2(h1, edge_index, edge_features)
+        h3 = self.conv3(h2, edge_index, edge_features)
 
         # Concatenate embeddings
         h = torch.cat((h1, h2, h3), dim=1)

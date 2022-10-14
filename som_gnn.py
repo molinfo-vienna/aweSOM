@@ -1,9 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import random
-from ray import tune
-from ray.tune import CLIReporter
-from ray.tune.schedulers import ASHAScheduler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import matthews_corrcoef, accuracy_score, \
     jaccard_score, precision_score, recall_score, auc, \
@@ -14,7 +11,7 @@ from torch_geometric.loader import DataLoader
 
 from src.process_input_data import process_data
 from src.pyg_dataset_creator import SOM
-from src.graph_neural_nets import GIN, train, test
+from src.graph_neural_nets import GIN, GAT, train, test
 
 
 
@@ -71,12 +68,13 @@ def main():
     --------------------------------------
     """
 
-    gin_model = GIN(in_dim=dataset.num_features, h_dim=128, out_dim=dataset.num_classes).to(device)
-    print(gin_model)
+    #model = GIN(in_dim=dataset.num_features, h_dim=128, out_dim=dataset.num_classes).to(device)
+    model = GAT(in_dim=dataset.num_features, h_dim=128, out_dim=dataset.num_classes, num_heads=8).to(device)
+    print(model)
 
-    for epoch in range(40):
-        training_loss = train(gin_model, train_loader, class_weights, lr=1e-3, weight_decay=1e-4, device=device)
-        val_pred, val_true = test(gin_model, val_loader, device=device)
+    for epoch in range(80):
+        training_loss = train(model, train_loader, class_weights, lr=1e-4, weight_decay=1e-4, device=device)
+        val_pred, val_true = test(model, val_loader, device=device)
         val_mcc = matthews_corrcoef(val_true, val_pred)
         val_acc = accuracy_score(val_true, val_pred)
         val_jacc = jaccard_score(val_true, val_pred)
