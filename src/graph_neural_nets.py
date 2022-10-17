@@ -6,19 +6,24 @@ from torch_geometric.nn import GINEConv, GATConv
 def train(model, loader, class_weights, lr, weight_decay, device):
         model.train()
         optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-        criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
+        #criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
+        criterion = torch.nn.CrossEntropyLoss()
         loss = 0
         total_num_instances = 0
         for data in loader:
             data = data.to(device)
-            optimizer.zero_grad()  # Clear gradients
-            _, out = model(data.x, data.edge_index, data.edge_attr)  # Perform a forward pass
-            batch_loss = criterion(out, data.y)  # Compute loss function
-            loss += batch_loss * len(data.batch)
-            total_num_instances += len(data.batch)
-            batch_loss.backward()  # Derive gradients
-            optimizer.step()  # Update parameters based on gradients
-        loss /= total_num_instances
+            num_subsamplings = data.sampling_mask.shape[1]
+            for i in range(num_subsamplings):
+                _, out = model(data.x, data.edge_index, data.edge_attr)  # Perform a forward pass
+                batch_loss = criterion( out[data.sampling_mask[:,i] == 1], 
+                                        data.y[data.sampling_mask[:,i] == 1])  # Compute loss function
+                loss += batch_loss * len(data.batch)
+                total_num_instances += len(data.batch)
+                optimizer.zero_grad()  # Clear gradients
+                batch_loss.backward()  # Derive gradients
+                optimizer.step()  # Update parameters based on gradients
+        total_num_instances *= num_subsamplings
+        loss /= total_num_instances 
         return loss
 
 @torch.no_grad()
