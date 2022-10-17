@@ -62,10 +62,13 @@ class SOM(InMemoryDataset):
 
         for mol_id in (unique_mol_ids):
             try:
-                mask = mol_ids == mol_id  # mask is an array of trues and falses showing where mol_ids is equal to mol_id
+                mask = mol_ids == mol_id  # mask is a tensor of trues and falses showing where mol_ids is equal to mol_id
+
                 G_s = G.subgraph(np.flatnonzero(mask).tolist())  # select a subgraph G_s from G corresponding to the atoms from the mol with the current mol_id
+
                 edge_index = torch.tensor(list(G_s.edges)).t().contiguous()  # gets a tensor containing the edge indices from the OutEdgeView representation
                 edge_index_reset = edge_index - edge_index.min()  # resets the edges labeling within a molecular graph (every edge_index tensor starts with node 0)
+
                 edge_attr = torch.empty(len(G_s.edges), 4)
                 for i, edge in enumerate(list(G_s.edges)):
                     edge_attr[i, 0] = G_s.get_edge_data(edge[0], edge[1])['bond_type']
@@ -73,7 +76,35 @@ class SOM(InMemoryDataset):
                     edge_attr[i, 2] = G_s.get_edge_data(edge[0], edge[1])['bond_is_conjugated']
                     edge_attr[i, 3] = G_s.get_edge_data(edge[0], edge[1])['bond_stereo']
 
-                data = Data(x=node_features[mask], edge_index=edge_index_reset, edge_attr=edge_attr, y=(y[mask]).to(torch.float))
+                #y_mask = y[mask] == 1
+                #pos = (y_mask == True).nonzero(as_tuple=True)[0]
+                #neg = (y_mask == False).nonzero(as_tuple=True)[0]
+                #i = min(5, len(neg))
+                #sub_neg_1 = neg[torch.randperm(len(neg))[:i]]
+                #sub1 = torch.cat((pos, sub_neg_1), dim=0)
+                #sub_neg_2 = neg[torch.randperm(len(neg))[:i]]
+                #sub2 = torch.cat((pos, sub_neg_2), dim=0)
+                #sub_neg_3 = neg[torch.randperm(len(neg))[:i]]
+                #sub3 = torch.cat((pos, sub_neg_3), dim=0)
+
+                sampling_mask = torch.empty(10)
+
+                neg = (y[mask]==False).nonzero(as_tuple=True)[0]
+                i = min(5, len(neg))
+                
+                sub_neg_1 = neg[torch.randperm(len(neg))[:i]]
+                sub1 = y[mask]
+                for index in sub_neg_1: sub1[index] = 1
+
+                sub_neg_2 = neg[torch.randperm(len(neg))[:i]]
+                sub2 = y[mask]
+                for index in sub_neg_2: sub2[index] = 1
+
+                sub_neg_3 = neg[torch.randperm(len(neg))[:i]]
+                sub3 = y[mask]
+                for index in sub_neg_3: sub3[index] = 1
+
+                data = Data(x=node_features[mask], edge_index=edge_index_reset, edge_attr=edge_attr, y=(y[mask]), sub1=sub1, sub2=sub2, sub3=sub3)
 
                 if self.pre_filter is not None:
                     data = self.pre_filter(data)
@@ -83,6 +114,6 @@ class SOM(InMemoryDataset):
 
                 data_list.append(data)
             except:
-                logging.warning("An error occurred on molecule ", mol_id)
+                logging.warning(f"An error occurred on molecule with mol_id {mol_id}.")
 
         torch.save(self.collate(data_list), self.processed_paths[0])

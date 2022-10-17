@@ -15,8 +15,6 @@ from src.graph_neural_nets import GIN, GAT, train, test
 from src.utils import EarlyStopping
 
 
-
-
 def main():
 
     random.seed(42)
