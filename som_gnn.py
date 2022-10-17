@@ -67,11 +67,11 @@ def main():
     --------------------------------------
     """
 
-    #model = GIN(in_dim=dataset.num_features, h_dim=128, out_dim=dataset.num_classes).to(device)
-    model = GAT(in_dim=dataset.num_features, h_dim=128, out_dim=dataset.num_classes, num_heads=8).to(device)
+    model = GIN(in_dim=dataset.num_features, h_dim=64, out_dim=dataset.num_classes).to(device)
+    #model = GAT(in_dim=dataset.num_features, h_dim=64, out_dim=dataset.num_classes, num_heads=4).to(device)
     print(model)
 
-    early_stopping = EarlyStopping(patience=10, delta=0.01)
+    early_stopping = EarlyStopping(patience=10, delta=0.001)
 
     for epoch in range(80):
         train_loss = train(model, train_loader, class_weights, lr=1e-4, weight_decay=1e-4, device=device)

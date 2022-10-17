@@ -26,11 +26,6 @@ class SOM(InMemoryDataset):
             :obj:`torch_geometric.data.Data` object and returns a boolean
             value, indicating whether the data object should be included in the
             final dataset. (default: :obj:`None`)
-
-    Stats:
-        - #graphs: 2253
-        - #node_features: 9
-        - #classes: 2
     """
 
     def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
@@ -87,24 +82,19 @@ class SOM(InMemoryDataset):
                 #sub_neg_3 = neg[torch.randperm(len(neg))[:i]]
                 #sub3 = torch.cat((pos, sub_neg_3), dim=0)
 
-                sampling_mask = torch.empty(10)
+                num_subsamplings = 10  # this is a hyperparameter
+                sampling_mask = torch.empty((len(y[mask]), num_subsamplings))
 
                 neg = (y[mask]==False).nonzero(as_tuple=True)[0]
-                i = min(5, len(neg))
-                
-                sub_neg_1 = neg[torch.randperm(len(neg))[:i]]
-                sub1 = y[mask]
-                for index in sub_neg_1: sub1[index] = 1
+                num_negs = min(5, len(neg))  # this is a hyperparameter
 
-                sub_neg_2 = neg[torch.randperm(len(neg))[:i]]
-                sub2 = y[mask]
-                for index in sub_neg_2: sub2[index] = 1
+                for i in range(num_subsamplings):
+                    sub_neg = neg[torch.randperm(len(neg))[:num_negs]]
+                    sub = y[mask]
+                    for index in sub_neg: sub[index] = 1
+                    sampling_mask[:,i] = sub
 
-                sub_neg_3 = neg[torch.randperm(len(neg))[:i]]
-                sub3 = y[mask]
-                for index in sub_neg_3: sub3[index] = 1
-
-                data = Data(x=node_features[mask], edge_index=edge_index_reset, edge_attr=edge_attr, y=(y[mask]), sub1=sub1, sub2=sub2, sub3=sub3)
+                data = Data(x=node_features[mask], edge_index=edge_index_reset, edge_attr=edge_attr, y=(y[mask]), sampling_mask=sampling_mask)
 
                 if self.pre_filter is not None:
                     data = self.pre_filter(data)
