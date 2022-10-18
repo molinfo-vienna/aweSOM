@@ -1,6 +1,4 @@
 import logging
-import numpy as np
-import torch
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
@@ -18,18 +16,21 @@ class EarlyStopping:
 
     def __call__(self, criterion, opt_mode):
         if opt_mode == 'min':
-            score = -criterion
+            if self.best_score is None: self.best_score = criterion
+            elif criterion >= self.best_score - self.delta:
+                self.counter += 1
+                if self.counter >= self.patience: self.early_stop = True
+            else:
+                self.counter = 0
+                self.best_score = criterion
         elif opt_mode == 'max':
-            score = criterion
+            if self.best_score is None: self.best_score = criterion
+            elif criterion <= self.best_score + self.delta:
+                self.counter += 1
+                if self.counter >= self.patience: self.early_stop = True
+            else:
+                self.counter = 0
+                self.best_score = criterion
         else:
             logging.warning("Unsupported optimizing criterion.")
 
-        if self.best_score is None:
-            self.best_score = score
-        elif score <= self.best_score + self.delta:
-            self.counter += 1
-            if self.counter >= self.patience:
-                self.early_stop = True
-        else:
-            self.counter = 0
-            self.best_score = score
