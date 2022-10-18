@@ -22,14 +22,14 @@ def train(model, loader, class_weights, lr, weight_decay, device):
                 optimizer.zero_grad()  # Clear gradients
                 batch_loss.backward()  # Derive gradients
                 optimizer.step()  # Update parameters based on gradients
-        total_num_instances *= num_subsamplings
         loss /= total_num_instances 
         return loss
 
 @torch.no_grad()
 def test(model, loader, class_weights, device):
     model.eval()
-    criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
+    #criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
+    criterion = torch.nn.CrossEntropyLoss()
     loss = 0
     total_num_instances = 0
     predictions = []
