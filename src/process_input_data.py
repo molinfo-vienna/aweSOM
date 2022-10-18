@@ -150,7 +150,7 @@ def process_data(path):
     with open('data/graph.json', 'w') as f:
             f.write(json.dumps(json_graph.node_link_data(G)))
 
-    # Generate and save list of labels
+    # Generate and save list of labe    ls
     labels = []
     for i in range(len(G.nodes)):
         labels.append(int(G.nodes[i]['is_som']))
