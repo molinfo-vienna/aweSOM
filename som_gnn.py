@@ -15,8 +15,6 @@ from src.graph_neural_nets import GIN, GAT, train, test
 from src.utils import EarlyStopping
 
 
-
-
 def main():
 
     random.seed(42)
@@ -43,17 +41,14 @@ def main():
     print(f'Number of classes: {dataset.num_classes}')
 
     # Training/Validation/Test Split
-    train_dataset, test_dataset = train_test_split(dataset, test_size=(1/10), random_state=42, shuffle=True)
-    train_dataset, val_dataset = train_test_split(train_dataset, test_size=(1/9), random_state=42, shuffle=True)
+    train_dataset, val_dataset = train_test_split(dataset, test_size=(1/10), random_state=42, shuffle=True)
 
     print(f'Training set: {len(train_dataset)} graphs.')
     print(f'Validation set: {len(val_dataset)} graphs.')
-    print(f'Test set: {len(test_dataset)} graphs.')
 
     #  Data Loader
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True)
 
     # Compute class weights:
     class_weights = 0
@@ -70,12 +65,12 @@ def main():
     """
 
     #model = GIN(in_dim=dataset.num_features, h_dim=128, out_dim=dataset.num_classes).to(device)
-    model = GAT(in_dim=dataset.num_features, h_dim=128, out_dim=dataset.num_classes, num_heads=8).to(device)
+    model = GAT(in_dim=dataset.num_features, h_dim=64, out_dim=dataset.num_classes, num_heads=4).to(device)
     print(model)
 
-    early_stopping = EarlyStopping(patience=10, delta=0.01)
+    early_stopping = EarlyStopping(patience=5, delta=0.001)
 
-    for epoch in range(80):
+    for epoch in range(40):
         train_loss = train(model, train_loader, class_weights, lr=1e-4, weight_decay=1e-4, device=device)
         val_loss, val_pred, val_true = test(model, val_loader, class_weights, device=device)
 
@@ -84,16 +79,16 @@ def main():
         val_jacc = jaccard_score(val_true, val_pred)
         val_prec = precision_score(val_true, val_pred)
         val_rec = recall_score(val_true, val_pred)
-        print(  f'Epoch: {epoch}, ' 
-                f'Train Loss: {train_loss:.2f}, '
-                f'Val Loss: {val_loss:.2f}, '
+        print(  f'Epoch: {epoch}, '
+                f'Train Loss: {train_loss:.3f}, '
+                f'Val Loss: {val_loss:.3f}, '
                 f'Val MCC: {val_mcc:.2f}, '
                 f'Val Top-1-Accuracy : {val_acc:.2f}, '
                 f'Val Jaccard Score: {val_jacc:.2f}, '
                 f'Val Precision {val_prec:.2f}, '
                 f'Val Recall: {val_rec:.2f}.')
 
-        early_stopping(criterion=val_loss, opt_mode='min', model=model)
+        early_stopping(criterion=val_loss, opt_mode='min')
         if early_stopping.early_stop:
             print("Early stopping")
             break
