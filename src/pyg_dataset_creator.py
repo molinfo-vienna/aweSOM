@@ -26,11 +26,6 @@ class SOM(InMemoryDataset):
             :obj:`torch_geometric.data.Data` object and returns a boolean
             value, indicating whether the data object should be included in the
             final dataset. (default: :obj:`None`)
-
-    Stats:
-        - #graphs: 2253
-        - #node_features: 9
-        - #classes: 2
     """
 
     def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
@@ -62,10 +57,13 @@ class SOM(InMemoryDataset):
 
         for mol_id in (unique_mol_ids):
             try:
-                mask = mol_ids == mol_id  # mask is an array of trues and falses showing where mol_ids is equal to mol_id
+                mask = mol_ids == mol_id  # mask is a tensor of trues and falses showing where mol_ids is equal to mol_id
+
                 G_s = G.subgraph(np.flatnonzero(mask).tolist())  # select a subgraph G_s from G corresponding to the atoms from the mol with the current mol_id
+
                 edge_index = torch.tensor(list(G_s.edges)).t().contiguous()  # gets a tensor containing the edge indices from the OutEdgeView representation
                 edge_index_reset = edge_index - edge_index.min()  # resets the edges labeling within a molecular graph (every edge_index tensor starts with node 0)
+
                 edge_attr = torch.empty(len(G_s.edges), 4)
                 for i, edge in enumerate(list(G_s.edges)):
                     edge_attr[i, 0] = G_s.get_edge_data(edge[0], edge[1])['bond_type']
@@ -73,7 +71,19 @@ class SOM(InMemoryDataset):
                     edge_attr[i, 2] = G_s.get_edge_data(edge[0], edge[1])['bond_is_conjugated']
                     edge_attr[i, 3] = G_s.get_edge_data(edge[0], edge[1])['bond_stereo']
 
-                data = Data(x=node_features[mask], edge_index=edge_index_reset, edge_attr=edge_attr, y=(y[mask]).to(torch.float))
+                num_subsamplings = 30  # this is a hyperparameter
+                sampling_mask = torch.empty((len(y[mask]), num_subsamplings))
+
+                neg = (y[mask]==False).nonzero(as_tuple=True)[0]
+                num_negs = min(3, len(neg))  # this is a hyperparameter
+
+                for i in range(num_subsamplings):
+                    sub_neg = neg[torch.randperm(len(neg))[:num_negs]]
+                    sub = y[mask]
+                    for index in sub_neg: sub[index] = 1
+                    sampling_mask[:,i] = sub
+
+                data = Data(x=node_features[mask], edge_index=edge_index_reset, edge_attr=edge_attr, y=(y[mask]), sampling_mask=sampling_mask)
 
                 if self.pre_filter is not None:
                     data = self.pre_filter(data)
@@ -83,6 +93,6 @@ class SOM(InMemoryDataset):
 
                 data_list.append(data)
             except:
-                logging.warning("An error occurred on molecule ", mol_id)
+                logging.warning(f"An error occurred on molecule with mol_id {mol_id}.")
 
         torch.save(self.collate(data_list), self.processed_paths[0])

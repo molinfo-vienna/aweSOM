@@ -6,25 +6,30 @@ from torch_geometric.nn import GINEConv, GATConv
 def train(model, loader, class_weights, lr, weight_decay, device):
         model.train()
         optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-        criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
+        #criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
+        criterion = torch.nn.CrossEntropyLoss()
         loss = 0
         total_num_instances = 0
         for data in loader:
             data = data.to(device)
-            optimizer.zero_grad()  # Clear gradients
-            _, out = model(data.x, data.edge_index, data.edge_attr)  # Perform a forward pass
-            batch_loss = criterion(out, data.y.T.long())  # Compute loss function
-            loss += batch_loss * len(data.batch)
-            total_num_instances += len(data.batch)
-            batch_loss.backward()  # Derive gradients
-            optimizer.step()  # Update parameters based on gradients
-        loss /= total_num_instances
+            num_subsamplings = data.sampling_mask.shape[1]
+            for i in range(num_subsamplings):
+                _, out = model(data.x, data.edge_index, data.edge_attr)  # Perform a forward pass
+                batch_loss = criterion( out[data.sampling_mask[:,i] == 1], 
+                                        data.y[data.sampling_mask[:,i] == 1])  # Compute loss function
+                loss += batch_loss * len(data.batch)
+                total_num_instances += len(data.batch)
+                optimizer.zero_grad()  # Clear gradients
+                batch_loss.backward()  # Derive gradients
+                optimizer.step()  # Update parameters based on gradients
+        loss /= total_num_instances 
         return loss
 
 @torch.no_grad()
 def test(model, loader, class_weights, device):
     model.eval()
-    criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
+    #criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
+    criterion = torch.nn.CrossEntropyLoss()
     loss = 0
     total_num_instances = 0
     predictions = []
@@ -63,17 +68,17 @@ class GIN(torch.nn.Module):
         self.lin1 = Linear(h_dim*3, h_dim*3)
         self.lin2 = Linear(h_dim*3, out_dim)
 
-    def forward(self, x, edge_index, edge_features):
+    def forward(self, x, edge_index, edge_attr):
 
         # Node embeddings
-        h1 = self.conv1(x, edge_index, edge_features)
-        h2 = self.conv2(h1, edge_index, edge_features)
-        h3 = self.conv3(h2, edge_index, edge_features)
+        h1 = self.conv1(x, edge_index, edge_attr)
+        h2 = self.conv2(h1, edge_index, edge_attr)
+        h3 = self.conv3(h2, edge_index, edge_attr)
 
         # Concatenate embeddings
         h = torch.cat((h1, h2, h3), dim=1)
 
-        # h_g=torch.nn.global_pooling(h[0:45])
+        #h_g = torch.nn.global_pooling(h[:i])
 
         # Classify
         h = self.lin1(h)
@@ -113,12 +118,12 @@ class GAT(torch.nn.Module):
         self.lin1 = Linear(h_dim*num_heads*3, h_dim*num_heads*3)
         self.lin2 = Linear(h_dim*num_heads*3, out_dim)
 
-    def forward(self, x, edge_index, edge_features):
+    def forward(self, x, edge_index, edge_attr):
 
         # Node embeddings
-        h1 = self.conv1(x, edge_index, edge_features)
-        h2 = self.conv2(h1, edge_index, edge_features)
-        h3 = self.conv3(h2, edge_index, edge_features)
+        h1 = self.conv1(x, edge_index, edge_attr)
+        h2 = self.conv2(h1, edge_index, edge_attr)
+        h3 = self.conv3(h2, edge_index, edge_attr)
 
         # Concatenate embeddings
         h = torch.cat((h1, h2, h3), dim=1)
