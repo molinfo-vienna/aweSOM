@@ -71,22 +71,11 @@ class SOM(InMemoryDataset):
                     edge_attr[i, 2] = G_s.get_edge_data(edge[0], edge[1])['bond_is_conjugated']
                     edge_attr[i, 3] = G_s.get_edge_data(edge[0], edge[1])['bond_stereo']
 
-                #y_mask = y[mask] == 1
-                #pos = (y_mask == True).nonzero(as_tuple=True)[0]
-                #neg = (y_mask == False).nonzero(as_tuple=True)[0]
-                #i = min(5, len(neg))
-                #sub_neg_1 = neg[torch.randperm(len(neg))[:i]]
-                #sub1 = torch.cat((pos, sub_neg_1), dim=0)
-                #sub_neg_2 = neg[torch.randperm(len(neg))[:i]]
-                #sub2 = torch.cat((pos, sub_neg_2), dim=0)
-                #sub_neg_3 = neg[torch.randperm(len(neg))[:i]]
-                #sub3 = torch.cat((pos, sub_neg_3), dim=0)
-
-                num_subsamplings = 10  # this is a hyperparameter
+                num_subsamplings = 30  # this is a hyperparameter
                 sampling_mask = torch.empty((len(y[mask]), num_subsamplings))
 
                 neg = (y[mask]==False).nonzero(as_tuple=True)[0]
-                num_negs = min(5, len(neg))  # this is a hyperparameter
+                num_negs = min(3, len(neg))  # this is a hyperparameter
 
                 for i in range(num_subsamplings):
                     sub_neg = neg[torch.randperm(len(neg))[:num_negs]]
