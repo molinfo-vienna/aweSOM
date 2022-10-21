@@ -7,7 +7,7 @@ from networkx.readwrite import json_graph
 import numpy as np
 import pandas as pd
 from rdkit import Chem
-from rdkit.Chem import PandasTools
+from rdkit.Chem import Crippen, Descriptors, Lipinski, PandasTools, rdMolDescriptors
 from tqdm import tqdm
 
 def mol_to_nx(mol_id, mol, soms):
@@ -20,8 +20,19 @@ def mol_to_nx(mol_id, mol, soms):
         G (NetworkX Graph object)
     """
     G = nx.Graph()
+
+    # Assign each atom its molecular and atomic features and make it a node of G
     for atom in mol.GetAtoms():
         G.add_node( atom.GetIdx(),
+                    # mol features
+                    molwt = Descriptors.MolWt(mol),
+                    num_h_acceptors = Lipinski.NumHAcceptors(mol),
+                    num_h_donors = Lipinski.NumHDonors(mol),
+                    logp = Crippen.MolLogP(mol),
+                    mr = Crippen.MolMR(mol),
+                    tpsa = rdMolDescriptors.CalcTPSA(mol),
+                    labute_asa = rdMolDescriptors.CalcLabuteASA(mol),
+                    # atom features
                     atomic_num = atom.GetAtomicNum(),
                     degree = atom.GetTotalDegree(),
                     valence = atom.GetTotalValence(),
@@ -52,7 +63,8 @@ def mol_to_nx(mol_id, mol, soms):
 
 def one_hot_encoding(x, permitted_list):
     if x not in permitted_list:
-        logging.warning("One-hot-encoding: feature not in permitted list!")
+        x = permitted_list[-1]
+        logging.warning("Feature not in permitted list.")
     binary_encoding = [int(boolean_value) for boolean_value in list(map(lambda s: x == s, permitted_list))]
     return binary_encoding
 
@@ -70,38 +82,46 @@ def compute_node_features_matrix(G):
 
     num_nodes = len(G.nodes)
 
-    # write features to features matrix
     for i in tqdm(range(num_nodes)):
         current_node = G.nodes[i]
 
-        atomic_num = one_hot_encoding(current_node['atomic_num'], [5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53])  #0-10
-        degree = one_hot_encoding(current_node['degree'], [1, 2, 3, 4])  #11-14
-        valence = one_hot_encoding(current_node['valence'], [1, 2, 3, 4, 5, 6])  #15-20
-        formal_charge = one_hot_encoding(current_node['formal_charge'], [-1, 0, 1])  #21-23
-        hybridization = one_hot_encoding(str(current_node['hybridization']), ["SP", "SP2", "SP3"])  #24-26
-        num_hs = one_hot_encoding(current_node['num_hs'], [0, 1, 2, 3])  #27-30
-        is_in_ring_3 = [int(current_node['is_in_ring_3'])]  #31
-        is_in_ring_4 = [int(current_node['is_in_ring_4'])]  #32
-        is_in_ring_5 = [int(current_node['is_in_ring_5'])]  #33
-        is_in_ring_6 = [int(current_node['is_in_ring_6'])]  #34
-        is_in_ring_7 = [int(current_node['is_in_ring_7'])]  #35
-        is_in_ring_8 = [int(current_node['is_in_ring_8'])]  #36
-        is_aromatic = [int(current_node['is_aromatic'])]    #37
+        molwt = [current_node['molwt']]
+        num_h_acceptors = [current_node['num_h_acceptors']]
+        num_h_donors = [current_node['num_h_donors']]
+        logp = [current_node['logp']]
+        mr = [current_node['mr']]
+        tpsa = [current_node['tpsa']]
+        labute_asa = [current_node['labute_asa']]
+
+        atomic_num = one_hot_encoding(current_node['atomic_num'], [5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53, 'OTHER'])
+        degree = one_hot_encoding(current_node['degree'], [1, 2, 3, 4, 'OTHER'])
+        valence = one_hot_encoding(current_node['valence'], [1, 2, 3, 4, 5, 6, 'OTHER'])
+        formal_charge = one_hot_encoding(current_node['formal_charge'], [-1, 0, 1, 'OTHER'])
+        hybridization = one_hot_encoding(str(current_node['hybridization']), ["SP", "SP2", "SP3", 'OTHER'])
+        num_hs = one_hot_encoding(current_node['num_hs'], [0, 1, 2, 3, 'OTHER'])
+        is_in_ring_3 = [int(current_node['is_in_ring_3'])]
+        is_in_ring_4 = [int(current_node['is_in_ring_4'])]
+        is_in_ring_5 = [int(current_node['is_in_ring_5'])]
+        is_in_ring_6 = [int(current_node['is_in_ring_6'])]
+        is_in_ring_7 = [int(current_node['is_in_ring_7'])]
+        is_in_ring_8 = [int(current_node['is_in_ring_8'])]
+        is_aromatic = [int(current_node['is_aromatic'])]
         vdw_radius = [current_node['vdw_radius']]
         covalent_radius = [current_node['covalent_radius']]
 
-        features_vector = atomic_num + degree + valence + formal_charge + \
-            hybridization + num_hs + is_in_ring_3 + is_in_ring_4 + is_in_ring_5 + \
-                is_in_ring_6 + is_in_ring_7 + is_in_ring_8 +is_aromatic + vdw_radius + covalent_radius
+        features_vector = molwt + num_h_acceptors + num_h_donors + logp + mr + tpsa + \
+            labute_asa + atomic_num + degree + valence + formal_charge + \
+                hybridization + num_hs + is_in_ring_3 + is_in_ring_4 + is_in_ring_5 + \
+                    is_in_ring_6 + is_in_ring_7 + is_in_ring_8 +is_aromatic + \
+                        vdw_radius + covalent_radius
 
         if i == 0:
-            # construct features matrix of shape (number of atoms, number of features)
             features = np.zeros((num_nodes, len(features_vector)))
         features[i,:] = np.array(features_vector)
 
     # Normalize numerical features (vdw_radius and covalent_radius)
-    features[:,-2] = np.array(features[:,-2]) / max(np.unique(np.array(features[:,-2])))
-    features[:,-1] = np.array(features[:,-1]) / max(np.unique(np.array(features[:,-1])))
+    #features[:,-2] = np.array(features[:,-2]) / max(np.unique(np.array(features[:,-2])))
+    #features[:,-1] = np.array(features[:,-1]) / max(np.unique(np.array(features[:,-1])))
 
     return features
 

@@ -35,11 +35,11 @@ def main():
     print(f'Number of classes: {dataset.num_classes}')
 
     # Set out test set
-    train_dataset, test_dataset = train_test_split(dataset, test_size=(1/10), random_state=42, shuffle=True)
+    train_val_dataset, test_dataset = train_test_split(dataset, test_size=(1/10), random_state=42, shuffle=True)
     print(f'Test set: {len(test_dataset)} molecules.')
 
     # Initialize cross-validation metrics
-    k = 3  # number of cross-validation runs
+    k = 1  # number of cross-validation runs
     mcc = []
     accuracy = []
     jaccard = []
@@ -54,7 +54,7 @@ def main():
         #model = GAT(in_dim=dataset.num_features, h_dim=64, out_dim=dataset.num_classes, num_heads=4).to(device)
 
         # Training/Validation/Test Split
-        train_dataset, val_dataset = train_test_split(dataset, test_size=(1/k), random_state=42, shuffle=True)
+        train_dataset, val_dataset = train_test_split(train_val_dataset, test_size=(1/9), random_state=42, shuffle=True)
         print(f'Training set: {len(train_dataset)} molecules.')
         print(f'Validation set: {len(val_dataset)} molecules.')
 
@@ -74,7 +74,7 @@ def main():
         early_stopping = EarlyStopping(patience=5, delta=0.005)
 
         # Train and validate model
-        for epoch in range(50):
+        for epoch in range(30):
             train_loss = train(model, train_loader, class_weights, lr=1e-4, weight_decay=1e-4, device=device)
             val_loss, val_pred, val_true = test(model, val_loader, class_weights, device=device)
 
