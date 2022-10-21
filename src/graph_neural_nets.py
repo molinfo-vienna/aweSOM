@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from torch.nn import Sequential, Linear, BatchNorm1d, Dropout,LeakyReLU
+from torch.nn import Sequential, Linear, BatchNorm1d, Dropout,LeakyReLU, AvgPool1d
 from torch_geometric.nn import GINEConv, GATConv
 
 def train(model, loader, class_weights, lr, weight_decay, device):
@@ -63,16 +63,24 @@ class GIN(torch.nn.Module):
                                         LeakyReLU(),
                                         Dropout(p=0.3)
                                         ), edge_dim=4)
-        self.lin = Sequential(  Linear(h_dim, h_dim),
-                                LeakyReLU(),
-                                Linear(h_dim, out_dim))
+        self.pool = AvgPool1d(kernel_size=3, stride=1)
+        self.lin = Sequential(Linear(h_dim*3, h_dim*3),
+                              LeakyReLU(),
+                              Linear(h_dim*3, out_dim))
 
     def forward(self, x, edge_index, edge_attr):
 
         # Node embeddings
-        h = self.conv1(x, edge_index, edge_attr)
-        h = self.conv2(h, edge_index, edge_attr)
-        h = self.conv3(h, edge_index, edge_attr)
+        h1 = self.conv1(x, edge_index, edge_attr)
+        h2 = self.conv2(h1, edge_index, edge_attr)
+        h3 = self.conv3(h2, edge_index, edge_attr)
+
+        # Pooling
+        #h_pool = self.pool(torch.stack((h1,h2,h3), dim=-1))
+
+        # Concatenate embeddings
+        #h = torch.cat((h1,h2,h3,torch.squeeze(h_pool)), dim=1)
+        h = torch.cat((h1,h2,h3), dim=1)
 
         # Classify
         h = self.lin(h)
@@ -107,20 +115,26 @@ class GAT(torch.nn.Module):
                             dropout=0.3, 
                             add_self_loops=False, 
                             edge_dim=4, bias=True)
-        self.lin1 = Linear(h_dim*num_heads, h_dim*num_heads)
-        self.lin2 = Linear(h_dim*num_heads, out_dim)
+        self.lin = Sequential(Linear(h_dim*num_heads*3, h_dim*num_heads*3),
+                              LeakyReLU(),
+                              Linear(h_dim*num_heads*3, out_dim))
 
     def forward(self, x, edge_index, edge_attr):
 
         # Node embeddings
-        h = self.conv1(x, edge_index, edge_attr)
-        h = self.conv2(h, edge_index, edge_attr)
-        h = self.conv3(h, edge_index, edge_attr)
+        h1 = self.conv1(x, edge_index, edge_attr)
+        h2 = self.conv2(h2, edge_index, edge_attr)
+        h3 = self.conv3(h3, edge_index, edge_attr)
+
+        # Pooling
+        #h_pool = self.pool(torch.stack((h1,h2,h3), dim=-1))
+
+        # Concatenate embeddings
+        #h = torch.cat((h1,h2,h3,torch.squeeze(h_pool)), dim=1)
+        h = torch.cat((h1,h2,h3), dim=1)
 
         # Classify
-        h = self.lin1(h)
-        h = h.relu()
-        h = self.lin2(h)
+        h = self.lin(h)
 
         return h, F.softmax(h, dim=1)
         
