@@ -24,14 +24,6 @@ def mol_to_nx(mol_id, mol, soms):
     # Assign each atom its molecular and atomic features and make it a node of G
     for atom in mol.GetAtoms():
         G.add_node( atom.GetIdx(),
-                    # mol features
-                    molwt = Descriptors.MolWt(mol),
-                    num_h_acceptors = Lipinski.NumHAcceptors(mol),
-                    num_h_donors = Lipinski.NumHDonors(mol),
-                    logp = Crippen.MolLogP(mol),
-                    mr = Crippen.MolMR(mol),
-                    tpsa = rdMolDescriptors.CalcTPSA(mol),
-                    labute_asa = rdMolDescriptors.CalcLabuteASA(mol),
                     # atom features
                     atomic_num = atom.GetAtomicNum(),
                     degree = atom.GetTotalDegree(),
@@ -48,6 +40,13 @@ def mol_to_nx(mol_id, mol, soms):
                     is_aromatic = atom.GetIsAromatic(),
                     vdw_radius = Chem.GetPeriodicTable().GetRvdw(atom.GetAtomicNum()),
                     covalent_radius = Chem.GetPeriodicTable().GetRcovalent(atom.GetAtomicNum()),
+                    # mol features
+                    # molwt = Descriptors.MolWt(mol),
+                    # num_h_acceptors = Lipinski.NumHAcceptors(mol),
+                    # num_h_donors = Lipinski.NumHDonors(mol),
+                    # logp = Crippen.MolLogP(mol),
+                    # tpsa = rdMolDescriptors.CalcTPSA(mol),
+                    # labute_asa = rdMolDescriptors.CalcLabuteASA(mol),
                     # the next two elements are later used to compute the labels but will of course
                     # not be used as features!
                     mol_id = int(mol_id),
@@ -56,6 +55,7 @@ def mol_to_nx(mol_id, mol, soms):
         G.add_edge(bond.GetBeginAtomIdx(),
                    bond.GetEndAtomIdx(),
                    bond_type = bond.GetBondTypeAsDouble(),
+                   bond_is_in_ring = bond.IsInRing(),
                    bond_is_aromatic = bond.GetIsAromatic(),
                    bond_is_conjugated = bond.GetIsConjugated(),
                    bond_stereo = bond.GetStereo())
@@ -64,7 +64,7 @@ def mol_to_nx(mol_id, mol, soms):
 def one_hot_encoding(x, permitted_list):
     if x not in permitted_list:
         x = permitted_list[-1]
-        logging.warning("Feature not in permitted list.")
+        #logging.warning("Feature not in permitted list.")
     binary_encoding = [int(boolean_value) for boolean_value in list(map(lambda s: x == s, permitted_list))]
     return binary_encoding
 
@@ -85,14 +85,6 @@ def compute_node_features_matrix(G):
     for i in tqdm(range(num_nodes)):
         current_node = G.nodes[i]
 
-        molwt = [current_node['molwt']]
-        num_h_acceptors = [current_node['num_h_acceptors']]
-        num_h_donors = [current_node['num_h_donors']]
-        logp = [current_node['logp']]
-        mr = [current_node['mr']]
-        tpsa = [current_node['tpsa']]
-        labute_asa = [current_node['labute_asa']]
-
         atomic_num = one_hot_encoding(current_node['atomic_num'], [5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53, 'OTHER'])
         degree = one_hot_encoding(current_node['degree'], [1, 2, 3, 4, 'OTHER'])
         valence = one_hot_encoding(current_node['valence'], [1, 2, 3, 4, 5, 6, 'OTHER'])
@@ -109,19 +101,25 @@ def compute_node_features_matrix(G):
         vdw_radius = [current_node['vdw_radius']]
         covalent_radius = [current_node['covalent_radius']]
 
-        features_vector = molwt + num_h_acceptors + num_h_donors + logp + mr + tpsa + \
-            labute_asa + atomic_num + degree + valence + formal_charge + \
+        # molwt = [current_node['molwt']]
+        # num_h_acceptors = one_hot_encoding(current_node['num_h_acceptors'], [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,18,19,20,'OTHER'])
+        # num_h_donors = one_hot_encoding(current_node['num_h_donors'], [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,18,19,20,'OTHER'])
+        # logp = [current_node['logp']]
+        # tpsa = [current_node['tpsa']]
+        # labute_asa = [current_node['labute_asa']]
+
+        features_vector = atomic_num + degree + valence + formal_charge + \
                 hybridization + num_hs + is_in_ring_3 + is_in_ring_4 + is_in_ring_5 + \
-                    is_in_ring_6 + is_in_ring_7 + is_in_ring_8 +is_aromatic + \
-                        vdw_radius + covalent_radius
+                    is_in_ring_6 + is_in_ring_7 + is_in_ring_8 +is_aromatic  + \
+                        vdw_radius + covalent_radius #+ molwt  + logp + tpsa + labute_asa + num_h_acceptors + num_h_donors
 
         if i == 0:
             features = np.zeros((num_nodes, len(features_vector)))
         features[i,:] = np.array(features_vector)
 
-    # Normalize numerical features (vdw_radius and covalent_radius)
-    #features[:,-2] = np.array(features[:,-2]) / max(np.unique(np.array(features[:,-2])))
-    #features[:,-1] = np.array(features[:,-1]) / max(np.unique(np.array(features[:,-1])))
+    # Normalize continuous features
+    features[:,-2] = np.array(features[:,-2]) / max(np.unique(np.array(features[:,-2])))  # vdw_radius
+    features[:,-1] = np.array(features[:,-1]) / max(np.unique(np.array(features[:,-1])))  # covalent radius
 
     return features
 
