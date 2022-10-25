@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch.nn import Sequential, Linear, BatchNorm1d, Dropout,LeakyReLU, AvgPool1d
 from torch_geometric.nn import GINEConv, GATConv
 
-def train(model, loader, class_weights, lr, weight_decay, device):
+def train(model, loader, lr, weight_decay, device):
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = torch.nn.CrossEntropyLoss()
@@ -46,24 +46,24 @@ def test(model, loader, class_weights, device):
 
 
 class GIN(torch.nn.Module):
-    def __init__(self, in_dim, h_dim, out_dim):
+    def __init__(self, in_dim, h_dim, out_dim, edge_dim):
         super().__init__()
         self.conv1 = GINEConv(Sequential(Linear(in_dim, h_dim),
                                         BatchNorm1d(h_dim, h_dim),
                                         LeakyReLU(),
                                         Dropout(p=0.3)
-                                        ), edge_dim=4)
+                                        ), edge_dim=edge_dim)
         self.conv2 = GINEConv(Sequential(Linear(h_dim, h_dim),
                                         BatchNorm1d(h_dim, h_dim),
                                         LeakyReLU(),
                                         Dropout(p=0.3)
-                                        ), edge_dim=4)
+                                        ), edge_dim=edge_dim)
         self.conv3 = GINEConv(Sequential(Linear(h_dim, h_dim),
                                         BatchNorm1d(h_dim, h_dim),
                                         LeakyReLU(),
                                         Dropout(p=0.3)
-                                        ), edge_dim=4)
-        self.pool = AvgPool1d(kernel_size=3, stride=1)
+                                        ), edge_dim=edge_dim)
+        #self.pool = AvgPool1d(kernel_size=3, stride=1)
         self.lin = Sequential(Linear(h_dim*3, h_dim*3),
                               LeakyReLU(),
                               Linear(h_dim*3, out_dim))
@@ -79,7 +79,7 @@ class GIN(torch.nn.Module):
         #h_pool = self.pool(torch.stack((h1,h2,h3), dim=-1))
 
         # Concatenate embeddings
-        #h = torch.cat((h1,h2,h3,torch.squeeze(h_pool)), dim=1)
+        #h = torch.cat((h1,h2, h3,torch.squeeze(h_pool)), dim=1)
         h = torch.cat((h1,h2,h3), dim=1)
 
         # Classify

@@ -8,6 +8,7 @@ from sklearn.metrics import matthews_corrcoef, accuracy_score, \
 from sklearn.utils.class_weight import compute_class_weight
 import torch
 from torch_geometric.loader import DataLoader
+from torch_geometric.utils import homophily
 
 from src.process_input_data import process_data
 from src.pyg_dataset_creator import SOM
@@ -31,10 +32,15 @@ def main():
 
     # Print dataset info
     print(f'Number of graphs: {len(dataset)}')
-    print(f'Number of features: {dataset.num_features}')
+    print(f'Number of node features: {dataset.num_node_features}')
+    print(f'Number of edge features: {dataset.num_edge_features}')
     print(f'Number of classes: {dataset.num_classes}')
 
-    # Set out test set
+    # Compute homophily
+    loader = DataLoader(dataset, batch_size=len(dataset))
+    for data in loader: print(homophily(data.edge_index, data.y))
+
+    # Training/Test Split
     train_val_dataset, test_dataset = train_test_split(dataset, test_size=(1/10), random_state=42, shuffle=True)
     print(f'Test set: {len(test_dataset)} molecules.')
 
@@ -50,10 +56,10 @@ def main():
     for _ in range(k):
 
         # Initialize model
-        model = GIN(in_dim=dataset.num_features, h_dim=16, out_dim=dataset.num_classes).to(device)
-        #model = GAT(in_dim=dataset.num_features, h_dim=64, out_dim=dataset.num_classes, num_heads=4).to(device)
+        model = GIN(in_dim=dataset.num_features, h_dim=16, out_dim=dataset.num_classes, edge_dim=dataset.num_edge_features).to(device)
+        #model = GAT(in_dim=dataset.num_features, h_dim=16, out_dim=dataset.num_classes, num_heads=4).to(device)
 
-        # Training/Validation/Test Split
+        # Training/Validation Split
         train_dataset, val_dataset = train_test_split(train_val_dataset, test_size=(1/9), random_state=42, shuffle=True)
         print(f'Training set: {len(train_dataset)} molecules.')
         print(f'Validation set: {len(val_dataset)} molecules.')
@@ -75,7 +81,7 @@ def main():
 
         # Train and validate model
         for epoch in range(30):
-            train_loss = train(model, train_loader, class_weights, lr=1e-4, weight_decay=1e-4, device=device)
+            train_loss = train(model, train_loader, lr=1e-4, weight_decay=1e-4, device=device)
             val_loss, val_pred, val_true = test(model, val_loader, class_weights, device=device)
 
             val_mcc = matthews_corrcoef(val_true, val_pred)

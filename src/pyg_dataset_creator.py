@@ -64,12 +64,13 @@ class SOM(InMemoryDataset):
                 edge_index = torch.tensor(list(G_s.edges)).t().contiguous()  # gets a tensor containing the edge indices from the OutEdgeView representation
                 edge_index_reset = edge_index - edge_index.min()  # resets the edges labeling within a molecular graph (every edge_index tensor starts with node 0)
 
-                edge_attr = torch.empty(len(G_s.edges), 4)
+                edge_attr = torch.empty(len(G_s.edges), 5)
                 for i, edge in enumerate(list(G_s.edges)):
                     edge_attr[i, 0] = G_s.get_edge_data(edge[0], edge[1])['bond_type']
-                    edge_attr[i, 1] = G_s.get_edge_data(edge[0], edge[1])['bond_is_aromatic']
-                    edge_attr[i, 2] = G_s.get_edge_data(edge[0], edge[1])['bond_is_conjugated']
-                    edge_attr[i, 3] = G_s.get_edge_data(edge[0], edge[1])['bond_stereo']
+                    edge_attr[i, 1] = G_s.get_edge_data(edge[0], edge[1])['bond_is_in_ring']
+                    edge_attr[i, 2] = G_s.get_edge_data(edge[0], edge[1])['bond_is_aromatic']
+                    edge_attr[i, 3] = G_s.get_edge_data(edge[0], edge[1])['bond_is_conjugated']
+                    edge_attr[i, 4] = G_s.get_edge_data(edge[0], edge[1])['bond_stereo']
 
                 num_subsamplings = 30  # this is a hyperparameter
                 sampling_mask = torch.empty((len(y[mask]), num_subsamplings))
