@@ -46,6 +46,8 @@ def main():
 
     # Initialize cross-validation metrics
     k = 1  # number of cross-validation runs
+    if k == 1: test_size = 1/9
+    else: test_size = 1/k
     mcc = []
     accuracy = []
     jaccard = []
@@ -60,7 +62,7 @@ def main():
         #model = GAT(in_dim=dataset.num_features, h_dim=16, out_dim=dataset.num_classes, num_heads=4).to(device)
 
         # Training/Validation Split
-        train_dataset, val_dataset = train_test_split(train_val_dataset, test_size=(1/9), random_state=42, shuffle=True)
+        train_dataset, val_dataset = train_test_split(train_val_dataset, test_size=test_size, random_state=42, shuffle=True)
         print(f'Training set: {len(train_dataset)} molecules.')
         print(f'Validation set: {len(val_dataset)} molecules.')
 
