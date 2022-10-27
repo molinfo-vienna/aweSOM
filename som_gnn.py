@@ -25,7 +25,7 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Process SDF input data to create PyTorch Geometric custom dataset
-    #process_data(path='data/dataset.sdf')
+    #process_data(path='data/dataset_new.sdf')
 
     # Create/Load Custom PyTorch Geometric Dataset
     dataset = SOM(root='data')
@@ -80,7 +80,7 @@ def main():
         early_stopping = EarlyStopping(patience=5, delta=0.005)
 
         # Train and validate model
-        for epoch in range(30):
+        for epoch in range(50):
             train_loss = train(model, train_loader, lr=1e-4, weight_decay=1e-4, device=device)
             val_loss, val_pred, val_true = test(model, val_loader, class_weights, device=device)
 
