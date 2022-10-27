@@ -44,7 +44,7 @@ class SOM(InMemoryDataset):
         with open('data/graph.json', 'r') as f:
             G = nx.DiGraph(json_graph.node_link_graph(json.load(f)))
 
-        node_features = np.load('data/node_features.npy')
+        node_features = np.load('data/node_features.npy', allow_pickle=True)
         node_features = torch.from_numpy(node_features).to(torch.float)
 
         y = np.load('data/labels.npy')
