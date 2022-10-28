@@ -38,7 +38,7 @@ def main():
 
     # Compute homophily
     loader = DataLoader(dataset, batch_size=len(dataset))
-    for data in loader: print(homophily(data.edge_index, data.y))
+    for data in loader: print(f'Homophily: {homophily(data.edge_index, data.y)}')
 
     # Training/Test Split
     train_val_dataset, test_dataset = train_test_split(dataset, test_size=(1/10), random_state=42, shuffle=True)
@@ -58,7 +58,7 @@ def main():
     for _ in range(k):
 
         # Initialize model
-        model = GIN(in_dim=dataset.num_features, h_dim=16, out_dim=dataset.num_classes, edge_dim=dataset.num_edge_features).to(device)
+        model = GIN(in_dim=dataset.num_features, h_dim=64, out_dim=dataset.num_classes, edge_dim=dataset.num_edge_features).to(device)
         #model = GAT(in_dim=dataset.num_features, h_dim=16, out_dim=dataset.num_classes, num_heads=4).to(device)
 
         # Training/Validation Split
@@ -70,10 +70,10 @@ def main():
         train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=64, shuffle=True)
 
-        # Compute class weights of the validation set (used for computing validation loss):
+        # Compute class weights of the training set:
         class_weights = 0
         total_num_instances = 0
-        for data in val_loader:
+        for data in train_loader:
             class_weights += compute_class_weight(class_weight='balanced', classes=np.unique(data.y), y=np.array(data.y)) * len(data.y)
             total_num_instances += len(data.y)
         class_weights /= total_num_instances
@@ -82,9 +82,9 @@ def main():
         early_stopping = EarlyStopping(patience=5, delta=0.005)
 
         # Train and validate model
-        for epoch in range(50):
-            train_loss = train(model, train_loader, lr=1e-4, weight_decay=1e-4, device=device)
-            val_loss, val_pred, val_true = test(model, val_loader, class_weights, device=device)
+        for epoch in range(400):
+            train_loss = train(model, train_loader, class_weights, lr=1e-4, weight_decay=0, device=device)
+            val_loss, val_pred, val_true = test(model, val_loader, class_weights, device=device, threshold=0.9)
 
             val_mcc = matthews_corrcoef(val_true, val_pred)
             val_acc = accuracy_score(val_true, val_pred)
@@ -114,7 +114,7 @@ def main():
         recall.append(val_rec)
         roc_auc.append(val_roc_auc)
 
-    # Compute averaged metrics
+    # Compute and print averaged metrics
     mcc_avg = np.average(np.array(mcc))
     accuracy_avg = np.average(np.array(accuracy))
     jaccard_avg = np.average(np.array(jaccard))

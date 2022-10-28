@@ -23,8 +23,10 @@ def mol_to_nx(mol_id, mol, soms):
     G = nx.Graph()
 
     # Assign each atom its molecular and atomic features and make it a node of G
-    for atom in mol.GetAtoms():
-        G.add_node( atom.GetIdx(),
+    # is_som = [(atom_idx in soms) for atom_idx in range(mol.GetNumAtoms())]
+    for atom_idx in range(mol.GetNumAtoms()):
+        atom = mol.GetAtomWithIdx(atom_idx)
+        G.add_node( atom_idx, # node identifier
                     # atom features
                     atomic_num = atom.GetAtomicNum(),
                     degree = atom.GetTotalDegree(),
@@ -51,7 +53,7 @@ def mol_to_nx(mol_id, mol, soms):
                     # the next two elements are later used to compute the labels but will of course
                     # not be used as features!
                     mol_id = int(mol_id),
-                    is_som = (atom.GetIdx() in soms))
+                    is_som = (atom_idx in soms))
     for bond in mol.GetBonds():
         G.add_edge(bond.GetBeginAtomIdx(),
                    bond.GetEndAtomIdx(),
