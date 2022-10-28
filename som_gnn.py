@@ -58,8 +58,8 @@ def main():
     for _ in range(k):
 
         # Initialize model
-        model = GIN(in_dim=dataset.num_features, h_dim=64, out_dim=dataset.num_classes, edge_dim=dataset.num_edge_features).to(device)
-        #model = GAT(in_dim=dataset.num_features, h_dim=16, out_dim=dataset.num_classes, num_heads=4).to(device)
+        model = GIN(in_dim=dataset.num_features, h_dim=16, out_dim=dataset.num_classes, edge_dim=dataset.num_edge_features).to(device)
+        #model = GAT(in_dim=dataset.num_features, h_dim=16, out_dim=dataset.num_classes, num_heads=4, edge_dim=dataset.num_edge_features).to(device)
 
         # Training/Validation Split
         train_dataset, val_dataset = train_test_split(train_val_dataset, test_size=test_size, random_state=42, shuffle=True)
@@ -82,14 +82,18 @@ def main():
         early_stopping = EarlyStopping(patience=5, delta=0.005)
 
         # Train and validate model
-        for epoch in range(400):
-            train_loss = train(model, train_loader, class_weights, lr=1e-4, weight_decay=0, device=device)
-            val_loss, val_pred, val_true = test(model, val_loader, class_weights, device=device, threshold=0.9)
-
+        epochs = 400
+        train_losses = []
+        val_losses = []
+        for epoch in range(epochs):
+            train_loss = train(model, train_loader, lr=1e-4, weight_decay=0, device=device)
+            train_losses.append(train_loss.item())
+            val_loss, val_pred, val_true = test(model, val_loader, class_weights, device=device, threshold=0.5)
+            val_losses.append(val_loss.item())
             val_mcc = matthews_corrcoef(val_true, val_pred)
             val_acc = accuracy_score(val_true, val_pred)
             val_jacc = jaccard_score(val_true, val_pred)
-            val_prec = precision_score(val_true, val_pred)
+            val_prec = precision_score(val_true, val_pred, zero_division=0)
             val_rec = recall_score(val_true, val_pred)
             val_roc_auc = roc_auc_score(val_true, val_pred)
             print(  f'Epoch: {epoch}, '
@@ -129,14 +133,23 @@ def main():
             f'Recall: {recall_avg}\n'
             f'ROC-AUC-Score: {roc_auc_avg}')
 
-    # Compute and display ROC curve
+    # Plot training and validtion losses
+    plt.plot(np.arange(0, epochs, 1), train_losses, linestyle='-', linewidth=1, color ='orange', label='Training Loss')
+    plt.plot(np.arange(0, epochs, 1), val_losses, linestyle='-', linewidth=1, color ='blue', label='Validation Loss')
+    plt.title('Training and Validation loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig('output/loss.png')
+
+    # Compute and plot ROC curve
     roc_curve_display(val_true, val_pred, 'output/roc_curve.png')
 
-    # Compute and display precision/recall curve
+    # Compute and plot precision/recall curve
     PrecisionRecallDisplay.from_predictions(val_true, val_pred)
     plt.savefig('output/precision_recall_curve.png')
 
-    # Compute and display confusion matrix
+    # Compute and plot confusion matrix
     ConfusionMatrixDisplay.from_predictions(val_true, val_pred)
     plt.savefig('output/confusion_matrix.png')
 
