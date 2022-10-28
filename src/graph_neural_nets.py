@@ -3,29 +3,47 @@ import torch.nn.functional as F
 from torch.nn import Sequential, Linear, BatchNorm1d, Dropout,LeakyReLU, AvgPool1d
 from torch_geometric.nn import GINEConv, GATConv
 
-def train(model, loader, lr, weight_decay, device):
+# def train(model, loader, lr, weight_decay, device):
+#     model.train()
+#     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+#     criterion = torch.nn.CrossEntropyLoss()
+#     loss = 0
+#     total_num_instances = 0
+#     for data in loader:
+#         data = data.to(device)
+#         num_subsamplings = data.sampling_mask.shape[1]
+#         for i in range(num_subsamplings):
+#             _, out = model(data.x, data.edge_index, data.edge_attr)  # Perform a forward pass
+#             batch_loss = criterion( out[data.sampling_mask[:,i] == 1], 
+#                                     data.y[data.sampling_mask[:,i] == 1])  # Compute loss function
+#             loss += batch_loss * len(data.batch)
+#             total_num_instances += len(data.batch)
+#             optimizer.zero_grad()  # Clear gradients
+#             batch_loss.backward()  # Derive gradients
+#             optimizer.step()  # Update parameters based on gradients
+#     loss /= total_num_instances 
+#     return loss
+
+def train(model, loader, class_weights, lr, weight_decay, device):
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
     loss = 0
     total_num_instances = 0
     for data in loader:
         data = data.to(device)
-        num_subsamplings = data.sampling_mask.shape[1]
-        for i in range(num_subsamplings):
-            _, out = model(data.x, data.edge_index, data.edge_attr)  # Perform a forward pass
-            batch_loss = criterion( out[data.sampling_mask[:,i] == 1], 
-                                    data.y[data.sampling_mask[:,i] == 1])  # Compute loss function
-            loss += batch_loss * len(data.batch)
-            total_num_instances += len(data.batch)
-            optimizer.zero_grad()  # Clear gradients
-            batch_loss.backward()  # Derive gradients
-            optimizer.step()  # Update parameters based on gradients
+        _, out = model(data.x, data.edge_index, data.edge_attr)  # Perform a forward pass
+        batch_loss = criterion(out, data.y.T.long())  # Compute loss function
+        loss += batch_loss * len(data.batch)
+        total_num_instances += len(data.batch)
+        optimizer.zero_grad()  # Clear gradients
+        batch_loss.backward()  # Derive gradients
+        optimizer.step()  # Update parameters based on gradients
     loss /= total_num_instances 
     return loss
 
 @torch.no_grad()
-def test(model, loader, class_weights, device):
+def test(model, loader, class_weights, device, threshold):
     model.eval()
     criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
     loss = 0
@@ -34,11 +52,12 @@ def test(model, loader, class_weights, device):
     true_labels = []
     for data in loader:
         data = data.to(device)
-        _, out = model(data.x, data.edge_index, data.edge_attr)  # Perform a forward pass
-        batch_loss = criterion(out, data.y.T.long())  # Compute loss function
+        _, out = model(data.x, data.edge_index, data.edge_attr)
+        batch_loss = criterion(out, data.y.T.long())
         loss += batch_loss * len(data.batch)
         total_num_instances += len(data.batch)
-        predictions.append(out.argmax(dim=1))   # Store the class with the highest probability for each data point
+        #predictions.append(out.argmax(dim=1))
+        predictions.append((out[:,1] > threshold).int())
         true_labels.append(data.y)
     pred, true = torch.cat(predictions, dim=0).cpu().numpy(), torch.cat(true_labels, dim=0).cpu().numpy()
     loss /= total_num_instances
