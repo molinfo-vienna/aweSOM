@@ -4,7 +4,7 @@ import random
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import matthews_corrcoef, accuracy_score, \
     jaccard_score, precision_score, recall_score, roc_auc_score, \
-        ConfusionMatrixDisplay, PrecisionRecallDisplay
+        classification_report, ConfusionMatrixDisplay, PrecisionRecallDisplay
 from sklearn.utils.class_weight import compute_class_weight
 import torch
 from torch_geometric.loader import DataLoader
@@ -55,11 +55,17 @@ def main():
     recall = []
     roc_auc = []
 
+    # Set parameters
+    h_dim = 16
+    epochs = 300
+    lr = 1e-4
+    weight_decay = 1e-3
+
     for _ in range(k):
 
         # Initialize model
-        model = GIN(in_dim=dataset.num_features, h_dim=16, out_dim=dataset.num_classes, edge_dim=dataset.num_edge_features).to(device)
-        #model = GAT(in_dim=dataset.num_features, h_dim=16, out_dim=dataset.num_classes, num_heads=4, edge_dim=dataset.num_edge_features).to(device)
+        model = GIN(in_dim=dataset.num_features, h_dim=h_dim, edge_dim=dataset.num_edge_features).to(device)
+        #model = GAT(in_dim=dataset.num_features, h_dim=16, num_heads=4, edge_dim=dataset.num_edge_features).to(device)
 
         # Training/Validation Split
         train_dataset, val_dataset = train_test_split(train_val_dataset, test_size=test_size, random_state=42, shuffle=True)
@@ -82,13 +88,12 @@ def main():
         early_stopping = EarlyStopping(patience=5, delta=0.005)
 
         # Train and validate model
-        epochs = 400
         train_losses = []
         val_losses = []
         for epoch in range(epochs):
-            train_loss = train(model, train_loader, lr=1e-4, weight_decay=0, device=device)
+            train_loss = train(model, train_loader, lr=lr, weight_decay=weight_decay, device=device)
             train_losses.append(train_loss.item())
-            val_loss, val_pred, val_true = test(model, val_loader, class_weights, device=device, threshold=0.5)
+            val_loss, val_pred, val_true = test(model, val_loader, device=device, threshold=0.5)
             val_losses.append(val_loss.item())
             val_mcc = matthews_corrcoef(val_true, val_pred)
             val_acc = accuracy_score(val_true, val_pred)
@@ -99,12 +104,12 @@ def main():
             print(  f'Epoch: {epoch}, '
                     f'Train Loss: {train_loss:.3f}, '
                     f'Val Loss: {val_loss:.3f}, '
-                    f'Val MCC: {val_mcc:.2f}, '
-                    f'Val Top-1-Accuracy : {val_acc:.2f}, '
-                    f'Val Jaccard Score: {val_jacc:.2f}, '
-                    f'Val Precision {val_prec:.2f}, '
-                    f'Val Recall: {val_rec:.2f}, '
-                    f'Val AUROC {val_roc_auc:.2f}.')
+                    f'MCC: {val_mcc:.2f}, '
+                    f'Top-1-Accuracy : {val_acc:.2f}, '
+                    f'Jaccard Score: {val_jacc:.2f}, '
+                    f'Precision {val_prec:.2f}, '
+                    f'Recall: {val_rec:.2f}, '
+                    f'AUROC {val_roc_auc:.2f}.')
 
             #early_stopping(criterion=val_loss, opt_mode='min')
             #if early_stopping.early_stop:
@@ -126,12 +131,14 @@ def main():
     recall_avg = np.average(np.array(recall))
     roc_auc_avg = np.average(np.array(roc_auc))
 
-    print(  f'MCC: {mcc_avg}\n'
-            f'Accuracy: {accuracy_avg}\n'
-            f'Jaccard: {jaccard_avg}\n'
-            f'Precision: {precision_avg}\n'
-            f'Recall: {recall_avg}\n'
-            f'ROC-AUC-Score: {roc_auc_avg}')
+    with open("results.txt", "w") as f:
+        f.write(f'Cross-validation with k={k}'
+                f'MCC: {mcc_avg}\n'
+                f'Accuracy: {accuracy_avg}\n'
+                f'Jaccard: {jaccard_avg}\n'
+                f'Precision: {precision_avg}\n'
+                f'Recall: {recall_avg}\n'
+                f'ROC-AUC-Score: {roc_auc_avg}')
 
     # Plot training and validtion losses
     plt.plot(np.arange(0, epochs, 1), train_losses, linestyle='-', linewidth=1, color ='orange', label='Training Loss')

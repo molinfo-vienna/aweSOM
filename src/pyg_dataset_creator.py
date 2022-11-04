@@ -76,7 +76,7 @@ class SOM(InMemoryDataset):
                 sampling_mask = torch.empty((len(y[mask]), num_subsamplings))
 
                 neg = (y[mask]==False).nonzero(as_tuple=True)[0]
-                num_negs = min(4, len(neg))  # this is a hyperparameter
+                num_negs = min(3, len(neg))  # this is a hyperparameter
 
                 for i in range(num_subsamplings):
                     sub_neg = neg[torch.randperm(len(neg))[:num_negs]]
