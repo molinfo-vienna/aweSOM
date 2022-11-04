@@ -1,10 +1,11 @@
 import logging
 import matplotlib.pyplot as plt
 from sklearn.metrics import auc, roc_curve
+from numpy import arange, argmax
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
-    def __init__(self, patience=5, delta=0.001):
+    def __init__(self, patience, delta):
         """
         Args:
             patience (int): How long to wait after last time criterion improved.
@@ -36,9 +37,20 @@ class EarlyStopping:
         else:
             logging.warning("Unsupported optimizing criterion.")
 
+def plot_losses(train_loss, val_loss):
+    plt.plot(arange(0, len(train_loss), 1), train_loss, linestyle='-', linewidth=1, color ='orange', label='Training Loss')
+    plt.plot(arange(0, len(train_loss), 1), val_loss, linestyle='-', linewidth=1, color ='blue', label='Validation Loss')
+    plt.title('Training and Validation loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig('output/loss.png')
 
-def roc_curve_display(y_true, y_pred, output_path):
-    fpr, tpr, _ = roc_curve(y_true, y_pred)
+
+def plot_roc_curve(y_true, y_pred, output_path):
+    fpr, tpr, thresholds = roc_curve(y_true, y_pred)
+    J = tpr - fpr
+    best_threshold = thresholds[argmax(J)]
     roc_auc = auc(fpr, tpr)
     plt.figure()
     plt.plot(
@@ -56,3 +68,4 @@ def roc_curve_display(y_true, y_pred, output_path):
     plt.title("ROC Curve, Validation Set")
     plt.legend(loc="lower right")
     plt.savefig(output_path)
+    return best_threshold
