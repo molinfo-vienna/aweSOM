@@ -29,27 +29,8 @@ def train(model, loader, lr, weight_decay, device):
     loss /= total_num_instances 
     return loss
 
-
-# def train(model, loader, class_weights, lr, weight_decay, device):
-#     model.train()
-#     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-#     criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device))
-#     loss = 0
-#     total_num_instances = 0
-#     for data in loader:
-#         data = data.to(device)
-#         _, out = model(data.x, data.edge_index, data.edge_attr)  # Perform a forward pass
-#         batch_loss = criterion(out, data.y.T.long())  # Compute loss function
-#         loss += batch_loss * len(data.batch)
-#         total_num_instances += len(data.batch)
-#         optimizer.zero_grad()  # Clear gradients
-#         batch_loss.backward()  # Derive gradients
-#         optimizer.step()  # Update parameters based on gradients
-#     loss /= total_num_instances
-#     return loss
-
 @torch.no_grad()
-def test(model, loader, device, threshold):
+def test(model, loader, device):
     model.eval()
     loss_function = torch.nn.BCEWithLogitsLoss()
     loss = 0
@@ -62,12 +43,11 @@ def test(model, loader, device, threshold):
         batch_loss = loss_function(out[:,0].to(float), data.y.to(float))
         loss += batch_loss * len(data.batch)
         total_num_instances += len(data.batch)
-        predictions.append((out > threshold).to(int)[:,0])
+        predictions.append(torch.sigmoid(out))
         true_labels.append(data.y)
     pred, true = torch.cat(predictions, dim=0).cpu().numpy(), torch.cat(true_labels, dim=0).cpu().numpy()
     loss /= total_num_instances
     return loss, pred, true
-
 
 class GIN(torch.nn.Module):
     def __init__(self, in_dim, h_dim, edge_dim):
@@ -75,17 +55,17 @@ class GIN(torch.nn.Module):
         self.conv1 = GINEConv(Sequential(Linear(in_dim, h_dim),
                                         BatchNorm1d(h_dim, h_dim),
                                         LeakyReLU(),
-                                        Dropout(p=0.3)
+                                        Dropout(p=0.2)
                                         ), edge_dim=edge_dim)
         self.conv2 = GINEConv(Sequential(Linear(h_dim, h_dim),
                                         BatchNorm1d(h_dim, h_dim),
                                         LeakyReLU(),
-                                        Dropout(p=0.3)
+                                        Dropout(p=0.2)
                                         ), edge_dim=edge_dim)
         self.conv3 = GINEConv(Sequential(Linear(h_dim, h_dim),
                                         BatchNorm1d(h_dim, h_dim),
                                         LeakyReLU(),
-                                        Dropout(p=0.3)
+                                        Dropout(p=0.2)
                                         ), edge_dim=edge_dim)
 
         #self.pool = AvgPool1d(kernel_size=3, stride=1)
@@ -111,7 +91,6 @@ class GIN(torch.nn.Module):
         h = self.lin(h)
 
         return h
-
 
 class GAT(torch.nn.Module):
     def __init__(self, in_dim, h_dim, num_heads, edge_dim):
