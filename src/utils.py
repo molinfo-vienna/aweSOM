@@ -37,20 +37,19 @@ class EarlyStopping:
         else:
             logging.warning("Unsupported optimizing criterion.")
 
-def plot_losses(train_loss, val_loss):
+def plot_losses(train_loss, val_loss, path):
     plt.plot(arange(0, len(train_loss), 1), train_loss, linestyle='-', linewidth=1, color ='orange', label='Training Loss')
     plt.plot(arange(0, len(train_loss), 1), val_loss, linestyle='-', linewidth=1, color ='blue', label='Validation Loss')
     plt.title('Training and Validation loss')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
-    plt.savefig('output/loss.png')
+    plt.savefig(path)
 
 
 def plot_roc_curve(y_true, y_pred, output_path):
     fpr, tpr, thresholds = roc_curve(y_true, y_pred)
-    J = tpr - fpr
-    best_threshold = thresholds[argmax(J)]
+    best_threshold = thresholds[argmax(tpr - fpr)]
     roc_auc = auc(fpr, tpr)
     plt.figure()
     plt.plot(

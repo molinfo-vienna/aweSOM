@@ -26,7 +26,7 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Process SDF input data to create PyTorch Geometric custom dataset
-    #process_data(path='data/dataset_new.sdf')
+    #process_data(path='data/dataset2.sdf')
 
     # Create/Load Custom PyTorch Geometric Dataset
     dataset = SOM(root='data')
@@ -47,7 +47,7 @@ def main():
 
     # Set parameters
     h_dim = 16
-    epochs = 400
+    epochs = 800
     lr = 1e-4
     weight_decay = 1e-3
 
@@ -65,12 +65,12 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=True)
 
     # Compute class weights of the training set:
-    # class_weights = 0
-    # total_num_instances = 0
-    # for data in train_loader:
-    #     class_weights += compute_class_weight(class_weight='balanced', classes=np.unique(data.y), y=np.array(data.y)) * len(data.y)
-    #     total_num_instances += len(data.y)
-    # class_weights /= total_num_instances
+    class_weights = 0
+    total_num_instances = 0
+    for data in train_loader:
+        class_weights += compute_class_weight(class_weight='balanced', classes=np.unique(data.y), y=np.array(data.y)) * len(data.y)
+        total_num_instances += len(data.y)
+    class_weights /= total_num_instances
 
 
     """ ---------- Train Model ---------- """
@@ -80,9 +80,9 @@ def main():
     val_losses = []
     print('Training...')
     for _ in tqdm(range(epochs)):
-        train_loss = train(model, train_loader, lr=lr, weight_decay=weight_decay, device=device)
+        train_loss = train(model, train_loader, lr, weight_decay, device)
         train_losses.append(train_loss.item())
-        val_loss, val_pred, val_true = test(model, val_loader, device=device)
+        val_loss, val_pred, val_true = test(model, val_loader, device)
         val_losses.append(val_loss.item())
         #early_stopping(criterion=val_loss, opt_mode='min')
         #if early_stopping.early_stop:
@@ -92,24 +92,24 @@ def main():
     torch.save(model.state_dict(), 'output/model.pt')
 
     # Plot training and validation losses
-    plot_losses(train_losses, val_losses)
+    plot_losses(train_losses, val_losses, path="output/mcc/loss.png")
 
 
     """ ---------- Evaluate Model ---------- """
 
     model.load_state_dict(torch.load('output/model.pt'))
-    val_loss, val_pred, val_true = test(model, val_loader, device=device)
-
-    # Compute and plot ROC-AUC score and ROC-curve, get best threshold
-    val_roc_auc = roc_auc_score(val_true, val_pred)
-    best_threshold = plot_roc_curve(val_true, val_pred, 'output/roc_curve.png')
+    val_loss, val_pred, val_true = test(model, val_loader, device)
 
     # Compute and plot precision/recall curve
     PrecisionRecallDisplay.from_predictions(val_true, val_pred)
-    plt.savefig('output/precision_recall_curve.png')
+    plt.savefig('output/mcc/precision_recall_curve.png')
+
+    # Compute and plot ROC-AUC score and ROC-curve, get best threshold
+    val_roc_auc = roc_auc_score(val_true, val_pred)
+    best_threshold = plot_roc_curve(val_true, val_pred, 'output/mcc/roc_curve.png')
 
     # Compute binary predicted labels from probability predictions with best threshold
-    val_pred = ((val_pred > best_threshold)[:,0]).astype(int)
+    val_pred = ((val_pred > best_threshold)[:,0])
 
     val_mcc = matthews_corrcoef(val_true, val_pred)
     val_acc = accuracy_score(val_true, val_pred)
@@ -117,7 +117,7 @@ def main():
     val_prec = precision_score(val_true, val_pred, zero_division=0)
     val_rec = recall_score(val_true, val_pred)
 
-    with open("output/results.txt", "w") as f:
+    with open("output/mcc/results.txt", "w") as f:
         f.write(f'Dimension of hidden layer: {h_dim}\n'
                 f'Number of training epochs: {epochs}\n'
                 f'Learning rate: {lr}\n'
@@ -132,7 +132,7 @@ def main():
 
     # Compute and plot confusion matrix 
     ConfusionMatrixDisplay.from_predictions(val_true, val_pred)
-    plt.savefig('output/confusion_matrix.png')
+    plt.savefig('output/mcc/confusion_matrix.png')
 
 if __name__ == "__main__":
     main()

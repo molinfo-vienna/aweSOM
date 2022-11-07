@@ -72,7 +72,7 @@ class SOM(InMemoryDataset):
                     edge_attr[i, 3] = G_s.get_edge_data(edge[0], edge[1])['bond_is_conjugated']
                     edge_attr[i, 4] = G_s.get_edge_data(edge[0], edge[1])['bond_stereo']
 
-                num_subsamplings = 100  # this is a hyperparameter
+                num_subsamplings = 30  # this is a hyperparameter
                 sampling_mask = torch.empty((len(y[mask]), num_subsamplings))
 
                 neg = (y[mask]==False).nonzero(as_tuple=True)[0]
