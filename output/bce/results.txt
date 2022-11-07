@@ -1,0 +1,11 @@
+Dimension of hidden layer: 16
+Number of training epochs: 400
+Learning rate: 0.0001
+Weight decay: 0.001
+Best threshold: 0.09408962726593018
+Validation MCC: 0.31
+Validation Accuracy: 0.73
+Validation Jaccard Score: 0.22
+Validation Precision: 0.24
+Validation Recall: 0.75
+Validation ROC-AUC-Score: 0.81
