@@ -26,7 +26,7 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Process SDF input data to create PyTorch Geometric custom dataset
-    #process_data(path='data/dataset2.sdf')
+    #process_data(data_path='data/dataset_preprocessed.sdf', output_path='output/')
 
     # Create/Load Custom PyTorch Geometric Dataset
     dataset = SOM(root='data')
@@ -75,6 +75,9 @@ def main():
 
     """ ---------- Train Model ---------- """
 
+    # Directory for storing output
+    dir = 'output/mcc/'
+
     #early_stopping = EarlyStopping(patience=10, delta=0.001)
     train_losses = []
     val_losses = []
@@ -92,7 +95,7 @@ def main():
     torch.save(model.state_dict(), 'output/model.pt')
 
     # Plot training and validation losses
-    plot_losses(train_losses, val_losses, path="output/mcc/loss.png")
+    plot_losses(train_losses, val_losses, path=dir+'loss.png')
 
 
     """ ---------- Evaluate Model ---------- """
@@ -102,11 +105,11 @@ def main():
 
     # Compute and plot precision/recall curve
     PrecisionRecallDisplay.from_predictions(val_true, val_pred)
-    plt.savefig('output/mcc/precision_recall_curve.png')
+    plt.savefig(dir+'precision_recall_curve.png')
 
     # Compute and plot ROC-AUC score and ROC-curve, get best threshold
     val_roc_auc = roc_auc_score(val_true, val_pred)
-    best_threshold = plot_roc_curve(val_true, val_pred, 'output/mcc/roc_curve.png')
+    best_threshold = plot_roc_curve(val_true, val_pred, dir+'roc_curve.png')
 
     # Compute binary predicted labels from probability predictions with best threshold
     val_pred = ((val_pred > best_threshold)[:,0])
@@ -117,7 +120,7 @@ def main():
     val_prec = precision_score(val_true, val_pred, zero_division=0)
     val_rec = recall_score(val_true, val_pred)
 
-    with open("output/mcc/results.txt", "w") as f:
+    with open(dir+'results.txt', 'w') as f:
         f.write(f'Dimension of hidden layer: {h_dim}\n'
                 f'Number of training epochs: {epochs}\n'
                 f'Learning rate: {lr}\n'
@@ -132,7 +135,7 @@ def main():
 
     # Compute and plot confusion matrix 
     ConfusionMatrixDisplay.from_predictions(val_true, val_pred)
-    plt.savefig('output/mcc/confusion_matrix.png')
+    plt.savefig(dir+'confusion_matrix.png')
 
 if __name__ == "__main__":
     main()
