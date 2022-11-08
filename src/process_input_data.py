@@ -152,7 +152,7 @@ def compute_node_features_matrix(G):
 #     return features
 
 
-def process_data(path):
+def process_data(data_path, output_path):
     """Computes and saves the necessary data (graph, features, labels, graph_ids)
     to create a PyTorch Geometric custom dataset from an SDF file containing molecules.
 
@@ -160,7 +160,7 @@ def process_data(path):
         path (string): the path where the SDF data is stored.
     """
     # Import data from sdf file
-    df = PandasTools.LoadSDF(path, removeHs=True)
+    df = PandasTools.LoadSDF(data_path, removeHs=True)
     df['soms_new'] = df['soms_new'].map(ast.literal_eval)
 
     # Generate networkx graphs from mols and save them in a json file
@@ -190,7 +190,7 @@ def process_data(path):
     df = pd.DataFrame(node_features)
     corr_matrix = df.corr()
     plt.imshow(corr_matrix, cmap='binary')
-    plt.savefig('output/corr_matrix.png')
+    plt.savefig(output_path+'corr_matrix.png')
 
     # # Compute edge features matrix and save it to edge_features.npy
     # edge_features = compute_edge_features_matrix(G)

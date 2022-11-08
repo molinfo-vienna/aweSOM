@@ -233,7 +233,7 @@ def train_oversampling(model, loader, lr, weight_decay, device):
 def train(model, loader, lr, weight_decay, device):
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    loss_function = TverskyLoss(alpha=0.2, beta=0.8)
+    loss_function = MCCLoss()
     loss = 0
     total_num_instances = 0
     for data in loader:
@@ -251,7 +251,7 @@ def train(model, loader, lr, weight_decay, device):
 @torch.no_grad()
 def test(model, loader, device):
     model.eval()
-    loss_function = TverskyLoss(alpha=0.2, beta=0.8)
+    loss_function = MCCLoss()
     loss = 0
     total_num_instances = 0
     predictions = []
