@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.nn import Sequential, Linear, BatchNorm1d, Dropout,LeakyReLU, AvgPool1d
-from torch_geometric.nn import GINEConv, GATConv
+from torch_geometric.nn import GINEConv, GATConv, global_add_pool
 
 class DiceLoss(torch.nn.Module):
     def __init__(self):
@@ -135,13 +135,11 @@ class GIN(torch.nn.Module):
                                         LeakyReLU(),
                                         Dropout(p=0.2)
                                         ), edge_dim=edge_dim)
-
-        #self.pool = AvgPool1d(kernel_size=3, stride=1)
-        self.lin = Sequential(Linear(h_dim*3, h_dim*3),
+        self.lin = Sequential(Linear(h_dim*4, h_dim*4),
                               LeakyReLU(),
-                              Linear(h_dim*3, 1))
+                              Linear(h_dim*4, 1))
 
-    def forward(self, x, edge_index, edge_attr):
+    def forward(self, x, edge_index, edge_attr, batch, device):
 
         # Node embeddings
         h1 = self.conv1(x, edge_index, edge_attr)
@@ -149,11 +147,12 @@ class GIN(torch.nn.Module):
         h3 = self.conv3(h2, edge_index, edge_attr)
 
         # Pooling
-        #h_pool = self.pool(torch.stack((h1,h2,h3), dim=-1))
+        h_pool = global_add_pool(h3, batch)
+        num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
+        h_pool_ = torch.repeat_interleave(h_pool, num_atoms_per_mol, dim=0)
 
         # Concatenate embeddings
-        #h = torch.cat((h1,h2, h3,torch.squeeze(h_pool)), dim=1)
-        h = torch.cat((h1,h2,h3), dim=1)
+        h = torch.cat((h1,h2,h3,h_pool_), dim=1)
 
         # Classify
         h = self.lin(h)
@@ -192,15 +191,21 @@ class GAT(torch.nn.Module):
                               LeakyReLU(),
                               Linear(h_dim*num_heads*3, 1))
 
-    def forward(self, x, edge_index, edge_attr):
+    def forward(self, x, edge_index, edge_attr, batch, device):
 
         # Node embeddings
         h1 = self.conv1(x, edge_index, edge_attr)
         h2 = self.conv2(h1, edge_index, edge_attr)
         h3 = self.conv3(h2, edge_index, edge_attr)
 
+        # Pooling
+        h_pool = global_add_pool(h3, batch)
+        h_pool_ = torch.zeros(h3.shape).to(device)
+        for i in range(len(batch)):
+            h_pool_[i,:] = h_pool[batch[i]]
+
         # Concatenate embeddings
-        h = torch.cat((h1,h2,h3), dim=1)
+        h = torch.cat((h1,h2,h3,h_pool_), dim=1)
 
         # Classify
         h = self.lin(h)
@@ -216,7 +221,7 @@ def train_oversampling(model, loader, lr, weight_decay, device):
     total_num_instances = 0
     for data in loader:
         data = data.to(device)
-        out = model(data.x, data.edge_index, data.edge_attr)  # forward pass
+        out = model(data.x, data.edge_index, data.edge_attr, data.batch, device)  # forward pass
         num_subsamplings = data.sampling_mask.shape[1]
         subsampling_losses = torch.zeros(num_subsamplings)
         for i in range(num_subsamplings):
@@ -233,12 +238,12 @@ def train_oversampling(model, loader, lr, weight_decay, device):
 def train(model, loader, lr, weight_decay, device):
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    loss_function = MCCLoss()
+    loss_function = DiceBCELoss()
     loss = 0
     total_num_instances = 0
     for data in loader:
         data = data.to(device)
-        out = model(data.x, data.edge_index, data.edge_attr)  # forward pass
+        out = model(data.x, data.edge_index, data.edge_attr, data.batch, device)  # forward pass
         batch_loss = loss_function(out[:,0].to(float), data.y.to(float))
         loss += batch_loss * len(data.batch)
         total_num_instances += len(data.batch)
@@ -251,14 +256,14 @@ def train(model, loader, lr, weight_decay, device):
 @torch.no_grad()
 def test(model, loader, device):
     model.eval()
-    loss_function = MCCLoss()
+    loss_function = DiceBCELoss()
     loss = 0
     total_num_instances = 0
     predictions = []
     true_labels = []
     for data in loader:
         data = data.to(device)
-        out = model(data.x, data.edge_index, data.edge_attr)
+        out = model(data.x, data.edge_index, data.edge_attr, data.batch, device)
         batch_loss = loss_function(out[:,0].to(float), data.y.to(float))
         loss += batch_loss * len(data.batch)
         total_num_instances += len(data.batch)
