@@ -14,7 +14,7 @@ from tqdm import tqdm
 from src.process_input_data import process_data
 from src.pyg_dataset_creator import SOM
 from src.graph_neural_nets import GIN, GAT, train, test
-from src.utils import EarlyStopping, plot_losses, plot_roc_curve
+from src.utils import plot_losses, plot_roc_curve
 
 
 def main():
@@ -47,7 +47,7 @@ def main():
 
     # Set parameters
     h_dim = 16
-    epochs = 800
+    epochs = 400
     lr = 1e-4
     weight_decay = 1e-3
 
@@ -57,8 +57,8 @@ def main():
 
     # Training/Validation Split
     train_dataset, val_dataset = train_test_split(train_val_dataset, test_size=1/9, random_state=42, shuffle=True)
-    print(f'Training set: {len(train_dataset)} molecules.')
     print(f'Validation set: {len(val_dataset)} molecules.')
+    print(f'Training set: {len(train_dataset)} molecules.')
 
     #  Data Loader
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
@@ -75,10 +75,7 @@ def main():
 
     """ ---------- Train Model ---------- """
 
-    # Directory for storing output
-    dir = 'output/mcc/'
-
-    #early_stopping = EarlyStopping(patience=10, delta=0.001)
+    dir = 'output/dicebce/'
     train_losses = []
     val_losses = []
     print('Training...')
@@ -87,10 +84,6 @@ def main():
         train_losses.append(train_loss.item())
         val_loss, val_pred, val_true = test(model, val_loader, device)
         val_losses.append(val_loss.item())
-        #early_stopping(criterion=val_loss, opt_mode='min')
-        #if early_stopping.early_stop:
-        #    print("Early stopping")
-        #    break
     print('Training done!')
     torch.save(model.state_dict(), 'output/model.pt')
 
