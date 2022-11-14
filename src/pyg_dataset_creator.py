@@ -30,6 +30,7 @@ class SOM(InMemoryDataset):
 
     def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
         super().__init__(root, transform, pre_transform, pre_filter)
+        self.root=root
         self.data, self.slices = torch.load(self.processed_paths[0])
 
     @property
@@ -41,16 +42,16 @@ class SOM(InMemoryDataset):
         return ['data.pt']
 
     def process(self):
-        with open('data/graph.json', 'r') as f:
+        with open(self.root+'/graph.json', 'r') as f:
             G = nx.DiGraph(json_graph.node_link_graph(json.load(f)))
 
-        node_features = np.load('data/node_features.npy', allow_pickle=True)
+        node_features = np.load(self.root+'/node_features.npy', allow_pickle=True)
         node_features = torch.from_numpy(node_features).to(torch.float)
 
-        y = np.load('data/labels.npy')
+        y = np.load(self.root+'/labels.npy')
         y = torch.from_numpy(y)
 
-        mol_ids = torch.from_numpy(np.load('data/mol_ids.npy')).to(torch.long)
+        mol_ids = torch.from_numpy(np.load(self.root+'/mol_ids.npy')).to(torch.long)
         unique_mol_ids = torch.unique(mol_ids).tolist()
 
         data_list = []
@@ -84,7 +85,7 @@ class SOM(InMemoryDataset):
                     for index in sub_neg: sub[index] = 1
                     sampling_mask[:,i] = sub
 
-                data = Data(x=node_features[mask], edge_index=edge_index_reset, edge_attr=edge_attr, y=(y[mask]), sampling_mask=sampling_mask)
+                data = Data(x=node_features[mask], edge_index=edge_index_reset, edge_attr=edge_attr, y=(y[mask]), sampling_mask=sampling_mask, mol_id=torch.full((len(y[mask]),), mol_id))
 
                 if self.pre_filter is not None:
                     data = self.pre_filter(data)
