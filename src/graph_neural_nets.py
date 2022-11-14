@@ -26,39 +26,9 @@ class DiceBCELoss(torch.nn.Module):
         FP = torch.sum((1-targets) * inputs)
         FN = torch.sum(targets * (1-inputs))
         dice_loss = 1 - 2*TP/(2*TP + FP + FN)
-        BCE = F.binary_cross_entropy(inputs, targets, reduction='mean')
+        BCE = F.binary_cross_entropy(inputs, targets, reduction='sum')
         diceBCE = BCE + dice_loss
         return diceBCE
-
-
-class FocalLoss(torch.nn.Module):
-    def __init__(self, gamma):
-        super().__init__()
-        self.gamma = gamma
-
-    def forward(self, inputs, targets):
-        inputs = torch.sigmoid(inputs)       
-        BCE = F.binary_cross_entropy(inputs, targets, reduction='mean')
-        BCE_EXP = torch.exp(-BCE)
-        focal_loss = (1-BCE_EXP)**self.gamma * BCE
-        return focal_loss
-
-
-class FocalTverskyLoss(torch.nn.Module):
-    def __init__(self, alpha, beta, gamma):
-        super().__init__()
-        self.alpha = alpha
-        self.beta = beta
-        self.gamma = gamma
-
-    def forward(self, inputs, targets):
-        inputs = torch.sigmoid(inputs)
-        TP = torch.sum(inputs * targets)
-        FP = torch.sum((1-targets) * inputs)
-        FN = torch.sum(targets * (1-inputs))
-        Tversky = TP / (TP + self.alpha*FP + self.beta*FN)
-        FocalTversky = (1 - Tversky)**self.gamma
-        return FocalTversky
 
 
 class JaccardLoss(torch.nn.Module):
@@ -139,7 +109,7 @@ class GIN(torch.nn.Module):
                               LeakyReLU(),
                               Linear(h_dim*4, 1))
 
-    def forward(self, x, edge_index, edge_attr, batch, device):
+    def forward(self, x, edge_index, edge_attr, batch):
 
         # Node embeddings
         h1 = self.conv1(x, edge_index, edge_attr)
@@ -191,7 +161,7 @@ class GAT(torch.nn.Module):
                               LeakyReLU(),
                               Linear(h_dim*num_heads*3, 1))
 
-    def forward(self, x, edge_index, edge_attr, batch, device):
+    def forward(self, x, edge_index, edge_attr, batch):
 
         # Node embeddings
         h1 = self.conv1(x, edge_index, edge_attr)
@@ -200,9 +170,8 @@ class GAT(torch.nn.Module):
 
         # Pooling
         h_pool = global_add_pool(h3, batch)
-        h_pool_ = torch.zeros(h3.shape).to(device)
-        for i in range(len(batch)):
-            h_pool_[i,:] = h_pool[batch[i]]
+        num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
+        h_pool_ = torch.repeat_interleave(h_pool, num_atoms_per_mol, dim=0)
 
         # Concatenate embeddings
         h = torch.cat((h1,h2,h3,h_pool_), dim=1)
@@ -221,7 +190,7 @@ def train_oversampling(model, loader, lr, weight_decay, device):
     total_num_instances = 0
     for data in loader:
         data = data.to(device)
-        out = model(data.x, data.edge_index, data.edge_attr, data.batch, device)  # forward pass
+        out = model(data.x, data.edge_index, data.edge_attr, data.batch)  # forward pass
         num_subsamplings = data.sampling_mask.shape[1]
         subsampling_losses = torch.zeros(num_subsamplings)
         for i in range(num_subsamplings):
@@ -243,7 +212,7 @@ def train(model, loader, lr, weight_decay, device):
     total_num_instances = 0
     for data in loader:
         data = data.to(device)
-        out = model(data.x, data.edge_index, data.edge_attr, data.batch, device)  # forward pass
+        out = model(data.x, data.edge_index, data.edge_attr, data.batch)  # forward pass
         batch_loss = loss_function(out[:,0].to(float), data.y.to(float))
         loss += batch_loss * len(data.batch)
         total_num_instances += len(data.batch)
@@ -260,16 +229,18 @@ def test(model, loader, device):
     loss = 0
     total_num_instances = 0
     predictions = []
+    mol_ids = []
     true_labels = []
     for data in loader:
         data = data.to(device)
-        out = model(data.x, data.edge_index, data.edge_attr, data.batch, device)
+        out = model(data.x, data.edge_index, data.edge_attr, data.batch)
         batch_loss = loss_function(out[:,0].to(float), data.y.to(float))
         loss += batch_loss * len(data.batch)
         total_num_instances += len(data.batch)
         predictions.append(torch.sigmoid(out))
+        mol_ids.append(data.mol_id)
         true_labels.append(data.y)
-    pred, true = torch.cat(predictions, dim=0).cpu().numpy(), torch.cat(true_labels, dim=0).cpu().numpy()
+    pred, mol_id, true = torch.cat(predictions, dim=0).cpu().numpy(), torch.cat(mol_ids, dim=0).cpu().numpy(), torch.cat(true_labels, dim=0).cpu().numpy()
     loss /= total_num_instances
-    return loss, pred, true
+    return loss, pred, mol_id, true
    

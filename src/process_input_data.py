@@ -152,21 +152,23 @@ def compute_node_features_matrix(G):
 #     return features
 
 
-def process_data(data_path, output_path):
+def process_data(data_path, data_name, output_path):
     """Computes and saves the necessary data (graph, features, labels, graph_ids)
     to create a PyTorch Geometric custom dataset from an SDF file containing molecules.
 
     Args:
-        path (string): the path where the SDF data is stored.
+        path (string): the path where the SDF file is stored.
+        file_name (string): the name of the SDF file.
+        output_path (sring): the folder to which the correlation matrix gets saved.
     """
     # Import data from sdf file
-    df = PandasTools.LoadSDF(data_path, removeHs=True)
-    df['soms_new'] = df['soms_new'].map(ast.literal_eval)
+    df = PandasTools.LoadSDF(data_path+data_name, removeHs=True)
+    df['soms'] = df['soms'].map(ast.literal_eval)
 
     # Generate networkx graphs from mols and save them in a json file
-    df["G"] = df.apply(lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms_new), axis=1)
+    df["G"] = df.apply(lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms), axis=1)
     G = nx.disjoint_union_all(df["G"].to_list())
-    with open('data/graph.json', 'w') as f:
+    with open(data_path+'graph.json', 'w') as f:
             f.write(json.dumps(json_graph.node_link_data(G)))
 
     # Generate and save list of labels
@@ -174,18 +176,18 @@ def process_data(data_path, output_path):
     for i in range(len(G.nodes)):
         labels.append(int(G.nodes[i]['is_som']))
     labels = np.array(labels)
-    np.save('data/labels.npy', labels)
+    np.save(data_path+'labels.npy', labels)
 
     # Generate and save list of mol ids
     mol_ids = []
     for i in range(len(G.nodes)):
         mol_ids.append(G.nodes[i]['mol_id'])
     mol_ids = np.array(mol_ids)
-    np.save('data/mol_ids.npy', mol_ids)
+    np.save(data_path+'mol_ids.npy', mol_ids)
 
     # Compute node features matrix and save it to node_features.npy
     node_features = compute_node_features_matrix(G)
-    np.save('data/node_features.npy', node_features)
+    np.save(data_path+'node_features.npy', node_features)
 
     df = pd.DataFrame(node_features)
     corr_matrix = df.corr()
@@ -194,4 +196,4 @@ def process_data(data_path, output_path):
 
     # # Compute edge features matrix and save it to edge_features.npy
     # edge_features = compute_edge_features_matrix(G)
-    # np.save('data/edge_features.npy', edge_features)
+    # np.save(data_path+'edge_features.npy', edge_features)
