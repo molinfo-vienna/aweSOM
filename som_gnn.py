@@ -24,9 +24,9 @@ def main():
     torch.manual_seed(42)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    data_path = 'data_xenosite/'
-    data_name = 'xenosite_preprocessed.sdf'
-    output_path = 'output_xenosite/'
+    data_path = 'data/'
+    data_name = 'dataset_preprocessed.sdf'
+    output_path = 'output/'
 
     # Process SDF input data to create PyTorch Geometric custom dataset
     #process_data(data_path=data_path, data_name=data_name, output_path=output_path)
@@ -44,24 +44,23 @@ def main():
     loader = DataLoader(dataset, batch_size=len(dataset))
     for data in loader: print(f'Homophily: {homophily(data.edge_index, data.y):.2f}')
 
-    # Training/Test Split
-    train_val_dataset, test_dataset = train_test_split(dataset, test_size=(1/10), random_state=42, shuffle=True)
-    print(f'Test set: {len(test_dataset)} molecules.')
+    # Training/Validation/Test Split
+    #train_val_dataset, test_dataset = train_test_split(dataset, test_size=1/10, random_state=42, shuffle=True)
+    #train_dataset, val_dataset = train_test_split(train_val_dataset, test_size=1/10, random_state=42, shuffle=True)
+    train_dataset, val_dataset = train_test_split(dataset, test_size=1/10, random_state=42, shuffle=True)
+    print(f'Training set: {len(train_dataset)} molecules.')
+    print(f'Validation set: {len(val_dataset)} molecules.')
+    #print(f'Test set: {len(test_dataset)} molecules.')
 
     # Set parameters
     h_dim = 16
     epochs = 400
     lr = 1e-4
-    weight_decay = 1e-3
+    weight_decay = 1e-4
 
     # Initialize model
     model = GIN(in_dim=dataset.num_features, h_dim=h_dim, edge_dim=dataset.num_edge_features).to(device)
     #model = GAT(in_dim=dataset.num_features, h_dim=16, num_heads=4, edge_dim=dataset.num_edge_features).to(device)
-
-    # Training/Validation Split
-    train_dataset, val_dataset = train_test_split(train_val_dataset, test_size=1/9, random_state=42, shuffle=True)
-    print(f'Validation set: {len(val_dataset)} molecules.')
-    print(f'Training set: {len(train_dataset)} molecules.')
 
     #  Data Loader
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
