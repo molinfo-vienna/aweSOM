@@ -13,7 +13,7 @@ class SOM(InMemoryDataset):
     SoMs and reaction annotations for discovery compounds and drugs.
 
     Args:
-        root (string): Root directory where the dataset should be saved.
+        root (string): The directory where the dataset will be saved.
         transform (callable, optional): A function/transform that takes in an
             :obj:`torch_geometric.data.Data` object and returns a transformed
             version. The data object will be transformed before every access.
