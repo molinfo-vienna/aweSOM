@@ -138,7 +138,7 @@ class GAT(torch.nn.Module):
                             heads=num_heads, 
                             concat=True, 
                             negative_slope=0.2, 
-                            dropout=0.3, 
+                            dropout=0.2, 
                             add_self_loops=False, 
                             edge_dim=edge_dim, bias=True)
         self.conv2 = GATConv(in_channels=h_dim * num_heads, 
@@ -146,7 +146,7 @@ class GAT(torch.nn.Module):
                             heads=num_heads, 
                             concat=True, 
                             negative_slope=0.2, 
-                            dropout=0.3, 
+                            dropout=0.2, 
                             add_self_loops=False, 
                             edge_dim=edge_dim, bias=True)
         self.conv3 = GATConv(in_channels=h_dim * num_heads, 
@@ -154,12 +154,12 @@ class GAT(torch.nn.Module):
                             heads=num_heads, 
                             concat=True, 
                             negative_slope=0.2, 
-                            dropout=0.3, 
+                            dropout=0.2, 
                             add_self_loops=False, 
                             edge_dim=edge_dim, bias=True)
-        self.lin = Sequential(Linear(h_dim*num_heads*3, h_dim*num_heads*3),
+        self.lin = Sequential(Linear(h_dim*num_heads*4, h_dim*num_heads*4),
                               LeakyReLU(),
-                              Linear(h_dim*num_heads*3, 1))
+                              Linear(h_dim*num_heads*4, 1))
 
     def forward(self, x, edge_index, edge_attr, batch):
 
@@ -182,9 +182,9 @@ class GAT(torch.nn.Module):
         return h
 
 
-def train_oversampling(model, loader, lr, weight_decay, device):
+def train_oversampling(model, loader, lr, wd, device):
     model.train()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
     loss_function = torch.nn.BCEWithLogitsLoss()
     loss = 0
     total_num_instances = 0
@@ -204,9 +204,9 @@ def train_oversampling(model, loader, lr, weight_decay, device):
     loss /= total_num_instances
     return loss
 
-def train(model, loader, lr, weight_decay, device):
+def train(model, loader, lr, wd, device):
     model.train()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
     loss_function = DiceBCELoss()
     loss = 0
     total_num_instances = 0
