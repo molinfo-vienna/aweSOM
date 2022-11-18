@@ -99,17 +99,6 @@ def save_evaluation_results(output_directory, output_subdirectory, timestamp, \
             pred_top2.append(0)
     val_acc2 = np.sum(pred_top2)/len(np.unique(val_mol_ids))
 
-    # Compute top3 accuracy
-    pred_top3 = []
-    for id in np.unique(val_mol_ids):
-        mask = id == val_mol_ids
-        idx = np.argpartition(val_pred[mask][:,0], -3)[-3:]
-        if val_true[mask][idx[0]] or val_true[mask][idx[1]] or val_true[mask][idx[2]]:
-            pred_top3.append(1)
-        else:
-            pred_top3.append(0)
-    val_acc3 = np.sum(pred_top3)/len(np.unique(val_mol_ids))
-
     # Compute and plot precision/recall curve
     PrecisionRecallDisplay.from_predictions(val_true, val_pred)
     plt.savefig(os.path.join(output_subdirectory, 'pr_curve.png'))
@@ -132,7 +121,7 @@ def save_evaluation_results(output_directory, output_subdirectory, timestamp, \
     val_rec = recall_score(val_true, val_pred)
 
     data = [timestamp, data_name, model_name, h_dim, num_heads, epochs, lr, wd, \
-        best_threshold, val_mcc, val_acc1, val_acc2, val_acc3, val_jacc, val_prec, val_rec, val_roc_auc]
+        best_threshold, val_mcc, val_acc1, val_acc2, val_jacc, val_prec, val_rec, val_roc_auc]
     with open(os.path.join(output_directory, "results.csv"), 'a', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(data)
