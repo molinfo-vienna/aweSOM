@@ -63,7 +63,7 @@ def main():
         model = GAT(in_dim=dataset.num_features, h_dim=args.h_dim, num_heads=args.num_heads, edge_dim=dataset.num_edge_features).to(device)
 
     kf = KFold(n_splits=10)
-    for train_index, test_index in kf.split(dataset):
+    for train_index, test_index in tqdm(kf.split(dataset)):
         # Training/Validation/Test Split
         train_dataset, val_dataset = dataset[train_index], dataset[test_index]
         print(f'Training set: {len(train_dataset)} molecules.')
@@ -92,7 +92,6 @@ def main():
             train_losses.append(train_loss.item())
             val_loss, _, _ ,_ = test(model, val_loader, device)
             val_losses.append(val_loss.item())
-        print('Training done!')
         #torch.save(model.state_dict(), os.path.join(output_subdirectory, 'model.pt'))
         #plot_losses(train_losses, val_losses, path=os.path.join(output_subdirectory, 'loss.png'))
 
