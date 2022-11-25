@@ -3,17 +3,17 @@ import torch.nn.functional as F
 from torch.nn import Sequential, Linear, BatchNorm1d, Dropout,LeakyReLU, AvgPool1d
 from torch_geometric.nn import GINEConv, GATConv, global_add_pool
 
-class DiceLoss(torch.nn.Module):
-    def __init__(self):
-        super(DiceLoss, self).__init__()
+# class DiceLoss(torch.nn.Module):
+#     def __init__(self):
+#         super(DiceLoss, self).__init__()
 
-    def forward(self, inputs, targets):
-        inputs = torch.sigmoid(inputs)
-        TP = torch.sum(inputs * targets)
-        FP = torch.sum((1-targets) * inputs)
-        FN = torch.sum(targets * (1-inputs))
-        dice_loss = 1 - 2*TP/(2*TP + FP + FN)
-        return dice_loss
+#     def forward(self, inputs, targets):
+#         inputs = torch.sigmoid(inputs)
+#         TP = torch.sum(inputs * targets)
+#         FP = torch.sum((1-targets) * inputs)
+#         FN = torch.sum(targets * (1-inputs))
+#         dice_loss = 1 - 2*TP/(2*TP + FP + FN)
+#         return dice_loss
 
 
 class DiceBCELoss(torch.nn.Module):
@@ -31,60 +31,60 @@ class DiceBCELoss(torch.nn.Module):
         return diceBCE
 
 
-class JaccardLoss(torch.nn.Module):
-    def __init__(self):
-        super(JaccardLoss, self).__init__()
+# class JaccardLoss(torch.nn.Module):
+#     def __init__(self):
+#         super(JaccardLoss, self).__init__()
 
-    def forward(self, inputs, targets):
-        inputs = torch.sigmoid(inputs)
-        TP = torch.sum(inputs * targets)  
-        FP = torch.sum((1-targets) * inputs)
-        FN = torch.sum(targets * (1-inputs))
-        jaccard_loss = 1 - TP/(TP + FP + FN)    
-        return jaccard_loss
-
-
-class MCCLoss(torch.nn.Module):
-    def __init__(self):
-        super(MCCLoss, self).__init__()
-
-    def forward(self, inputs, targets):
-        inputs = torch.sigmoid(inputs)
-        TP = torch.sum(inputs * targets)
-        TN = torch.sum((1-inputs)*(1-targets))
-        FP = torch.sum((1-targets) * inputs)
-        FN = torch.sum(targets * (1-inputs))
-        mcc_loss = 1 - (TP*TN - FP*FN)/(torch.sqrt((TP+FP)*(TP+FN)*(TN+FP)*(TN+FN)))  
-        return mcc_loss
+#     def forward(self, inputs, targets):
+#         inputs = torch.sigmoid(inputs)
+#         TP = torch.sum(inputs * targets)  
+#         FP = torch.sum((1-targets) * inputs)
+#         FN = torch.sum(targets * (1-inputs))
+#         jaccard_loss = 1 - TP/(TP + FP + FN)    
+#         return jaccard_loss
 
 
-class MSELoss(torch.nn.Module):
-    def __init__(self):
-        super(MSELoss, self).__init__()
+# class MCCLoss(torch.nn.Module):
+#     def __init__(self):
+#         super(MCCLoss, self).__init__()
 
-    def forward(self, output, target):
-        loss = torch.mean((output-target)**2)
-        return loss
+#     def forward(self, inputs, targets):
+#         inputs = torch.sigmoid(inputs)
+#         TP = torch.sum(inputs * targets)
+#         TN = torch.sum((1-inputs)*(1-targets))
+#         FP = torch.sum((1-targets) * inputs)
+#         FN = torch.sum(targets * (1-inputs))
+#         mcc_loss = 1 - (TP*TN - FP*FN)/(torch.sqrt((TP+FP)*(TP+FN)*(TN+FP)*(TN+FN)))  
+#         return mcc_loss
 
 
-class TverskyLoss(torch.nn.Module):
-    """
-    For alpha = beta = 0.5, the Tversky index is equivalent to the Dice coefficient, a.k.a. F1 score.
-    For alpha = beta = 1, the Tversky index is equal to the Tanimoto coefficient.
-    For alpha + beta = 1, the Tversky index produces the F-beta score. Larger beta values weigh recall higher than precision.
-    """
-    def __init__(self, alpha, beta):
-        super().__init__()
-        self.alpha = alpha
-        self.beta = beta
+# class MSELoss(torch.nn.Module):
+#     def __init__(self):
+#         super(MSELoss, self).__init__()
 
-    def forward(self, inputs, targets):
-        inputs = torch.sigmoid(inputs)
-        TP = torch.sum(inputs * targets)
-        FP = torch.sum((1-targets) * inputs)
-        FN = torch.sum(targets * (1-inputs))
-        Tversky = TP / (TP + self.alpha*FP + self.beta*FN)  
-        return 1 - Tversky
+#     def forward(self, output, target):
+#         loss = torch.mean((output-target)**2)
+#         return loss
+
+
+# class TverskyLoss(torch.nn.Module):
+#     """
+#     For alpha = beta = 0.5, the Tversky index is equivalent to the Dice coefficient, a.k.a. F1 score.
+#     For alpha = beta = 1, the Tversky index is equal to the Tanimoto coefficient.
+#     For alpha + beta = 1, the Tversky index produces the F-beta score. Larger beta values weigh recall higher than precision.
+#     """
+#     def __init__(self, alpha, beta):
+#         super().__init__()
+#         self.alpha = alpha
+#         self.beta = beta
+
+#     def forward(self, inputs, targets):
+#         inputs = torch.sigmoid(inputs)
+#         TP = torch.sum(inputs * targets)
+#         FP = torch.sum((1-targets) * inputs)
+#         FN = torch.sum(targets * (1-inputs))
+#         Tversky = TP / (TP + self.alpha*FP + self.beta*FN)  
+#         return 1 - Tversky
 
 
 class GIN(torch.nn.Module):
@@ -182,27 +182,27 @@ class GAT(torch.nn.Module):
         return h
 
 
-def train_oversampling(model, loader, lr, wd, device):
-    model.train()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
-    loss_function = torch.nn.BCEWithLogitsLoss()
-    loss = 0
-    total_num_instances = 0
-    for data in loader:
-        data = data.to(device)
-        out = model(data.x, data.edge_index, data.edge_attr, data.batch)  # forward pass
-        num_subsamplings = data.sampling_mask.shape[1]
-        subsampling_losses = torch.zeros(num_subsamplings)
-        for i in range(num_subsamplings):
-            subsampling_losses[i] = loss_function(out[data.sampling_mask[:,i] == 1][:,0].to(float), data.y[data.sampling_mask[:,i] == 1].to(float))
-        batch_loss = torch.sum(subsampling_losses) / subsampling_losses.size(dim=0)
-        loss += batch_loss * len(data.batch)
-        total_num_instances += len(data.batch)
-        optimizer.zero_grad()  # clear gradients
-        batch_loss.backward()  # derive gradients
-        optimizer.step()  # update parameters based on gradients
-    loss /= total_num_instances
-    return loss
+# def train_oversampling(model, loader, lr, wd, device):
+#     model.train()
+#     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
+#     loss_function = torch.nn.BCEWithLogitsLoss()
+#     loss = 0
+#     total_num_instances = 0
+#     for data in loader:
+#         data = data.to(device)
+#         out = model(data.x, data.edge_index, data.edge_attr, data.batch)  # forward pass
+#         num_subsamplings = data.sampling_mask.shape[1]
+#         subsampling_losses = torch.zeros(num_subsamplings)
+#         for i in range(num_subsamplings):
+#             subsampling_losses[i] = loss_function(out[data.sampling_mask[:,i] == 1][:,0].to(float), data.y[data.sampling_mask[:,i] == 1].to(float))
+#         batch_loss = torch.sum(subsampling_losses) / subsampling_losses.size(dim=0)
+#         loss += batch_loss * len(data.batch)
+#         total_num_instances += len(data.batch)
+#         optimizer.zero_grad()  # clear gradients
+#         batch_loss.backward()  # derive gradients
+#         optimizer.step()  # update parameters based on gradients
+#     loss /= total_num_instances
+#     return loss
 
 def train(model, loader, lr, wd, device):
     model.train()
@@ -228,19 +228,19 @@ def test(model, loader, device):
     loss_function = DiceBCELoss()
     loss = 0
     total_num_instances = 0
-    predictions = []
+    y_preds = []
     mol_ids = []
-    true_labels = []
+    y_trues = []
     for data in loader:
         data = data.to(device)
         out = model(data.x, data.edge_index, data.edge_attr, data.batch)
         batch_loss = loss_function(out[:,0].to(float), data.y.to(float))
         loss += batch_loss * len(data.batch)
         total_num_instances += len(data.batch)
-        predictions.append(torch.sigmoid(out))
+        y_preds.append(torch.sigmoid(out))
         mol_ids.append(data.mol_id)
-        true_labels.append(data.y)
-    pred, mol_id, true = torch.cat(predictions, dim=0).cpu().numpy(), torch.cat(mol_ids, dim=0).cpu().numpy(), torch.cat(true_labels, dim=0).cpu().numpy()
+        y_trues.append(data.y)
+    y_pred, mol_id, y_true = torch.cat(y_preds, dim=0).cpu().numpy(), torch.cat(mol_ids, dim=0).cpu().numpy(), torch.cat(y_trues, dim=0).cpu().numpy()
     loss /= total_num_instances
-    return loss, pred, mol_id, true
+    return loss, y_pred, mol_id, y_true
    

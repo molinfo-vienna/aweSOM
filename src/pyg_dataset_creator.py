@@ -3,6 +3,7 @@ import logging
 import networkx as nx
 from networkx.readwrite import json_graph
 import numpy as np
+from sklearn.model_selection import train_test_split
 import torch
 from torch_geometric.data import InMemoryDataset, Data
 

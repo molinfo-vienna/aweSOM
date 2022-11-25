@@ -75,13 +75,13 @@ def plot_roc_curve(y_true, y_pred, path):
     return best_threshold
 
 def save_evaluation_results(output_directory, output_subdirectory, timestamp, \
-    data_name, model_name, h_dim, num_heads, epochs, lr, wd, \
+    data_name, model_name, h_dim, num_heads, epochs, lr, wd, batch_size, \
         val_pred, val_mol_ids, val_true):
     # Compute top1 accuracy
     pred_top1 = []
     for id in np.unique(val_mol_ids):
         mask = id == val_mol_ids
-        idx = np.argpartition(val_pred[mask][:,0], -1)[-1:]
+        idx = np.argpartition(val_pred[mask], -1)[-1:]
         if val_true[mask][idx[0]]:
             pred_top1.append(1)
         else:
@@ -92,7 +92,7 @@ def save_evaluation_results(output_directory, output_subdirectory, timestamp, \
     pred_top2 = []
     for id in np.unique(val_mol_ids):
         mask = id == val_mol_ids
-        idx = np.argpartition(val_pred[mask][:,0], -2)[-2:]
+        idx = np.argpartition(val_pred[mask], -2)[-2:]
         if val_true[mask][idx[0]] or val_true[mask][idx[1]]:
             pred_top2.append(1)
         else:
@@ -108,7 +108,7 @@ def save_evaluation_results(output_directory, output_subdirectory, timestamp, \
     best_threshold = plot_roc_curve(val_true, val_pred, os.path.join(output_subdirectory, 'roc_curve.png'))
 
     # Compute binary predictions from probability predictions with best threshold
-    val_pred = ((val_pred > best_threshold)[:,0])
+    val_pred = ((val_pred > best_threshold))
 
     # Compute and plot confusion matrix 
     ConfusionMatrixDisplay.from_predictions(val_true, val_pred)
@@ -120,7 +120,7 @@ def save_evaluation_results(output_directory, output_subdirectory, timestamp, \
     val_prec = precision_score(val_true, val_pred, zero_division=0)
     val_rec = recall_score(val_true, val_pred)
 
-    data = [timestamp, data_name, model_name, h_dim, num_heads, epochs, lr, wd, \
+    data = [timestamp, data_name, model_name, h_dim, num_heads, epochs, lr, wd, batch_size, \
         best_threshold, val_mcc, val_acc1, val_acc2, val_jacc, val_prec, val_rec, val_roc_auc]
     with open(os.path.join(output_directory, "results.csv"), 'a', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
