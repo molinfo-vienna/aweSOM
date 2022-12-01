@@ -1,0 +1,108 @@
+import os
+from sklearn.utils.class_weight import compute_class_weight
+import time
+import torch
+from torch_geometric import seed_everything
+from torch_geometric.loader import DataLoader
+from tqdm import tqdm
+
+from src.graph_neural_nets import GIN, GAT, train, test
+from src.utils import plot_losses, save_results
+
+
+def hp_opt(device, dataset, train_data, val_data, output_directory, results_file_name, data_name, model_name, \
+            h_dim, num_heads, epochs, lr, wd, batch_size):
+
+    timestamp = int(time.time())
+    output_subdirectory = os.path.join(output_directory, str(timestamp))
+    os.mkdir(os.path.join(os.getcwd(), output_subdirectory))
+        
+    # Initialize model
+    if model_name == "GIN":
+        model = GIN(in_dim=dataset.num_features, h_dim=h_dim, edge_dim=dataset.num_edge_features).to(device)
+    if model_name == "GAT":
+        model = GAT(in_dim=dataset.num_features, h_dim=h_dim, num_heads=num_heads, edge_dim=dataset.num_edge_features).to(device)
+
+    #  Training and Validation Data Loader
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=True)
+
+    # Compute class weights of the training set:
+    # class_weights = 0
+    # total_num_instances = 0
+    # for data in train_loader:
+    #     class_weights += compute_class_weight(class_weight='balanced', classes=np.unique(data.y), y=np.array(data.y)) * len(data.y)
+    #     total_num_instances += len(data.y)
+    # class_weights /= total_num_instances
+
+    """ ---------- Train Model ---------- """
+
+    train_losses = []
+    val_losses = []
+    print('Training...')
+    for _ in tqdm(range(epochs)):
+        train_loss = train(model, train_loader, lr, wd, device)
+        train_losses.append(train_loss.item())
+        val_loss, _, _ ,_ = test(model, val_loader, device)
+        val_losses.append(val_loss.item())
+    torch.save(model.state_dict(), os.path.join(output_subdirectory, 'model.pt'))
+    plot_losses(train_losses, val_losses, path=os.path.join(output_subdirectory, 'loss.png'))
+
+    """ ---------- Validate Model ---------- """
+
+    _, y_pred_val, mol_ids_val, y_true_val = test(model, val_loader, device)
+
+    save_results(output_directory, output_subdirectory, results_file_name, timestamp, data_name, model_name, \
+        h_dim, num_heads, epochs, lr, wd, batch_size, y_pred_val[:,0], mol_ids_val, y_true_val)
+
+
+def testing(device, dataset, train_data, test_data, output_directory, results_file_name, data_name, model_name, \
+            h_dim, num_heads, epochs, lr, wd, batch_size):
+
+    random_seeds = [123, 132, 213, 231, 312, 321]
+
+    for rs in random_seeds:
+
+        seed_everything(rs)
+
+        timestamp = int(time.time())
+        output_subdirectory = os.path.join(output_directory, str(timestamp))
+        os.mkdir(os.path.join(os.getcwd(), output_subdirectory))
+            
+        # Initialize model
+        if model_name == "GIN":
+            model = GIN(in_dim=dataset.num_features, h_dim=h_dim, edge_dim=dataset.num_edge_features).to(device)
+        if model_name == "GAT":
+            model = GAT(in_dim=dataset.num_features, h_dim=h_dim, num_heads=num_heads, edge_dim=dataset.num_edge_features).to(device)
+
+        #  Training and Test Data Loader
+        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
+
+        # Compute class weights of the training set:
+        # class_weights = 0
+        # total_num_instances = 0
+        # for data in train_loader:
+        #     class_weights += compute_class_weight(class_weight='balanced', classes=np.unique(data.y), y=np.array(data.y)) * len(data.y)
+        #     total_num_instances += len(data.y)
+        # class_weights /= total_num_instances
+
+        """ ---------- Train Model ---------- """
+
+        train_losses = []
+        test_losses = []
+        print('Training...')
+        for _ in tqdm(range(epochs)):
+            train_loss = train(model, train_loader, lr, wd, device)
+            train_losses.append(train_loss.item())
+            test_loss, _, _ ,_ = test(model, test_loader, device)
+            test_losses.append(test_loss.item())
+        torch.save(model.state_dict(), os.path.join(output_subdirectory, 'model.pt'))
+        plot_losses(train_losses, test_losses, path=os.path.join(output_subdirectory, 'loss.png'))
+
+        """ ---------- Test Model ---------- """
+
+        _, y_pred_test, mol_ids_test, y_true_test = test(model, test_loader, device)
+
+        save_results(output_directory, output_subdirectory, results_file_name, timestamp, data_name, model_name, \
+            h_dim, num_heads, epochs, lr, wd, batch_size, y_pred_test[:,0], mol_ids_test, y_true_test)

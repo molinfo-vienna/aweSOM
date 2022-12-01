@@ -43,6 +43,7 @@ class EarlyStopping:
 
 
 def plot_losses(train_loss, val_loss, path):
+    fig = plt.figure()
     plt.plot(np.arange(0, len(train_loss), 1), train_loss, linestyle='-', linewidth=1, color ='orange', label='Training Loss')
     plt.plot(np.arange(0, len(train_loss), 1), val_loss, linestyle='-', linewidth=1, color ='blue', label='Validation Loss')
     plt.title('Training and Validation loss')
@@ -74,7 +75,7 @@ def plot_roc_curve(y_true, y_pred, path):
     plt.savefig(path)
     return best_threshold
 
-def save_evaluation_results(output_directory, output_subdirectory, timestamp, \
+def save_results(output_directory, output_subdirectory, results_file_name, timestamp, \
     data_name, model_name, h_dim, num_heads, epochs, lr, wd, batch_size, \
         val_pred, val_mol_ids, val_true):
     # Compute top1 accuracy
@@ -122,6 +123,12 @@ def save_evaluation_results(output_directory, output_subdirectory, timestamp, \
 
     data = [timestamp, data_name, model_name, h_dim, num_heads, epochs, lr, wd, batch_size, \
         best_threshold, val_mcc, val_acc1, val_acc2, val_jacc, val_prec, val_rec, val_roc_auc]
-    with open(os.path.join(output_directory, "results.csv"), 'a', encoding='UTF8', newline='') as f:
+    if os.path.isfile(os.path.join(output_directory, results_file_name)) == False:
+        with open(os.path.join(output_directory, results_file_name), 'w', encoding='UTF8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["Subdirectory", "Data", "Model", "Dimension of Hidden Layers", "Heads", \
+                "Training Epochs","Learning Rate","Weight Decay", "Batch Size", "Optimal Threshold", "MCC", \
+                    "Top1 Accuracy", "Top2 Accuracy", "Jaccard Score", "Precision", "Recall", "ROC AUC Score"])
+    with open(os.path.join(output_directory, results_file_name), 'a', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(data)

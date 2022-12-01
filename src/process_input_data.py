@@ -27,7 +27,6 @@ def mol_to_nx(mol_id, mol, soms):
     for atom_idx in range(mol.GetNumAtoms()):
         atom = mol.GetAtomWithIdx(atom_idx)
         G.add_node( atom_idx, # node identifier
-                    # atom features
                     atomic_num = atom.GetAtomicNum(),
                     degree = atom.GetTotalDegree(),
                     valence = atom.GetTotalValence(),
@@ -43,7 +42,6 @@ def mol_to_nx(mol_id, mol, soms):
                     is_aromatic = atom.GetIsAromatic(),
                     vdw_radius = Chem.GetPeriodicTable().GetRvdw(atom.GetAtomicNum()),
                     covalent_radius = Chem.GetPeriodicTable().GetRcovalent(atom.GetAtomicNum()),
-                    # mol features
                     num_h_acceptors = Lipinski.NumHAcceptors(mol),
                     num_h_donors = Lipinski.NumHDonors(mol),
                     #molwt = Descriptors.MolWt(mol),
@@ -79,7 +77,6 @@ def compute_node_features_matrix(G):
 
     for i in tqdm(range(num_nodes)):
         current_node = G.nodes[i]
-        # atom features
         atomic_num = [current_node['atomic_num']]
         degree = [current_node['degree']]
         valence = [current_node['valence']]
@@ -95,7 +92,6 @@ def compute_node_features_matrix(G):
         is_aromatic = [int(current_node['is_aromatic'])]
         vdw_radius = [current_node['vdw_radius']]
         covalent_radius = [current_node['covalent_radius']]
-        # mol features
         num_h_acceptors = [current_node['num_h_acceptors']]
         num_h_donors = [current_node['num_h_donors']]
         #molwt = [current_node['molwt']]
@@ -117,40 +113,6 @@ def compute_node_features_matrix(G):
     features = ohe.fit_transform(features)
 
     return features
-
-# def compute_edge_features_matrix(G):
-#     """Takes as input a NetworkX Graph object (which already contains the 
-#     features for each individual edge) and extracts/returns its corresponding edge features matrix.
-
-#     Args:
-#         G (NetworkX Graph object)
-
-#     Returns:
-#         _features (numpy array): a numpy array of dimension (number of edges, number of edge features)
-#     """
-
-#     # get features dimension:
-#     num_edges = len(G.edges)
-#     num_features = 4  # Need to automate this later, but this will do for now.
-
-#     # construct features matrix of shape (number of edges, number of features)
-#     features = np.zeros((num_edges, num_features))
-
-#     # write features to features matrix
-#     for i, edge in tqdm(enumerate(G.edges)):
-#         start, end = edge
-#         bond_type = [G.get_edge_data(start, end)['bond_type']]
-#         bond_is_aromatic = [G.get_edge_data(start, end)['bond_is_aromatic']]
-#         bond_is_conjugated = [G.get_edge_data(start, end)['bond_is_conjugated']]
-#         bond_stereo = [G.get_edge_data(start, end)['bond_stereo']]
-
-#         edge_features_vector = bond_type + bond_is_aromatic + \
-#             bond_is_conjugated + bond_stereo
-
-#         features[i,:] = np.array(edge_features_vector)
-
-#     return features
-
 
 def process_data(data_directory, data_name):
     """Computes and saves the necessary data (graph, features, labels, graph_ids)
@@ -193,7 +155,3 @@ def process_data(data_directory, data_name):
     corr_matrix = df.corr()
     plt.imshow(corr_matrix, cmap='binary')
     plt.savefig(os.path.join(data_directory, 'correlation_matrix.png'))
-
-    # # Compute edge features matrix and save it to edge_features.npy
-    # edge_features = compute_edge_features_matrix(G)
-    # np.save(data_path+'edge_features.npy', edge_features)

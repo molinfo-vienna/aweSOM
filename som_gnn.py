@@ -1,107 +1,90 @@
 import argparse
-import numpy as np
-import os
-import random
-from sklearn.model_selection import train_test_split
-from sklearn.utils.class_weight import compute_class_weight
-import time
 import torch
+
+from sklearn.model_selection import train_test_split
+from torch_geometric import seed_everything
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import homophily
-from tqdm import tqdm
 
 from src.process_input_data import process_data
 from src.pyg_dataset_creator import SOM
-from src.graph_neural_nets import GIN, GAT, train, test
-from src.utils import plot_losses, save_evaluation_results
+from src.runner import hp_opt, testing
 
 
 def main():
 
-    random.seed(42)
-    np.random.seed(42)
-    torch.manual_seed(42)
-
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    seed_everything(42)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("data_directory", nargs="?", default="data/metaQSAR", help="the folder where the data is stored", type=str)
-    parser.add_argument("data_name", nargs="?", default="metaQSAR.sdf", help="the name of the data file (must be a .sdf file)", type=str)
-    parser.add_argument("output_directory", nargs="?", default="output/metaQSAR", help="the folder where the results will be stored", type=str)
-    parser.add_argument("model_name", nargs="?", default= "GIN", help="the neural network that will be used: either \"GIN\" (Graph Isomorphism Network) or \"GAT\" (Graph Attention Network", type=str)
-    parser.add_argument("h_dim", nargs="?", default=16, help="the size of the hidden layers", type=int)
+    parser.add_argument("procedure", nargs="?", default="test", help="the tpe of procedure to run -- choose between \"process_data\", \"hp_opt\", \"test\"")
+    parser.add_argument("data_directory", nargs="?", default="data/xenosite", help="the folder where the data is stored", type=str)
+    parser.add_argument("data", nargs="?", default="xenosite.sdf", help="the name of the data file (must be a .sdf file)", type=str)
+    parser.add_argument("output_directory", nargs="?", default="output/xenosite/test", help="the folder where the results will be stored", type=str)
+    parser.add_argument("results_file_name", nargs="?", default="results_xenosite_test.csv", help="the name of the csv file to store the metrics", type=str)
+    parser.add_argument("model", nargs="?", default= "GIN", help="the neural network that will be used: either \"GIN\" (Graph Isomorphism Network) or \"GAT\" (Graph Attention Network", type=str)
+    parser.add_argument("h_dim", nargs="?", default=32, help="the size of the hidden layers", type=int)
     parser.add_argument("num_heads", nargs="?", default=0, help="the number of heads for the GAT model (set to 0 when using GIN)", type=int)
-    parser.add_argument("epochs", nargs="?", default=600, help="the number of training epochs", type=int)
+    parser.add_argument("epochs", nargs="?", default=300, help="the number of training epochs", type=int)
     parser.add_argument("lr", nargs="?", default=1e-3, help="learning rate", type=float)
-    parser.add_argument("wd", nargs="?", default=1e-5, help="weight decay", type=float)
-    parser.add_argument("batch_size", nargs="?", default=64, help="batch size", type=int)
+    parser.add_argument("wd", nargs="?", default=1e-3, help="weight decay", type=float)
+    parser.add_argument("batch_size", nargs="?", default=32, help="batch size", type=int)
     args = parser.parse_args()
 
-    # Process SDF input data to create PyTorch Geometric custom dataset
-    #process_data(args.data_directory, args.data_name)
+    if args.procedure == "process_data":
+        process_data(args.data_directory, args.data)  # process SDF input data to create PyTorch Geometric custom dataset
 
-    timestamp = int(time.time())
-    output_subdirectory = os.path.join(args.output_directory, str(timestamp))
-    os.mkdir(os.path.join(os.getcwd(), output_subdirectory))
+    else:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # Create/Load Custom PyTorch Geometric Dataset
-    dataset = SOM(root=args.data_directory)
+        # Create/Load Custom PyTorch Geometric Dataset
+        dataset = SOM(root=args.data_directory)
 
-    # Print dataset info
-    print(f'Number of graphs: {len(dataset)}')
-    print(f'Number of node features: {dataset.num_node_features}')
-    print(f'Number of edge features: {dataset.num_edge_features}')
-    print(f'Number of classes: {dataset.num_classes}')
+        # Print dataset info
+        print(f'Number of graphs: {len(dataset)}')
+        print(f'Number of node features: {dataset.num_node_features}')
+        print(f'Number of edge features: {dataset.num_edge_features}')
+        print(f'Number of classes: {dataset.num_classes}')
 
-    # Compute homophily
-    #loader = DataLoader(dataset, batch_size=len(dataset))
-    #for data in loader: print(f'Homophily: {homophily(data.edge_index, data.y):.2f}')
+        # Compute homophily
+        loader = DataLoader(dataset, batch_size=len(dataset))
+        for data in loader: print(f'Homophily: {homophily(data.edge_index, data.y):.2f}')
 
-    # Training/Evaluation/Test Split
-    train_val_dataset, test_dataset = train_test_split(dataset, test_size=1/10, random_state=42, shuffle=True)
-    train_dataset, val_dataset = train_test_split(train_val_dataset, test_size=1/9, random_state=42, shuffle=True)
-    print(f'Training set: {len(train_dataset)} molecules.')
-    print(f'Validation set: {len(val_dataset)} molecules.')
-    print(f'Test set: {len(test_dataset)} molecules.')
+        # Training/Evaluation/Test Split
+        train_val_data, test_data = train_test_split(dataset, test_size=1/10, random_state=42, shuffle=True)
+        train_data, val_data = train_test_split(train_val_data, test_size=1/9, random_state=42, shuffle=True)
+        print(f'Training set: {len(train_data)} molecules.')
+        print(f'Validation set: {len(train_data)} molecules.')
+        print(f'Test set: {len(test_data)} molecules.')
 
-    # Initialize model
-    if args.model_name == "GIN":
-        model = GIN(in_dim=dataset.num_features, h_dim=args.h_dim, edge_dim=dataset.num_edge_features).to(device)
-    if args.model_name == "GAT":
-        model = GAT(in_dim=dataset.num_features, h_dim=args.h_dim, num_heads=args.num_heads, edge_dim=dataset.num_edge_features).to(device)
+        # train_ids = []
+        # for mol in train_data:
+        #     train_ids.append(mol.mol_id[0].item())
+        # with open("data/metaQSAR/metaQSAR_train_molids.txt", "w") as f:
+        #     f.write(",".join(str(item) for item in train_ids))
 
-    #  Training and Validation Data Loader
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True)
+        # val_ids = []
+        # for mol in val_data:
+        #     val_ids.append(mol.mol_id[0].item())
+        # with open("data/metaQSAR/metaQSAR_val_molids.txt", "w") as f:
+        #     f.write(",".join(str(item) for item in val_ids))
 
-    # Compute class weights of the training set:
-    # class_weights = 0
-    # total_num_instances = 0
-    # for data in train_loader:
-    #     class_weights += compute_class_weight(class_weight='balanced', classes=np.unique(data.y), y=np.array(data.y)) * len(data.y)
-    #     total_num_instances += len(data.y)
-    # class_weights /= total_num_instances
+        # test_ids = []
+        # for mol in test_data:
+        #     test_ids.append(mol.mol_id[0].item())
+        # with open("data/metaQSAR/metaQSAR_test_molids.txt", "w") as f:
+        #     f.write(",".join(str(item) for item in test_ids))
 
-    """ ---------- Train Model ---------- """
+        if args.procedure == "hp_opt":
+            hp_opt(device, dataset, train_data, val_data, \
+                args.output_directory, args.results_file_name, \
+                    args.data, args.model, args.h_dim, \
+                        args.num_heads, args.epochs, args.lr, args.wd, args.batch_size)
 
-    train_losses = []
-    val_losses = []
-    print('Training...')
-    for _ in tqdm(range(args.epochs)):
-        train_loss = train(model, train_loader, args.lr, args.wd, device)
-        train_losses.append(train_loss.item())
-        val_loss, _, _ ,_ = test(model, val_loader, device)
-        val_losses.append(val_loss.item())
-    torch.save(model.state_dict(), os.path.join(output_subdirectory, 'model.pt'))
-    plot_losses(train_losses, val_losses, path=os.path.join(output_subdirectory, 'loss.png'))
-
-    """ ---------- Evaluate Model on the Validation Set ---------- """
-
-    _, y_pred_val, mol_ids_val, y_true_val = test(model, val_loader, device)
-
-    save_evaluation_results(args.output_directory, output_subdirectory, timestamp, args.data_name, args.model_name, \
-        args.h_dim, args.num_heads, args.epochs, args.lr, args.wd, args.batch_size, y_pred_val[:,0], mol_ids_val, y_true_val)
+        if args.procedure == "test":
+            testing(device, dataset, train_data, test_data, \
+                    args.output_directory, args.results_file_name, \
+                        args.data, args.model, args.h_dim, \
+                            args.num_heads, args.epochs, args.lr, args.wd, args.batch_size)
 
 if __name__ == "__main__":
     main()
