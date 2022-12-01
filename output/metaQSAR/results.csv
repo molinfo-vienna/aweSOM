@@ -1,2 +1,0 @@
-Subdirectory,Data,Model,Dimension of Hidden Layers,Heads,Training Epochs,Learning Rate,Weight Decay,Batch Size,Optimal Threshold,MCC,Top1 Accuracy,Top2 Accuracy,Jaccard Score,Precision,Recall,ROC AUC Score
-1669374427,metaQSAR.sdf,GIN,16,0,5,0.001,1e-05,64,0.10973787,0.24481283325671044,0.36283185840707965,0.5486725663716814,0.18159327065809006,0.1946949602122016,0.7296222664015904,0.7592653331114634
