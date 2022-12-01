@@ -3,7 +3,6 @@ import logging
 import networkx as nx
 from networkx.readwrite import json_graph
 import numpy as np
-from sklearn.model_selection import train_test_split
 import torch
 from torch_geometric.data import InMemoryDataset, Data
 
@@ -59,12 +58,12 @@ class SOM(InMemoryDataset):
 
         for mol_id in (unique_mol_ids):
             try:
-                mask = mol_ids == mol_id  # mask is a tensor of trues and falses showing where mol_ids is equal to mol_id
+                mask = mol_ids == mol_id
 
-                G_s = G.subgraph(np.flatnonzero(mask).tolist())  # select a subgraph G_s from G corresponding to the atoms from the mol with the current mol_id
+                G_s = G.subgraph(np.flatnonzero(mask).tolist())
 
-                edge_index = torch.tensor(list(G_s.edges)).t().contiguous()  # gets a tensor containing the edge indices from the OutEdgeView representation
-                edge_index_reset = edge_index - edge_index.min()  # resets the edges labeling within a molecular graph (every edge_index tensor starts with node 0)
+                edge_index = torch.tensor(list(G_s.edges)).t().contiguous()
+                edge_index_reset = edge_index - edge_index.min()
 
                 edge_attr = torch.empty(len(G_s.edges), 5)
                 for i, edge in enumerate(list(G_s.edges)):

@@ -1,11 +1,27 @@
 import csv
 import logging
 import matplotlib.pyplot as plt
+import numpy as np
 import os
+import random
+import torch
+
 from sklearn.metrics import auc, jaccard_score, matthews_corrcoef, \
     precision_score, recall_score, roc_auc_score, roc_curve, \
         ConfusionMatrixDisplay, PrecisionRecallDisplay
-import numpy as np
+
+
+def seed_everything(seed=42):
+    """"
+    Seed everything.
+    """   
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""

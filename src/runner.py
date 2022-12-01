@@ -6,12 +6,12 @@ from torch_geometric import seed_everything
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 
-from src.graph_neural_nets import GIN, GAT, train, test
+from src.graph_neural_nets import GIN, GAT, train, train_oversampling, test
 from src.utils import plot_losses, save_results
 
 
 def hp_opt(device, dataset, train_data, val_data, output_directory, results_file_name, data_name, model_name, \
-            h_dim, num_heads, epochs, lr, wd, batch_size):
+            h_dim, dropout, num_heads, neg_slope, epochs, lr, wd, batch_size, oversampling):
 
     timestamp = int(time.time())
     output_subdirectory = os.path.join(output_directory, str(timestamp))
@@ -19,9 +19,9 @@ def hp_opt(device, dataset, train_data, val_data, output_directory, results_file
         
     # Initialize model
     if model_name == "GIN":
-        model = GIN(in_dim=dataset.num_features, h_dim=h_dim, edge_dim=dataset.num_edge_features).to(device)
+        model = GIN(in_dim=dataset.num_features, h_dim=h_dim, edge_dim=dataset.num_edge_features, dropout=dropout).to(device)
     if model_name == "GAT":
-        model = GAT(in_dim=dataset.num_features, h_dim=h_dim, num_heads=num_heads, edge_dim=dataset.num_edge_features).to(device)
+        model = GAT(in_dim=dataset.num_features, h_dim=h_dim, edge_dim=dataset.num_edge_features, num_heads=num_heads, neg_slope=neg_slope, dropout=dropout).to(device)
 
     #  Training and Validation Data Loader
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
@@ -41,7 +41,10 @@ def hp_opt(device, dataset, train_data, val_data, output_directory, results_file
     val_losses = []
     print('Training...')
     for _ in tqdm(range(epochs)):
-        train_loss = train(model, train_loader, lr, wd, device)
+        if oversampling:
+            train_loss = train_oversampling(model, train_loader, lr, wd, device)
+        else:
+            train_loss = train(model, train_loader, lr, wd, device)
         train_losses.append(train_loss.item())
         val_loss, _, _ ,_ = test(model, val_loader, device)
         val_losses.append(val_loss.item())
@@ -57,7 +60,7 @@ def hp_opt(device, dataset, train_data, val_data, output_directory, results_file
 
 
 def testing(device, dataset, train_data, test_data, output_directory, results_file_name, data_name, model_name, \
-            h_dim, num_heads, epochs, lr, wd, batch_size):
+            h_dim, dropout, num_heads, neg_slope, epochs, lr, wd, batch_size, oversampling):
 
     random_seeds = [123, 132, 213, 231, 312, 321]
 
@@ -71,9 +74,9 @@ def testing(device, dataset, train_data, test_data, output_directory, results_fi
             
         # Initialize model
         if model_name == "GIN":
-            model = GIN(in_dim=dataset.num_features, h_dim=h_dim, edge_dim=dataset.num_edge_features).to(device)
+            model = GIN(in_dim=dataset.num_features, h_dim=h_dim, edge_dim=dataset.num_edge_features, dropout=dropout).to(device)
         if model_name == "GAT":
-            model = GAT(in_dim=dataset.num_features, h_dim=h_dim, num_heads=num_heads, edge_dim=dataset.num_edge_features).to(device)
+            model = GAT(in_dim=dataset.num_features, h_dim=h_dim, edge_dim=dataset.num_edge_features, num_heads=num_heads, neg_slope=neg_slope, dropout=dropout).to(device)
 
         #  Training and Test Data Loader
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
@@ -93,7 +96,10 @@ def testing(device, dataset, train_data, test_data, output_directory, results_fi
         test_losses = []
         print('Training...')
         for _ in tqdm(range(epochs)):
-            train_loss = train(model, train_loader, lr, wd, device)
+            if oversampling:
+                train_loss = train_oversampling(model, train_loader, lr, wd, device)
+            else:
+                train_loss = train(model, train_loader, lr, wd, device)
             train_losses.append(train_loss.item())
             test_loss, _, _ ,_ = test(model, test_loader, device)
             test_losses.append(test_loss.item())

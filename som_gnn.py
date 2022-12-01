@@ -9,6 +9,7 @@ from torch_geometric.utils import homophily
 from src.process_input_data import process_data
 from src.pyg_dataset_creator import SOM
 from src.runner import hp_opt, testing
+from src.utils import seed_everything
 
 
 def main():
@@ -16,18 +17,21 @@ def main():
     seed_everything(42)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("procedure", nargs="?", default="test", help="the tpe of procedure to run -- choose between \"process_data\", \"hp_opt\", \"test\"")
+    parser.add_argument("procedure", nargs="?", default="process_data", help="the type of procedure to run: choose between \"process_data\", \"hp_opt\", \"test\"")
     parser.add_argument("data_directory", nargs="?", default="data/xenosite", help="the folder where the data is stored", type=str)
     parser.add_argument("data", nargs="?", default="xenosite.sdf", help="the name of the data file (must be a .sdf file)", type=str)
-    parser.add_argument("output_directory", nargs="?", default="output/xenosite/test", help="the folder where the results will be stored", type=str)
-    parser.add_argument("results_file_name", nargs="?", default="results_xenosite_test.csv", help="the name of the csv file to store the metrics", type=str)
-    parser.add_argument("model", nargs="?", default= "GIN", help="the neural network that will be used: either \"GIN\" (Graph Isomorphism Network) or \"GAT\" (Graph Attention Network", type=str)
+    parser.add_argument("output_directory", nargs="?", default="output/xenosite", help="the folder where the results will be stored", type=str)
+    parser.add_argument("results_file_name", nargs="?", default="results.csv", help="the name of the csv file to store the summarized results", type=str)
+    parser.add_argument("model_name", nargs="?", default= "GIN", help="the neural network that will be used: either \"GIN\" (Graph Isomorphism Network) or \"GAT\" (Graph Attention Network", type=str)
     parser.add_argument("h_dim", nargs="?", default=32, help="the size of the hidden layers", type=int)
-    parser.add_argument("num_heads", nargs="?", default=0, help="the number of heads for the GAT model (set to 0 when using GIN)", type=int)
+    parser.add_argument("dropout", nargs="?", default=0.2, help="dropout probability", type=float)
+    parser.add_argument("num_heads", nargs="?", default=4, help="the number of heads for the GAT model (ignore when using GIN)", type=int)
+    parser.add_argument("neg_slope", nargs="?", default=0.2, help="steepness of the negative slope for the GAT model (ignore when using GIN)", type=float)
     parser.add_argument("epochs", nargs="?", default=300, help="the number of training epochs", type=int)
     parser.add_argument("lr", nargs="?", default=1e-3, help="learning rate", type=float)
     parser.add_argument("wd", nargs="?", default=1e-3, help="weight decay", type=float)
     parser.add_argument("batch_size", nargs="?", default=32, help="batch size", type=int)
+    parser.add_argument("oversampling", nargs="?", default=False, help="whether to use oversampling technique or not: [True/False]", type=bool)
     args = parser.parse_args()
 
     if args.procedure == "process_data":
@@ -56,35 +60,19 @@ def main():
         print(f'Validation set: {len(train_data)} molecules.')
         print(f'Test set: {len(test_data)} molecules.')
 
-        # train_ids = []
-        # for mol in train_data:
-        #     train_ids.append(mol.mol_id[0].item())
-        # with open("data/metaQSAR/metaQSAR_train_molids.txt", "w") as f:
-        #     f.write(",".join(str(item) for item in train_ids))
-
-        # val_ids = []
-        # for mol in val_data:
-        #     val_ids.append(mol.mol_id[0].item())
-        # with open("data/metaQSAR/metaQSAR_val_molids.txt", "w") as f:
-        #     f.write(",".join(str(item) for item in val_ids))
-
-        # test_ids = []
-        # for mol in test_data:
-        #     test_ids.append(mol.mol_id[0].item())
-        # with open("data/metaQSAR/metaQSAR_test_molids.txt", "w") as f:
-        #     f.write(",".join(str(item) for item in test_ids))
-
         if args.procedure == "hp_opt":
             hp_opt(device, dataset, train_data, val_data, \
                 args.output_directory, args.results_file_name, \
-                    args.data, args.model, args.h_dim, \
-                        args.num_heads, args.epochs, args.lr, args.wd, args.batch_size)
+                    args.data, args.model_name, args.h_dim, args.dropout, \
+                        args.num_heads, args.neg_slope, args.epochs, \
+                            args.lr, args.wd, args.batch_size, args.oversampling)
 
         if args.procedure == "test":
             testing(device, dataset, train_data, test_data, \
                     args.output_directory, args.results_file_name, \
-                        args.data, args.model, args.h_dim, \
-                            args.num_heads, args.epochs, args.lr, args.wd, args.batch_size)
+                        args.data, args.model_name, args.h_dim, args.dropout, \
+                            args.num_heads, args.neg_slope, args.epochs, \
+                                args.lr, args.wd, args.batch_size, args.oversampling)
 
 if __name__ == "__main__":
     main()
