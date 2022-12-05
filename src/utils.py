@@ -46,7 +46,6 @@ class EarlyStopping:
             self.interval += 1
             if self.interval == 10:
                 self.avg_new = average(list(self.memory))
-                print(self.avg_new)
                 diff = self.avg_new - self.avg_old
                 self.avg_old = self.avg_new
                 self.interval = 0
@@ -55,7 +54,6 @@ class EarlyStopping:
                     if self.counter >= self.patience: self.early_stop = True
                 else:
                     self.counter = 0
-        print(self.counter)
 
 
 def seed_everything(seed=42):
