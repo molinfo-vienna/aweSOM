@@ -1,11 +1,12 @@
 import argparse
+import os
 import torch
-
 from sklearn.model_selection import train_test_split
 from torch_geometric import seed_everything
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import homophily
 
+from src.graph_neural_nets import GIN, GAT, test
 from src.process_input_data import process_data
 from src.pyg_dataset_creator import SOM
 from src.runner import hp_opt, testing
@@ -17,21 +18,23 @@ def main():
     seed_everything(42)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("procedure", nargs="?", default="process_data", help="the type of procedure to run: choose between \"process_data\", \"hp_opt\", \"test\"")
+    parser.add_argument("procedure", nargs="?", default="test", help="the type of procedure to run: choose between \"process_data\", \"hp_opt\", \"test\", \"visualize\"")
     parser.add_argument("data_directory", nargs="?", default="data/xenosite", help="the folder where the data is stored", type=str)
     parser.add_argument("data", nargs="?", default="xenosite.sdf", help="the name of the data file (must be a .sdf file)", type=str)
-    parser.add_argument("output_directory", nargs="?", default="output/xenosite", help="the folder where the results will be stored", type=str)
+    parser.add_argument("output_directory", nargs="?", default="output/xenosite/test", help="the folder where the results will be stored", type=str)
     parser.add_argument("results_file_name", nargs="?", default="results.csv", help="the name of the csv file to store the summarized results", type=str)
     parser.add_argument("model_name", nargs="?", default= "GIN", help="the neural network that will be used: either \"GIN\" (Graph Isomorphism Network) or \"GAT\" (Graph Attention Network", type=str)
     parser.add_argument("h_dim", nargs="?", default=32, help="the size of the hidden layers", type=int)
     parser.add_argument("dropout", nargs="?", default=0.2, help="dropout probability", type=float)
-    parser.add_argument("num_heads", nargs="?", default=4, help="the number of heads for the GAT model (ignore when using GIN)", type=int)
-    parser.add_argument("neg_slope", nargs="?", default=0.2, help="steepness of the negative slope for the GAT model (ignore when using GIN)", type=float)
-    parser.add_argument("epochs", nargs="?", default=300, help="the number of training epochs", type=int)
+    parser.add_argument("num_heads", nargs="?", default=0, help="the number of heads for the GAT model (ignore when using GIN)", type=int)
+    parser.add_argument("neg_slope", nargs="?", default=0, help="steepness of the negative slope for the GAT model (ignore when using GIN)", type=float)
+    parser.add_argument("epochs", nargs="?", default=1000, help="the number of training epochs", type=int)
     parser.add_argument("lr", nargs="?", default=1e-3, help="learning rate", type=float)
     parser.add_argument("wd", nargs="?", default=1e-3, help="weight decay", type=float)
     parser.add_argument("batch_size", nargs="?", default=32, help="batch size", type=int)
     parser.add_argument("oversampling", nargs="?", default=False, help="whether to use oversampling technique or not: [True/False]", type=bool)
+    parser.add_argument("patience", nargs="?", default=5, help="early stopping: number of epochs with no improvement after which training will be stopped", type=int)
+    parser.add_argument("delta", nargs="?", default=1, help="early stopping: improvement tolerance", type=float)
     args = parser.parse_args()
 
     if args.procedure == "process_data":
@@ -57,22 +60,38 @@ def main():
         train_val_data, test_data = train_test_split(dataset, test_size=1/10, random_state=42, shuffle=True)
         train_data, val_data = train_test_split(train_val_data, test_size=1/9, random_state=42, shuffle=True)
         print(f'Training set: {len(train_data)} molecules.')
-        print(f'Validation set: {len(train_data)} molecules.')
+        print(f'Validation set: {len(val_data)} molecules.')
         print(f'Test set: {len(test_data)} molecules.')
 
         if args.procedure == "hp_opt":
             hp_opt(device, dataset, train_data, val_data, \
-                args.output_directory, args.results_file_name, \
-                    args.data, args.model_name, args.h_dim, args.dropout, \
-                        args.num_heads, args.neg_slope, args.epochs, \
-                            args.lr, args.wd, args.batch_size, args.oversampling)
-
-        if args.procedure == "test":
-            testing(device, dataset, train_data, test_data, \
                     args.output_directory, args.results_file_name, \
                         args.data, args.model_name, args.h_dim, args.dropout, \
                             args.num_heads, args.neg_slope, args.epochs, \
-                                args.lr, args.wd, args.batch_size, args.oversampling)
+                                args.lr, args.wd, args.batch_size, args.oversampling, args.patience, args.delta)
+
+        if args.procedure == "test":
+            testing(device, dataset, train_data, test_data, \
+                        args.output_directory, \
+                            args.data, args.model_name, args.h_dim, args.dropout, \
+                                args.num_heads, args.neg_slope, args.epochs, \
+                                    args.lr, args.wd, args.batch_size, args.oversampling, args.patience, args.delta)
+
+        # if args.procedure == "visualize":
+        #     if args.model_name == "GIN":
+        #         model = GIN(in_dim=dataset.num_features, h_dim=args.h_dim, edge_dim=dataset.num_edge_features, dropout=args.dropout).to(device)
+        #     if args.model_name == "GAT":
+        #         model = GAT(in_dim=dataset.num_features, h_dim=args.h_dim, edge_dim=dataset.num_edge_features, num_heads=args.num_heads, neg_slope=args.neg_slope, dropout=args.dropout).to(device)
+        #     model.load_state_dict(torch.load("output/xenosite/test/1669979436/model.pt"))
+
+        #     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=True)
+        #     _, y_pred_test, mol_ids_test, y_true_test = test(model, test_loader, device)
+
+        #     mistakes = []
+        #     for index, element in enumerate(y_pred_test):
+        #         if element != y_true_test[index]:
+        #             mistakes.append(tuple((index, mol_ids_test[index])))
+        #     print("Done!")
 
 if __name__ == "__main__":
     main()
