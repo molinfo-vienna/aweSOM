@@ -7,11 +7,11 @@ from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 
 from src.graph_neural_nets import GIN, GAT, train, train_oversampling, test
-from src.utils import plot_losses, save_results
+from src.utils import EarlyStopping, plot_losses, save_individual_results, save_average_results
 
 
 def hp_opt(device, dataset, train_data, val_data, output_directory, results_file_name, data_name, model_name, \
-            h_dim, dropout, num_heads, neg_slope, epochs, lr, wd, batch_size, oversampling):
+            h_dim, dropout, num_heads, neg_slope, epochs, lr, wd, batch_size, oversampling, patience, delta):
 
     timestamp = int(time.time())
     output_subdirectory = os.path.join(output_directory, str(timestamp))
@@ -37,10 +37,12 @@ def hp_opt(device, dataset, train_data, val_data, output_directory, results_file
 
     """ ---------- Train Model ---------- """
 
+    early_stopping = EarlyStopping(patience, delta)
+
     train_losses = []
     val_losses = []
     print('Training...')
-    for _ in tqdm(range(epochs)):
+    for epoch in tqdm(range(epochs)):
         if oversampling:
             train_loss = train_oversampling(model, train_loader, lr, wd, device)
         else:
@@ -48,27 +50,38 @@ def hp_opt(device, dataset, train_data, val_data, output_directory, results_file
         train_losses.append(train_loss.item())
         val_loss, _, _ ,_ = test(model, val_loader, device)
         val_losses.append(val_loss.item())
+        early_stopping(val_loss)
+        if early_stopping.early_stop:
+            final_num_epochs = epoch
+            break
+    if early_stopping.early_stop == False:
+        final_num_epochs = epochs
     torch.save(model.state_dict(), os.path.join(output_subdirectory, 'model.pt'))
     plot_losses(train_losses, val_losses, path=os.path.join(output_subdirectory, 'loss.png'))
 
     """ ---------- Validate Model ---------- """
 
-    _, y_pred_val, mol_ids_val, y_true_val = test(model, val_loader, device)
+    _, y_pred, mol_id, y_true = test(model, val_loader, device)
 
-    save_results(output_directory, output_subdirectory, results_file_name, timestamp, data_name, model_name, \
-        h_dim, num_heads, epochs, lr, wd, batch_size, y_pred_val[:,0], mol_ids_val, y_true_val)
+    save_individual_results(output_directory, output_subdirectory, results_file_name, timestamp, data_name, model_name, \
+        h_dim, dropout, num_heads, neg_slope, final_num_epochs, lr, wd, batch_size, oversampling, y_pred[:,0], mol_id, y_true)
 
 
-def testing(device, dataset, train_data, test_data, output_directory, results_file_name, data_name, model_name, \
-            h_dim, dropout, num_heads, neg_slope, epochs, lr, wd, batch_size, oversampling):
+def testing(device, dataset, train_data, test_data, output_directory, data_name, model_name, \
+            h_dim, dropout, num_heads, neg_slope, epochs, lr, wd, batch_size, oversampling, patience, delta):
 
     random_seeds = [123, 132, 213, 231, 312, 321]
+    runs = []
+    y_preds = {}
+    mol_ids = {}
+    y_trues = {}
 
     for rs in random_seeds:
 
         seed_everything(rs)
 
         timestamp = int(time.time())
+        runs.append(timestamp)
         output_subdirectory = os.path.join(output_directory, str(timestamp))
         os.mkdir(os.path.join(os.getcwd(), output_subdirectory))
             
@@ -92,10 +105,12 @@ def testing(device, dataset, train_data, test_data, output_directory, results_fi
 
         """ ---------- Train Model ---------- """
 
+        early_stopping = EarlyStopping(patience, delta)
+
         train_losses = []
         test_losses = []
         print('Training...')
-        for _ in tqdm(range(epochs)):
+        for epoch in tqdm(range(epochs)):
             if oversampling:
                 train_loss = train_oversampling(model, train_loader, lr, wd, device)
             else:
@@ -103,12 +118,25 @@ def testing(device, dataset, train_data, test_data, output_directory, results_fi
             train_losses.append(train_loss.item())
             test_loss, _, _ ,_ = test(model, test_loader, device)
             test_losses.append(test_loss.item())
+            early_stopping(test_loss)
+            if early_stopping.early_stop:
+                final_num_epochs = epoch
+                break
+        if early_stopping.early_stop == False:
+            final_num_epochs = epochs
         torch.save(model.state_dict(), os.path.join(output_subdirectory, 'model.pt'))
         plot_losses(train_losses, test_losses, path=os.path.join(output_subdirectory, 'loss.png'))
 
         """ ---------- Test Model ---------- """
 
-        _, y_pred_test, mol_ids_test, y_true_test = test(model, test_loader, device)
+        _, y_pred, mol_id, y_true = test(model, test_loader, device)
 
-        save_results(output_directory, output_subdirectory, results_file_name, timestamp, data_name, model_name, \
-            h_dim, num_heads, epochs, lr, wd, batch_size, y_pred_test[:,0], mol_ids_test, y_true_test)
+        y_preds[rs] = y_pred[:,0]
+        mol_ids[rs] = mol_id
+        y_trues[rs] = y_true
+
+        save_individual_results(output_directory, output_subdirectory, "results_individual.csv", timestamp, data_name, model_name, \
+            h_dim, dropout, num_heads, neg_slope, final_num_epochs, lr, wd, batch_size, oversampling, y_pred[:,0], mol_id, y_true)
+
+    save_average_results(output_directory, "results_average.csv", runs, data_name, model_name, \
+        h_dim, dropout, num_heads, neg_slope, lr, wd, batch_size, oversampling, y_preds, mol_ids, y_trues)
