@@ -1,6 +1,10 @@
 import argparse
+import ast
+import numpy as np
 import os
 import torch
+from ipywidgets import widgets
+from rdkit.Chem import Draw, PandasTools
 from sklearn.model_selection import train_test_split
 from torch_geometric import seed_everything
 from torch_geometric.loader import DataLoader
@@ -18,10 +22,10 @@ def main():
     seed_everything(42)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("procedure", nargs="?", default="test", help="the type of procedure to run: choose between \"process_data\", \"hp_opt\", \"test\", \"visualize\"")
+    parser.add_argument("procedure", nargs="?", default="hp_opt", help="the type of procedure to run: choose between \"process_data\", \"hp_opt\", \"test\", \"visualize\"")
     parser.add_argument("data_directory", nargs="?", default="data/xenosite", help="the folder where the data is stored", type=str)
     parser.add_argument("data", nargs="?", default="xenosite.sdf", help="the name of the data file (must be a .sdf file)", type=str)
-    parser.add_argument("output_directory", nargs="?", default="output/xenosite/test", help="the folder where the results will be stored", type=str)
+    parser.add_argument("output_directory", nargs="?", default="output/xenosite", help="the folder where the results will be stored", type=str)
     parser.add_argument("results_file_name", nargs="?", default="results.csv", help="the name of the csv file to store the summarized results", type=str)
     parser.add_argument("model_name", nargs="?", default= "GIN", help="the neural network that will be used: either \"GIN\" (Graph Isomorphism Network) or \"GAT\" (Graph Attention Network", type=str)
     parser.add_argument("h_dim", nargs="?", default=32, help="the size of the hidden layers", type=int)
@@ -33,7 +37,7 @@ def main():
     parser.add_argument("wd", nargs="?", default=1e-3, help="weight decay", type=float)
     parser.add_argument("batch_size", nargs="?", default=32, help="batch size", type=int)
     parser.add_argument("oversampling", nargs="?", default=False, help="whether to use oversampling technique or not: [True/False]", type=bool)
-    parser.add_argument("patience", nargs="?", default=5, help="early stopping: number of epochs with no improvement after which training will be stopped", type=int)
+    parser.add_argument("patience", nargs="?", default=10, help="early stopping: number of epochs with no improvement after which training will be stopped", type=int)
     parser.add_argument("delta", nargs="?", default=1, help="early stopping: improvement tolerance", type=float)
     args = parser.parse_args()
 
@@ -77,21 +81,38 @@ def main():
                                 args.num_heads, args.neg_slope, args.epochs, \
                                     args.lr, args.wd, args.batch_size, args.oversampling, args.patience, args.delta)
 
-        # if args.procedure == "visualize":
-        #     if args.model_name == "GIN":
-        #         model = GIN(in_dim=dataset.num_features, h_dim=args.h_dim, edge_dim=dataset.num_edge_features, dropout=args.dropout).to(device)
-        #     if args.model_name == "GAT":
-        #         model = GAT(in_dim=dataset.num_features, h_dim=args.h_dim, edge_dim=dataset.num_edge_features, num_heads=args.num_heads, neg_slope=args.neg_slope, dropout=args.dropout).to(device)
-        #     model.load_state_dict(torch.load("output/xenosite/test/1669979436/model.pt"))
+        if args.procedure == "visualize":
+            if args.model_name == "GIN":
+                model = GIN(in_dim=dataset.num_features, h_dim=args.h_dim, edge_dim=dataset.num_edge_features, dropout=args.dropout).to(device)
+            if args.model_name == "GAT":
+                model = GAT(in_dim=dataset.num_features, h_dim=args.h_dim, edge_dim=dataset.num_edge_features, num_heads=args.num_heads, neg_slope=args.neg_slope, dropout=args.dropout).to(device)
+            # here you need to load an existing model
+            model.load_state_dict(torch.load("output/xenosite/1670317775/model.pt"))
 
-        #     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=True)
-        #     _, y_pred_test, mol_ids_test, y_true_test = test(model, test_loader, device)
+            test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=True)
+            _, y_pred_test, mol_ids_test, y_true_test = test(model, test_loader, device)
 
-        #     mistakes = []
-        #     for index, element in enumerate(y_pred_test):
-        #         if element != y_true_test[index]:
-        #             mistakes.append(tuple((index, mol_ids_test[index])))
-        #     print("Done!")
+            df = PandasTools.LoadSDF(os.path.join(args.data_directory, args.data), removeHs=True)
+            df['soms'] = df['soms'].map(ast.literal_eval)
+
+            ids = np.unique(mol_ids_test)
+
+            def plot_molecules(i):
+                id = ids[i]
+                mask = id == mol_ids_test
+                preds = y_pred_test[mask][:,0]
+                trues = y_true_test[mask]
+                ranking = np.argsort(-preds)
+                mol = df._get_value(id, "ROMol")
+                for atom, rank in zip(mol.GetAtoms(), ranking):
+                    atom.SetProp("atomNote", str(rank+1))
+                return Draw.MolToImage(mol, size=(500,500), highlightAtoms=list(map(int, list(np.where(trues==1)[0]))))
+
+            slider = widgets.interact(plot_molecules, i=(0,len(ids),1))
+            # here we would need to export the slider+images to an html file
+            # I found this https://ipywidgets.readthedocs.io/en/latest/embedding.html#python-interface
+            # But I haven't been able to implement it so far
+            # you can have a look at mol.png for an example of the graphics generated by rdkit
 
 if __name__ == "__main__":
     main()

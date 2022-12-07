@@ -9,7 +9,7 @@ import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import Crippen, Descriptors, Lipinski, PandasTools, rdMolDescriptors
 from sklearn.compose import ColumnTransformer, make_column_selector
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
 from tqdm import tqdm
 
 def mol_to_nx(mol_id, mol, soms):
@@ -151,7 +151,7 @@ def compute_node_features_matrix(G):
     categorical_columns = categorical_columns_selector(features)
 
     categorical_preprocessor = OneHotEncoder(sparse=False, dtype=float, handle_unknown='infrequent_if_exist')
-    numerical_preprocessor = StandardScaler()
+    numerical_preprocessor = MinMaxScaler(feature_range=(0, 1))
 
     preprocessor = ColumnTransformer([
         ('one-hot-encoder', categorical_preprocessor, categorical_columns),
