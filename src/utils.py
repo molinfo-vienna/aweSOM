@@ -18,15 +18,17 @@ def average(lst):
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
-    def __init__(self, patience, delta):
+    def __init__(self, size_avg_window, patience, delta):
         """
         Args:
-            patience (int): Number of epochs with no improvement after which training will be stopped.
-            delta (float): Improvement tolerance.   
+            size_avg_window (int): Size of the interval taken into account to compute loss average
+            patience (int): Number of early stoppping evaluation phases with no improvement after which training will be stopped
+            delta (float): minimal ratio to qualify as improvement
         """
+        self.size_avg_window = size_avg_window
         self.patience = patience
         self.delta = delta
-        self.memory = deque(maxlen=10)
+        self.memory = deque()
         self.first_run = True
         self.avg_old = None
         self.avg_new = None
@@ -35,7 +37,7 @@ class EarlyStopping:
         self.early_stop = False
 
     def __call__(self, criterion):
-        if len(self.memory) < 10:
+        if len(self.memory) < self.size_avg_window:
             self.memory.append(criterion)
         else:
             if self.first_run:
@@ -44,12 +46,12 @@ class EarlyStopping:
             self.memory.pop()
             self.memory.append(criterion)
             self.interval += 1
-            if self.interval == 10:
+            if self.interval == self.size_avg_window:
                 self.avg_new = average(list(self.memory))
-                diff = self.avg_new - self.avg_old
+                ratio = self.avg_old / self.avg_new
                 self.avg_old = self.avg_new
                 self.interval = 0
-                if diff + self.delta > 0:
+                if ratio <= 1 + self.delta:
                     self.counter += 1
                     if self.counter >= self.patience: self.early_stop = True
                 else:
