@@ -37,8 +37,9 @@ def main():
     parser.add_argument("wd", nargs="?", default=1e-3, help="weight decay", type=float)
     parser.add_argument("batch_size", nargs="?", default=32, help="batch size", type=int)
     parser.add_argument("oversampling", nargs="?", default=False, help="whether to use oversampling technique or not: [True/False]", type=bool)
-    parser.add_argument("patience", nargs="?", default=10, help="early stopping: number of epochs with no improvement after which training will be stopped", type=int)
-    parser.add_argument("delta", nargs="?", default=1, help="early stopping: improvement tolerance", type=float)
+    parser.add_argument("size_avg_window", nargs="?", default=10, help="early stopping: size of the interval taken into account to compute loss average", type=int)
+    parser.add_argument("patience", nargs="?", default=5, help="early stopping: number of early stoppping evaluation phases with no improvement after which training will be stopped", type=int)
+    parser.add_argument("delta", nargs="?", default=0.005, help="early stopping: minimal ratio to qualify as improvement", type=float)
     args = parser.parse_args()
 
     if args.procedure == "process_data":
@@ -72,14 +73,16 @@ def main():
                     args.output_directory, args.results_file_name, \
                         args.data, args.model_name, args.h_dim, args.dropout, \
                             args.num_heads, args.neg_slope, args.epochs, \
-                                args.lr, args.wd, args.batch_size, args.oversampling, args.patience, args.delta)
+                                args.lr, args.wd, args.batch_size, args.oversampling, \
+                                    args.size_avg_window, args.patience, args.delta)
 
         if args.procedure == "test":
             testing(device, dataset, train_data, test_data, \
                         args.output_directory, \
                             args.data, args.model_name, args.h_dim, args.dropout, \
                                 args.num_heads, args.neg_slope, args.epochs, \
-                                    args.lr, args.wd, args.batch_size, args.oversampling, args.patience, args.delta)
+                                    args.lr, args.wd, args.batch_size, args.oversampling, \
+                                        args.size_avg_window, args.patience, args.delta)
 
         if args.procedure == "visualize":
             if args.model_name == "GIN":

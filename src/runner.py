@@ -1,5 +1,6 @@
 import os
 from sklearn.utils.class_weight import compute_class_weight
+from datetime import datetime
 import time
 import torch
 from torch_geometric import seed_everything
@@ -11,9 +12,9 @@ from src.utils import EarlyStopping, plot_losses, save_individual_results, save_
 
 
 def hp_opt(device, dataset, train_data, val_data, output_directory, results_file_name, data_name, model_name, \
-            h_dim, dropout, num_heads, neg_slope, epochs, lr, wd, batch_size, oversampling, patience, delta):
+            h_dim, dropout, num_heads, neg_slope, epochs, lr, wd, batch_size, oversampling, size_avg_window, patience, delta):
 
-    timestamp = int(time.time())
+    timestamp = int(time.mktime(datetime.now().timetuple()))
     output_subdirectory = os.path.join(output_directory, str(timestamp))
     os.mkdir(os.path.join(os.getcwd(), output_subdirectory))
         
@@ -37,7 +38,7 @@ def hp_opt(device, dataset, train_data, val_data, output_directory, results_file
 
     """ ---------- Train Model ---------- """
 
-    early_stopping = EarlyStopping(patience, delta)
+    early_stopping = EarlyStopping(size_avg_window, patience, delta)
 
     train_losses = []
     val_losses = []
@@ -68,7 +69,7 @@ def hp_opt(device, dataset, train_data, val_data, output_directory, results_file
 
 
 def testing(device, dataset, train_data, test_data, output_directory, data_name, model_name, \
-            h_dim, dropout, num_heads, neg_slope, epochs, lr, wd, batch_size, oversampling, patience, delta):
+            h_dim, dropout, num_heads, neg_slope, epochs, lr, wd, batch_size, oversampling, size_avg_window, patience, delta):
 
     random_seeds = [123, 132, 213, 231, 312, 321]
     runs = []
@@ -80,7 +81,7 @@ def testing(device, dataset, train_data, test_data, output_directory, data_name,
 
         seed_everything(rs)
 
-        timestamp = int(time.time())
+        timestamp = int(time.mktime(datetime.now().timetuple()))
         runs.append(timestamp)
         output_subdirectory = os.path.join(output_directory, str(timestamp))
         os.mkdir(os.path.join(os.getcwd(), output_subdirectory))
@@ -105,7 +106,7 @@ def testing(device, dataset, train_data, test_data, output_directory, data_name,
 
         """ ---------- Train Model ---------- """
 
-        early_stopping = EarlyStopping(patience, delta)
+        early_stopping = EarlyStopping(size_avg_window, patience, delta)
 
         train_losses = []
         test_losses = []
