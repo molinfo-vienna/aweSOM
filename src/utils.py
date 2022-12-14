@@ -54,8 +54,6 @@ class EarlyStopping:
                 if ratio <= 1 + self.delta:
                     self.counter += 1
                     if self.counter >= self.patience: self.early_stop = True
-                else:
-                    self.counter = 0
 
 
 def seed_everything(seed=42):

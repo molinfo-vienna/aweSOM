@@ -3,6 +3,7 @@ import ast
 import numpy as np
 import os
 import torch
+from distutils.util import strtobool
 from ipywidgets import widgets
 from rdkit.Chem import Draw, PandasTools
 from sklearn.model_selection import train_test_split
@@ -36,10 +37,10 @@ def main():
     parser.add_argument("lr", nargs="?", default=1e-3, help="learning rate", type=float)
     parser.add_argument("wd", nargs="?", default=1e-3, help="weight decay", type=float)
     parser.add_argument("batch_size", nargs="?", default=32, help="batch size", type=int)
-    parser.add_argument("oversampling", nargs="?", default=False, help="whether to use oversampling technique or not: [True/False]", type=bool)
+    parser.add_argument("oversampling", nargs="?", default=False, help="whether to use oversampling technique or not: [True/False]", type=lambda x: bool(strtobool(x)))
     parser.add_argument("size_avg_window", nargs="?", default=10, help="early stopping: size of the interval taken into account to compute loss average", type=int)
     parser.add_argument("patience", nargs="?", default=5, help="early stopping: number of early stoppping evaluation phases with no improvement after which training will be stopped", type=int)
-    parser.add_argument("delta", nargs="?", default=0.005, help="early stopping: minimal ratio to qualify as improvement", type=float)
+    parser.add_argument("delta", nargs="?", default=0., help="early stopping: minimal ratio to qualify as improvement", type=float)
     args = parser.parse_args()
 
     if args.procedure == "process_data":
