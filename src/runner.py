@@ -12,21 +12,21 @@ from src.utils import (
     plot_losses,
     save_individual,
     save_average,
-    save_testing
+    save_predict
 )
 
 
-def hp_opt(
+def _hp_optimization(
     device,
     dataset,
     train_val_data,
     output_directory,
-    h_dim,
+    hdim,
     dropout,
     epochs,
     lr,
     wd,
-    batch_size,
+    bs,
     patience,
     delta,
 ):
@@ -42,7 +42,7 @@ def hp_opt(
         # Create results directory 
         output_subdirectory = os.path.join(
             output_directory,
-            str(h_dim)
+            str(hdim)
             + "_"
             + "{:.0e}".format(dropout)
             + "_"
@@ -50,7 +50,7 @@ def hp_opt(
             + "_"
             + "{:.0e}".format(wd)
             + "_"
-            + str(batch_size)
+            + str(bs)
             + "_"
             + str(fold_num)
         )
@@ -59,7 +59,7 @@ def hp_opt(
         # Initialize model
         model = GIN(
             in_dim=dataset.num_features,
-            h_dim=h_dim,
+            hdim=hdim,
             edge_dim=dataset.num_edge_features,
             dropout=dropout,
         ).to(device)
@@ -71,8 +71,8 @@ def hp_opt(
         print(f"Validation set: {len(val_data)} molecules.")
 
         #  Training and Validation Data Loader
-        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=True)
+        train_loader = DataLoader(train_data, batch_size=bs, shuffle=True)
+        val_loader = DataLoader(val_data, batch_size=bs, shuffle=True)
 
         """ ---------- Train Model ---------- """
 
@@ -112,11 +112,11 @@ def hp_opt(
             output_subdirectory,
             fold_num,
             "results.csv",
-            h_dim,
+            hdim,
             dropout,
             lr,
             wd,
-            batch_size,
+            bs,
             final_num_epochs,
             val_loss.item(),
             y_pred[:, 0],
@@ -128,29 +128,29 @@ def hp_opt(
     save_average(
         output_directory,
         "results_average.csv",
-        h_dim,
+        hdim,
         dropout,
         lr,
         wd,
-        batch_size,
+        bs,
         y_preds,
         y_trues,
         mol_ids,
     )
 
 
-def testing(
+def _predict(
     device,
     dataset,
     test_data,
-    output_directory,
-    saved_models_summary_file,
+    outdir,
+    metadata,
 ):
     y_preds = {}
     y_trues = {}
     opt_thresholds = []
 
-    metadata = pd.read_csv(os.path.join(output_directory, saved_models_summary_file)).to_dict()
+    metadata = pd.read_csv(os.path.join(outdir, metadata)).to_dict()
     print(f"Test set: {len(test_data)} molecules.")
     
     for i in range(len(metadata['Results Folder'])):
@@ -158,7 +158,7 @@ def testing(
         # Initialize model
         model = GIN(
             in_dim=dataset.num_features,
-            h_dim=metadata['Dimension of Hidden Layers'][i],
+            hdim=metadata['Dimension of Hidden Layers'][i],
             edge_dim=dataset.num_edge_features,
             dropout=metadata['Dropout'][i],
         ).to(device)
@@ -178,8 +178,8 @@ def testing(
         
         opt_thresholds.append(metadata['Optimal Threshold'][i])
 
-    save_testing(
-        output_directory,
+    save_predict(
+        outdir,
         y_preds,
         y_trues,
         opt_thresholds,
