@@ -1,15 +1,21 @@
 import csv
+import json
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import random
 import torch
 
-from collections import deque
+from collections import Counter
 
-from sklearn.metrics import auc, jaccard_score, matthews_corrcoef, \
-    precision_score, recall_score, roc_auc_score, roc_curve, \
-        ConfusionMatrixDisplay, PrecisionRecallDisplay
+from sklearn.metrics import (
+    auc,
+    matthews_corrcoef,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
+)
 
 
 def average(lst):
@@ -18,50 +24,35 @@ def average(lst):
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
-    def __init__(self, size_avg_window, patience, delta):
+
+    def __init__(self, patience=1, delta=0):
         """
         Args:
-            size_avg_window (int): Size of the interval taken into account to compute loss average
-            patience (int): Number of early stoppping evaluation phases with no improvement after which training will be stopped
-            delta (float): minimal ratio to qualify as improvement
+            patience (int): number of epochs with no improvement of the validation or test loss after which training will be stopped
+            delta (float): minimum change in the monitored quantity to qualify as an improvement
         """
-        self.size_avg_window = size_avg_window
         self.patience = patience
         self.delta = delta
-        self.memory = deque()
-        self.first_run = True
-        self.avg_old = None
-        self.avg_new = None
-        self.interval = 0
         self.counter = 0
-        self.early_stop = False
+        self.min_validation_loss = np.inf
 
-    def __call__(self, criterion):
-        if len(self.memory) < self.size_avg_window:
-            self.memory.append(criterion)
-        else:
-            if self.first_run:
-                self.avg_old = average(list(self.memory))
-                self.first_run = False
-            self.memory.pop()
-            self.memory.append(criterion)
-            self.interval += 1
-            if self.interval == self.size_avg_window:
-                self.avg_new = average(list(self.memory))
-                ratio = self.avg_old / self.avg_new
-                self.avg_old = self.avg_new
-                self.interval = 0
-                if ratio <= 1 + self.delta:
-                    self.counter += 1
-                    if self.counter >= self.patience: self.early_stop = True
+    def early_stop(self, validation_loss):
+        if validation_loss < self.min_validation_loss:
+            self.min_validation_loss = validation_loss
+            self.counter = 0
+        elif validation_loss > (self.min_validation_loss + self.delta):
+            self.counter += 1
+            if self.counter >= self.patience:
+                return True
+        return False
 
 
 def seed_everything(seed=42):
-    """"
+    """ "
     Seed everything.
-    """   
+    """
     random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -71,11 +62,25 @@ def seed_everything(seed=42):
 
 def plot_losses(train_loss, val_loss, path):
     plt.figure()
-    plt.plot(np.arange(0, len(train_loss), 1), train_loss, linestyle='-', linewidth=1, color ='orange', label='Training Loss')
-    plt.plot(np.arange(0, len(train_loss), 1), val_loss, linestyle='-', linewidth=1, color ='blue', label='Validation Loss')
-    plt.title('Training and Validation loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
+    plt.plot(
+        np.arange(0, len(train_loss), 1),
+        train_loss,
+        linestyle="-",
+        linewidth=1,
+        color="orange",
+        label="Training Loss",
+    )
+    plt.plot(
+        np.arange(0, len(train_loss), 1),
+        val_loss,
+        linestyle="-",
+        linewidth=1,
+        color="blue",
+        label="Validation Loss",
+    )
+    plt.title("Training and Validation loss")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
     plt.legend()
     plt.savefig(path)
 
@@ -100,13 +105,27 @@ def plot_roc_curve(y_true, y_pred, save_plot, **path):
         plt.ylabel("True Positive Rate")
         plt.title("ROC Curve, Validation Set")
         plt.legend(loc="lower right")
-        plt.savefig(path['path'])
+        plt.savefig(path["path"])
     return best_threshold
 
 
-def save_individual_results(output_directory, output_subdirectory, results_file_name, timestamp, \
-    data_name, model_name, h_dim, dropout, num_heads, neg_slope, epochs, lr, wd, batch_size, oversampling, \
-        y_pred, mol_id, y_true):
+def save_individual(
+    output_directory,
+    output_subdirectory,
+    fold_num,
+    results_file_name,
+    h_dim,
+    dropout,
+    lr,
+    wd,
+    batch_size,
+    final_num_epochs,
+    val_loss,
+    y_pred,
+    y_true,
+    mol_id,
+    atom_id,
+):
 
     # Compute top1 accuracy
     pred_top1 = []
@@ -117,7 +136,7 @@ def save_individual_results(output_directory, output_subdirectory, results_file_
             pred_top1.append(1)
         else:
             pred_top1.append(0)
-    top1 = np.sum(pred_top1)/len(np.unique(mol_id))
+    top1 = np.sum(pred_top1) / len(np.unique(mol_id))
 
     # Compute top2 accuracy
     pred_top2 = []
@@ -128,52 +147,133 @@ def save_individual_results(output_directory, output_subdirectory, results_file_
             pred_top2.append(1)
         else:
             pred_top2.append(0)
-    top2 = np.sum(pred_top2)/len(np.unique(mol_id))
-
-    # Compute and plot precision/recall curve
-    PrecisionRecallDisplay.from_predictions(y_true, y_pred)
-    plt.savefig(os.path.join(output_subdirectory, 'pr_curve.png'))
+    top2 = np.sum(pred_top2) / len(np.unique(mol_id))
 
     # Compute and plot ROC-AUC score and ROC-curve, get best threshold
     roc_auc = roc_auc_score(y_true, y_pred)
-    best_threshold = plot_roc_curve(y_true, y_pred, True, path=os.path.join(output_subdirectory, 'roc_curve.png'))
+    best_threshold = plot_roc_curve(y_true, y_pred, False)
 
     # Compute binary predictions from probability predictions with best threshold
-    y_pred = ((y_pred > best_threshold))
-
-    # Compute and plot confusion matrix 
-    ConfusionMatrixDisplay.from_predictions(y_true, y_pred)
-    plt.savefig(os.path.join(output_subdirectory, 'cm.png'))
+    y_pred_bin = y_pred > best_threshold
 
     # Compute metrics that require binary predictions
-    mcc = matthews_corrcoef(y_true, y_pred)
-    jaccard = jaccard_score(y_true, y_pred)
-    precision = precision_score(y_true, y_pred, zero_division=0)
-    recall = recall_score(y_true, y_pred)
+    mcc = matthews_corrcoef(y_true, y_pred_bin)
+    precision = precision_score(y_true, y_pred_bin, zero_division=0)
+    recall = recall_score(y_true, y_pred_bin)
 
-    data = [timestamp, data_name, model_name, h_dim, dropout, num_heads, neg_slope, epochs, lr, wd, batch_size, oversampling, \
-                round(best_threshold,3), round(mcc,3), round(top1,3), round(top2,3), \
-                    round(jaccard,3), round(precision,3), round(recall,3), round(roc_auc,3)]
+    # Save molecular identifiers (mol_id), true labels (y_true), and predicted labels (y_pred) to a csv file:
+    rows = zip(mol_id, atom_id, y_true, y_pred, y_pred_bin)
+    with open(
+        os.path.join(output_subdirectory, "predictions" + str(fold_num) + ".csv"),
+        "w",
+        encoding="UTF8",
+        newline="",
+    ) as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            (
+                "mol_id",
+                "atom_id",
+                "true_label",
+                "predicted_label",
+                "predicted_binary_label",
+            )
+        )
+        writer.writerows(rows)
+    f.close()
+
+    with open(
+        os.path.join(output_subdirectory, "hp.csv"),
+        "w",
+        encoding="UTF8",
+        newline="",
+    ) as f:
+        writer = csv.writer(f)
+        writer.writerow(        
+            [
+                h_dim,
+                dropout,
+                lr,
+                wd,
+                batch_size,
+            ]
+        )
+
+    data = [
+        str(output_subdirectory),
+        h_dim,
+        dropout,
+        lr,
+        wd,
+        batch_size,
+        fold_num,
+        final_num_epochs,
+        val_loss,
+        round(best_threshold, 3),
+        round(mcc, 3),
+        round(top1, 3),
+        round(top2, 3),
+        round(precision, 3),
+        round(recall, 3),
+        round(roc_auc, 3),
+    ]
+
     if os.path.isfile(os.path.join(output_directory, results_file_name)) == False:
-        with open(os.path.join(output_directory, results_file_name), 'w', encoding='UTF8', newline='') as f:
+        with open(
+            os.path.join(output_directory, results_file_name),
+            "w",
+            encoding="UTF8",
+            newline="",
+        ) as f:
             writer = csv.writer(f)
-            writer.writerow(["Subdirectory", "Data", "Model", "Dimension of Hidden Layers", "Dropout", "Heads", "Negative Slope", \
-                "Training Epochs","Learning Rate","Weight Decay", "Batch Size", "Oversampling", "Optimal Threshold", "MCC", \
-                    "Top1 Accuracy", "Top2 Accuracy", "Jaccard Score", "Precision", "Recall", "ROC AUC Score"])
-    with open(os.path.join(output_directory, results_file_name), 'a', encoding='UTF8', newline='') as f:
+            writer.writerow(
+                [
+                    "Results Folder",
+                    "Dimension of Hidden Layers",
+                    "Dropout",
+                    "Learning Rate",
+                    "Weight Decay",
+                    "Batch Size",
+                    "Fold",
+                    "Epochs",
+                    "Validation Loss",
+                    "Optimal Threshold",
+                    "MCC",
+                    "Top1 Accuracy",
+                    "Top2 Accuracy",
+                    "Precision",
+                    "Recall",
+                    "ROC AUC Score",
+                ]
+            )
+    with open(
+        os.path.join(output_directory, results_file_name),
+        "a",
+        encoding="UTF8",
+        newline="",
+    ) as f:
         writer = csv.writer(f)
         writer.writerow(data)
 
 
-def save_average_results(output_directory, results_file_name, runs, data_name, model_name, h_dim, dropout, num_heads, \
-    neg_slope, lr, wd, batch_size, oversampling, y_preds, mol_ids, y_trues):
+def save_average(
+    output_directory,
+    results_file_name,
+    h_dim,
+    dropout,
+    lr,
+    wd,
+    batch_size,
+    y_preds,
+    y_trues,
+    mol_ids,
+):
 
     top1_list = []
     top2_list = []
     roc_auc_list = []
     best_threshold_list = []
     mcc_list = []
-    jaccard_list = []
     precision_list = []
     recall_list = []
 
@@ -188,7 +288,7 @@ def save_average_results(output_directory, results_file_name, runs, data_name, m
                 pred_top1.append(1)
             else:
                 pred_top1.append(0)
-        top1 = np.sum(pred_top1)/len(np.unique(mol_ids[key]))
+        top1 = np.sum(pred_top1) / len(np.unique(mol_ids[key]))
         top1_list.append(top1)
 
         # Compute top2 accuracy
@@ -200,9 +300,8 @@ def save_average_results(output_directory, results_file_name, runs, data_name, m
                 pred_top2.append(1)
             else:
                 pred_top2.append(0)
-        top2 = np.sum(pred_top2)/len(np.unique(mol_ids[key]))
+        top2 = np.sum(pred_top2) / len(np.unique(mol_ids[key]))
         top2_list.append(top2)
-
 
         # Compute and plot ROC-AUC score and ROC-curve, get best threshold
         roc_auc = roc_auc_score(y_trues[key], y_preds[key])
@@ -211,14 +310,11 @@ def save_average_results(output_directory, results_file_name, runs, data_name, m
         best_threshold_list.append(best_threshold)
 
         # Compute binary predictions from probability predictions with best threshold
-        y_preds[key] = ((y_preds[key] > best_threshold))
-
+        y_preds[key] = y_preds[key] > best_threshold
 
         # Compute metrics that require binary predictions
         mcc = matthews_corrcoef(y_trues[key], y_preds[key])
         mcc_list.append(mcc)
-        jaccard = jaccard_score(y_trues[key], y_preds[key])
-        jaccard_list.append(jaccard)
         precision = precision_score(y_trues[key], y_preds[key], zero_division=0)
         precision_list.append(precision)
         recall = recall_score(y_trues[key], y_preds[key])
@@ -229,20 +325,89 @@ def save_average_results(output_directory, results_file_name, runs, data_name, m
     roc_auc_mean = average(roc_auc_list)
     best_threshold_mean = average(best_threshold_list)
     mcc_mean = average(mcc_list)
-    jaccard_mean = average(jaccard_list)
     precision_mean = average(precision_list)
     recall_mean = average(recall_list)
-    
-    data = [runs, data_name, model_name, h_dim, dropout, num_heads, neg_slope, lr, wd, batch_size, oversampling, \
-                round(best_threshold_mean,3), round(mcc_mean,3), round(top1_mean,3), round(top2_mean,3), \
-                            round(jaccard_mean,3), round(precision_mean,3), round(recall_mean,3), round(roc_auc_mean,3)]
-        
+
+    data = [
+        h_dim,
+        dropout,
+        lr,
+        wd,
+        batch_size,
+        round(best_threshold_mean, 3),
+        round(mcc_mean, 3),
+        round(top1_mean, 3),
+        round(top2_mean, 3),
+        round(precision_mean, 3),
+        round(recall_mean, 3),
+        round(roc_auc_mean, 3),
+    ]
+
     if os.path.isfile(os.path.join(output_directory, results_file_name)) == False:
-        with open(os.path.join(output_directory, results_file_name), 'w', encoding='UTF8', newline='') as f:
+        with open(
+            os.path.join(output_directory, results_file_name),
+            "w",
+            encoding="UTF8",
+            newline="",
+        ) as f:
             writer = csv.writer(f)
-            writer.writerow(["Runs", "Data", "Model", "Dimension of Hidden Layers", "Dropout", "Heads", "Negative Slope", \
-                "Learning Rate","Weight Decay", "Batch Size", "Oversampling", "Optimal Threshold", "MCC", \
-                    "Top1 Accuracy", "Top2 Accuracy", "Jaccard Score", "Precision", "Recall", "ROC AUC Score"])
-    with open(os.path.join(output_directory, results_file_name), 'a', encoding='UTF8', newline='') as f:
+            writer.writerow(
+                [
+                    "Dimension of Hidden Layers",
+                    "Dropout",
+                    "Learning Rate",
+                    "Weight Decay",
+                    "Batch Size",
+                    "Optimal Threshold",
+                    "MCC",
+                    "Top1 Accuracy",
+                    "Top2 Accuracy",
+                    "Precision",
+                    "Recall",
+                    "ROC AUC Score",
+                ]
+            )
+    with open(
+        os.path.join(output_directory, results_file_name),
+        "a",
+        encoding="UTF8",
+        newline="",
+    ) as f:
         writer = csv.writer(f)
         writer.writerow(data)
+
+
+def save_testing(
+    output_directory,
+    y_preds,
+    y_trues,
+    opt_thresholds,
+):
+
+    results = {}
+    
+    y_preds_bin = {}
+    for threshold in opt_thresholds:
+        for key in y_preds:
+            for y_pred in y_preds[key]:
+                y_preds_bin.setdefault(key,[]).append(y_pred > threshold)
+
+    y_preds_voted = {}
+    for key in y_preds_bin:
+        y_preds_voted[key] = Counter(y_preds_bin[key]).most_common()[0][0]
+
+
+    mcc = matthews_corrcoef(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values()))
+    precision = precision_score(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values()))
+    recall = recall_score(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values()))
+
+    results["MCC"] = mcc
+    results["Precision"] = precision
+    results["Recall"] = recall
+
+    with open(
+        os.path.join(output_directory, "results.txt"),
+        "w",
+        encoding="UTF8",
+    ) as f:
+        f.write(json.dumps(results))
