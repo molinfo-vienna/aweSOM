@@ -39,12 +39,12 @@ class MCC_BCE_Loss(torch.nn.Module):
 
 
 class GIN(torch.nn.Module):
-    def __init__(self, in_dim, h_dim, edge_dim, dropout):
+    def __init__(self, in_dim, hdim, edge_dim, dropout):
         super().__init__()
         self.conv1 = GINEConv(
             Sequential(
-                Linear(in_dim, h_dim),
-                BatchNorm1d(h_dim, h_dim),
+                Linear(in_dim, hdim),
+                BatchNorm1d(hdim, hdim),
                 LeakyReLU(),
                 Dropout(p=dropout),
             ),
@@ -52,8 +52,8 @@ class GIN(torch.nn.Module):
         )
         self.conv2 = GINEConv(
             Sequential(
-                Linear(h_dim, h_dim),
-                BatchNorm1d(h_dim, h_dim),
+                Linear(hdim, hdim),
+                BatchNorm1d(hdim, hdim),
                 LeakyReLU(),
                 Dropout(p=dropout),
             ),
@@ -61,15 +61,15 @@ class GIN(torch.nn.Module):
         )
         self.conv3 = GINEConv(
             Sequential(
-                Linear(h_dim, h_dim),
-                BatchNorm1d(h_dim, h_dim),
+                Linear(hdim, hdim),
+                BatchNorm1d(hdim, hdim),
                 LeakyReLU(),
                 Dropout(p=dropout),
             ),
             edge_dim=edge_dim,
         )
         self.lin = Sequential(
-            Linear(h_dim * 4, h_dim * 4), LeakyReLU(), Linear(h_dim * 4, 1)
+            Linear(hdim * 4, hdim * 4), LeakyReLU(), Linear(hdim * 4, 1)
         )
 
     def forward(self, x, edge_index, edge_attr, batch):

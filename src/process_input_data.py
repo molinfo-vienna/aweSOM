@@ -307,23 +307,22 @@ def compute_node_features_matrix(G):
     return np.array(features)
 
 
-def process_data(data_directory, data_name):
+def _process_data(dir, file):
     """Computes and saves the necessary data (graph, features, labels, graph_ids)
     to create a PyTorch Geometric custom dataset from an SDF file containing molecules.
 
     Args:
-        data_directory (string): the folder where the SDF file is stored.
-        dat_name (string): the SDF file.
-        output_directory (string): the folder to which the correlation matrix gets written.
+        dir (string): the directory where the input data is stored
+        file (string): the name of the input data file (must be .sdf)
     """
     # Import data from sdf file
-    df = PandasTools.LoadSDF(os.path.join(data_directory, data_name), removeHs=True)
+    df = PandasTools.LoadSDF(os.path.join(dir, file), removeHs=True)
     df["soms"] = df["soms"].map(ast.literal_eval)
 
     # Generate networkx graphs from mols and save them in a json file
     df["G"] = df.apply(lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms), axis=1)
     G = nx.disjoint_union_all(df["G"].to_list())
-    with open(os.path.join(data_directory, "graph.json"), "w") as f:
+    with open(os.path.join(dir, "graph.json"), "w") as f:
         f.write(json.dumps(json_graph.node_link_data(G)))
 
     # Generate and save list of mol ids
@@ -331,27 +330,27 @@ def process_data(data_directory, data_name):
     for i in range(len(G.nodes)):
         mol_ids.append(G.nodes[i]["mol_id"])
     mol_ids = np.array(mol_ids)
-    np.save(os.path.join(data_directory, "mol_ids.npy"), mol_ids)
+    np.save(os.path.join(dir, "mol_ids.npy"), mol_ids)
 
     # Generate and save list of atom ids
     atom_ids = []
     for i in range(len(G.nodes)):
         atom_ids.append(G.nodes[i]["atom_id"])
     atom_ids = np.array(atom_ids)
-    np.save(os.path.join(data_directory, "atom_ids.npy"), atom_ids)
+    np.save(os.path.join(dir, "atom_ids.npy"), atom_ids)
 
     # Generate and save list of labels
     labels = []
     for i in range(len(G.nodes)):
         labels.append(int(G.nodes[i]["is_som"]))
     labels = np.array(labels)
-    np.save(os.path.join(data_directory, "labels.npy"), labels)
+    np.save(os.path.join(dir, "labels.npy"), labels)
 
     # Compute node features matrix and save it to node_features.npy
     node_features = compute_node_features_matrix(G)
-    np.save(os.path.join(data_directory, "node_features.npy"), node_features)
+    np.save(os.path.join(dir, "node_features.npy"), node_features)
 
     df = pd.DataFrame(node_features)
     corr_matrix = df.corr()
     plt.imshow(corr_matrix, cmap="binary")
-    plt.savefig(os.path.join(data_directory, "correlation_matrix.png"))
+    plt.savefig(os.path.join(dir, "correlation_matrix.png"))

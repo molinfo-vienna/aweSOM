@@ -114,11 +114,11 @@ def save_individual(
     output_subdirectory,
     fold_num,
     results_file_name,
-    h_dim,
+    hdim,
     dropout,
     lr,
     wd,
-    batch_size,
+    bs,
     final_num_epochs,
     val_loss,
     y_pred,
@@ -191,21 +191,21 @@ def save_individual(
         writer = csv.writer(f)
         writer.writerow(        
             [
-                h_dim,
+                hdim,
                 dropout,
                 lr,
                 wd,
-                batch_size,
+                bs,
             ]
         )
 
     data = [
         str(output_subdirectory),
-        h_dim,
+        hdim,
         dropout,
         lr,
         wd,
-        batch_size,
+        bs,
         fold_num,
         final_num_epochs,
         val_loss,
@@ -259,11 +259,11 @@ def save_individual(
 def save_average(
     output_directory,
     results_file_name,
-    h_dim,
+    hdim,
     dropout,
     lr,
     wd,
-    batch_size,
+    bs,
     y_preds,
     y_trues,
     mol_ids,
@@ -329,11 +329,11 @@ def save_average(
     recall_mean = average(recall_list)
 
     data = [
-        h_dim,
+        hdim,
         dropout,
         lr,
         wd,
-        batch_size,
+        bs,
         round(best_threshold_mean, 3),
         round(mcc_mean, 3),
         round(top1_mean, 3),
@@ -377,8 +377,8 @@ def save_average(
         writer.writerow(data)
 
 
-def save_testing(
-    output_directory,
+def save_predict(
+    outdir,
     y_preds,
     y_trues,
     opt_thresholds,
@@ -406,7 +406,7 @@ def save_testing(
     results["Recall"] = recall
 
     with open(
-        os.path.join(output_directory, "results.txt"),
+        os.path.join(outdir, "results.txt"),
         "w",
         encoding="UTF8",
     ) as f:
