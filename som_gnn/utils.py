@@ -8,6 +8,8 @@ import torch
 
 from collections import Counter
 
+import torch.nn.functional as F
+
 from sklearn.metrics import (
     auc,
     matthews_corrcoef,
@@ -18,9 +20,8 @@ from sklearn.metrics import (
 )
 
 
-def average(lst):
-    return sum(lst) / len(lst)
-
+################################
+##################### NN related utility functions
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
@@ -46,6 +47,48 @@ class EarlyStopping:
                 return True
         return False
 
+################################
+##################### loss utility functions
+
+class MCC_Loss(torch.nn.Module):
+    def __init__(self):
+        super(MCC_Loss, self).__init__()
+
+    def forward(self, predictions, targets):
+        predictions = torch.sigmoid(predictions)
+        TP = torch.sum(predictions * targets)
+        TN = torch.sum((1 - predictions) * (1 - targets))
+        FP = torch.sum((1 - targets) * predictions)
+        FN = torch.sum(targets * (1 - predictions))
+        MCC_loss = 1 - (TP * TN - FP * FN) / (
+            torch.sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
+        )
+        return MCC_loss
+
+
+class MCC_BCE_Loss(torch.nn.Module):
+    def __init__(self):
+        super(MCC_BCE_Loss, self).__init__()
+
+    def forward(self, predictions, targets):
+        predictions = torch.sigmoid(predictions)
+        TP = torch.sum(predictions * targets)
+        TN = torch.sum((1 - predictions) * (1 - targets))
+        FP = torch.sum((1 - targets) * predictions)
+        FN = torch.sum(targets * (1 - predictions))
+        MCC_loss = 1 - (TP * TN - FP * FN) / (
+            torch.sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
+        )
+        BCE_loss = F.binary_cross_entropy(predictions, targets, reduction="sum")
+        MCC_BCE_loss = MCC_loss + BCE_loss
+        return MCC_BCE_loss
+
+
+################################
+##################### general utility functions
+
+def average(lst):
+    return sum(lst) / len(lst)
 
 def seed_everything(seed=42):
     """ "

@@ -12,6 +12,28 @@ from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
 from tqdm import tqdm
 
+ELEM_LIST =[1, 6, 7, 8, 16, 9, 15, 17, 35, 53,"unknown"]
+FORMAL_CHARG = [-1,-2,1,2,"unknown"]
+CIP_CONF = [8,2,4,"unknown"]
+HYBRIDIZATION = [1,2,3,7,8,"unknown"]
+H_COUNT = [0,1,2,3,4,5,"unknown"]
+
+
+def getAllowedSet(x, allowable_set):
+        '''  
+        generates a one-hot encoded list for x. If x not in allowable_set,
+        the last value of the allowable_set is taken. \n
+        Input \n
+            x (list): list of target values \n
+            allowable_set (list): the allowed set \n
+        Returns: \n
+            (list): one-hot encoded list 
+        '''
+        if x not in allowable_set:
+            x = allowable_set[-1]
+        return list(map(lambda s: float(x == s), allowable_set))
+
+
 
 def generate_fraction_rotatable_bonds(mol):
     """ Computes the fraction of rotatable bonds in the parsed molecule
@@ -303,54 +325,5 @@ def compute_node_features_matrix(G):
     )
 
     features = preprocessor.fit_transform(features)
-
+    print(features)
     return np.array(features)
-
-
-def _process_data(dir, file):
-    """Computes and saves the necessary data (graph, features, labels, graph_ids)
-    to create a PyTorch Geometric custom dataset from an SDF file containing molecules.
-
-    Args:
-        dir (string): the directory where the input data is stored
-        file (string): the name of the input data file (must be .sdf)
-    """
-    # Import data from sdf file
-    df = PandasTools.LoadSDF(os.path.join(dir, file), removeHs=True)
-    df["soms"] = df["soms"].map(ast.literal_eval)
-
-    # Generate networkx graphs from mols and save them in a json file
-    df["G"] = df.apply(lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms), axis=1)
-    G = nx.disjoint_union_all(df["G"].to_list())
-    with open(os.path.join(dir, "graph.json"), "w") as f:
-        f.write(json.dumps(json_graph.node_link_data(G)))
-
-    # Generate and save list of mol ids
-    mol_ids = []
-    for i in range(len(G.nodes)):
-        mol_ids.append(G.nodes[i]["mol_id"])
-    mol_ids = np.array(mol_ids)
-    np.save(os.path.join(dir, "mol_ids.npy"), mol_ids)
-
-    # Generate and save list of atom ids
-    atom_ids = []
-    for i in range(len(G.nodes)):
-        atom_ids.append(G.nodes[i]["atom_id"])
-    atom_ids = np.array(atom_ids)
-    np.save(os.path.join(dir, "atom_ids.npy"), atom_ids)
-
-    # Generate and save list of labels
-    labels = []
-    for i in range(len(G.nodes)):
-        labels.append(int(G.nodes[i]["is_som"]))
-    labels = np.array(labels)
-    np.save(os.path.join(dir, "labels.npy"), labels)
-
-    # Compute node features matrix and save it to node_features.npy
-    node_features = compute_node_features_matrix(G)
-    np.save(os.path.join(dir, "node_features.npy"), node_features)
-
-    df = pd.DataFrame(node_features)
-    corr_matrix = df.corr()
-    plt.imshow(corr_matrix, cmap="binary")
-    plt.savefig(os.path.join(dir, "correlation_matrix.png"))

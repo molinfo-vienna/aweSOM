@@ -6,8 +6,8 @@ import torch
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 
-from src.graph_neural_nets import GIN, train, test
-from src.utils import (
+from som_gnn.graph_neural_nets import GIN
+from som_gnn.utils import (
     EarlyStopping,
     plot_losses,
     save_individual,
@@ -83,9 +83,9 @@ def _hp_optimization(
         print("Training...")
         for epoch in tqdm(range(epochs)):
             final_num_epochs = epoch
-            train_loss = train(model, train_loader, lr, wd, device)
+            train_loss = model.train(train_loader, lr, wd, device)
             train_losses.append(train_loss.item())
-            val_loss, _, _, _, _ = test(model, val_loader, device)
+            val_loss, _, _, _, _ = model.test(val_loader, device)
             val_losses.append(val_loss.item())
             if early_stopping.early_stop(val_loss):
                 break
@@ -101,7 +101,7 @@ def _hp_optimization(
 
         """ ---------- Validate Model ---------- """
 
-        _, y_pred, mol_id, atom_id, y_true = test(model, val_loader, device)
+        _, y_pred, mol_id, atom_id, y_true = model.test(val_loader, device)
 
         y_preds[fold_num] = y_pred[:, 0]
         y_trues[fold_num] = y_true
@@ -170,7 +170,7 @@ def _predict(
         test_loader = DataLoader(test_data, batch_size=metadata['Batch Size'][i], shuffle=True)
 
         # Apply model to test data
-        _, y_pred, mol_id, atom_id, y_true = test(model, test_loader, device)
+        _, y_pred, mol_id, atom_id, y_true = model.test(test_loader, device)
 
         for j, element in enumerate(zip(mol_id, atom_id)):
             y_preds.setdefault(element,[]).append(y_pred[:, 0][j])
