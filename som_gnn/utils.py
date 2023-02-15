@@ -433,7 +433,7 @@ def save_predict(
     for threshold in opt_thresholds:
         for key in y_preds:
             for y_pred in y_preds[key]:
-                y_preds_bin.setdefault(key,[]).append(y_pred > threshold)
+                y_preds_bin.setdefault(key,[]).append(int(y_pred > threshold))
 
     y_preds_voted = {}
     for key in y_preds_bin:
@@ -454,3 +454,29 @@ def save_predict(
         encoding="UTF8",
     ) as f:
         f.write(json.dumps(results))
+
+    # Save molecular identifiers, atom identifiers, true labels, and predicted labels of single atoms to csv file
+    # (serves results visualization purposes)
+    rows = zip(
+        [k for (k,_) in y_trues.keys()], 
+        [k for (_,k) in y_trues.keys()], 
+        list(y_trues.values()), 
+        list(y_preds_voted.values())
+    )
+    with open(
+        os.path.join(outdir, "predictions.csv"),
+        "w",
+        encoding="UTF8",
+        newline="",
+    ) as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            (
+                "mol_id",
+                "atom_id",
+                "true_label",
+                "predicted_label",
+            )
+        )
+        writer.writerows(rows)
+    f.close()

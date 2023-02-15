@@ -107,3 +107,7 @@ ENV/
 
 # In-tree generated files
 */_version.py
+
+# Output
+output_test/
+output_train/
