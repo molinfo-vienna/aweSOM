@@ -12,15 +12,22 @@ from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
 from tqdm import tqdm
 
+from rdkit.Chem import HybridizationType
+
+HYBRIDIZATION_TYPE = [0,1,2,3,4,5,6,7,8]
+TOTAL_DEGREE = [0,1,2,3,4,5,6,7,"unknown"]
 ELEM_LIST =[1, 6, 7, 8, 16, 9, 15, 17, 35, 53,"unknown"]
 FORMAL_CHARG = [-1,-2,1,2,"unknown"]
 CIP_CONF = [8,2,4,"unknown"]
-HYBRIDIZATION = [1,2,3,7,8,"unknown"]
+H_COUNT = [0,1,2,3,4,5,"unknown"]
+TOTAL_VALENCE = [0,1,2,3,4,5,6,7,8,"unknown"] # needs 
+RING_SIZE = [0,3,4,5,6,7,8,"other"]
 H_COUNT = [0,1,2,3,4,5,"unknown"]
 
 
-def getAllowedSet(x, allowable_set):
+def _getAllowedSet(x, allowable_set):
         '''  
+        PRIVATE METHOD
         generates a one-hot encoded list for x. If x not in allowable_set,
         the last value of the allowable_set is taken. \n
         Input \n
@@ -33,6 +40,24 @@ def getAllowedSet(x, allowable_set):
             x = allowable_set[-1]
         return list(map(lambda s: float(x == s), allowable_set))
 
+
+def atomFeatures(atom,mol,atm_ring_length):
+        ''' 
+        generates the atom features for each atom \n
+        Input \n
+        atom (RDKit Atom): atom for the features calculation \n
+        mol (RDKit Molecule): molecule, the atom belongs to \n
+        Return \n
+        (list): one-hot encoded atom feature list
+        '''
+        return ((_getAllowedSet(atom.GetAtomicNum(), ELEM_LIST)
+                +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
+                +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARG) 
+                +_getAllowedSet(atom.GetHybridization(), HYBRIDIZATION_TYPE)
+                +_getAllowedSet(atm_ring_length, RING_SIZE)
+                +_getAllowedSet(atom.GetTotalNumHs(), H_COUNT))
+                +_getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE)
+                +list([float(atom.GetIsAromatic())]))
 
 
 def generate_fraction_rotatable_bonds(mol):
@@ -109,29 +134,25 @@ def mol_to_nx(mol_id, mol, soms):
         NetworkX Graph with node and edge attributes
     """
     G = nx.Graph()
+    # get ring info
+    rings = mol.GetRingInfo().AtomRings()
 
     # Assign each atom its molecular and atomic features and make it a node of G
     # is_som = [(atom_idx in soms) for atom_idx in range(mol.GetNumAtoms())]
     for atom_idx in range(mol.GetNumAtoms()):
         atom = mol.GetAtomWithIdx(atom_idx)
+        atm_ring_length = 0
+        if atom.IsInRing():
+            for ring in rings:
+                if atom_idx in ring:
+                    atm_ring_length = len(ring)
+
         G.add_node(
             atom_idx,  # node identifier
             # Atomic Descriptors
-            atomic_num=atom.GetAtomicNum(),
-            degree=atom.GetTotalDegree(),
-            valence=atom.GetTotalValence(),
-            formal_charge=atom.GetFormalCharge(),
-            hybridization=int(atom.GetHybridization()),
-            num_hs=atom.GetTotalNumHs(),
-            is_in_ring_3=atom.IsInRingSize(3),
-            is_in_ring_4=atom.IsInRingSize(4),
-            is_in_ring_5=atom.IsInRingSize(5),
-            is_in_ring_6=atom.IsInRingSize(6),
-            is_in_ring_7=atom.IsInRingSize(7),
-            is_in_ring_8=atom.IsInRingSize(8),
-            is_aromatic=atom.GetIsAromatic(),
+            one_hot_atm_features=atomFeatures(atom,mol,atm_ring_length),
             vdw_radius=Chem.GetPeriodicTable().GetRvdw(atom.GetAtomicNum()),
-            covalent_radius=Chem.GetPeriodicTable().GetRcovalent(atom.GetAtomicNum()),
+            covalent_radius = Chem.GetPeriodicTable().GetRcovalent(atom.GetAtomicNum()),
             # Molecular Descriptors
             num_h_acceptors=rdMolDescriptors.CalcNumHBA(mol),
             num_h_donors=rdMolDescriptors.CalcNumHBD(mol),
@@ -183,19 +204,7 @@ def compute_node_features_matrix(G):
 
     for i in tqdm(range(num_nodes)):
         current_node = G.nodes[i]
-        atomic_num = [int(current_node["atomic_num"])]
-        degree = [int(current_node["degree"])]
-        valence = [int(current_node["valence"])]
-        formal_charge = [int(current_node["formal_charge"])]
-        hybridization = [int(current_node["hybridization"])]
-        num_hs = [int(current_node["num_hs"])]
-        is_in_ring_3 = [int(current_node["is_in_ring_3"])]
-        is_in_ring_4 = [int(current_node["is_in_ring_4"])]
-        is_in_ring_5 = [int(current_node["is_in_ring_5"])]
-        is_in_ring_6 = [int(current_node["is_in_ring_6"])]
-        is_in_ring_7 = [int(current_node["is_in_ring_7"])]
-        is_in_ring_8 = [int(current_node["is_in_ring_8"])]
-        is_aromatic = [int(current_node["is_aromatic"])]
+        one_hot_atm_features = current_node["one_hot_atm_features"]
         vdw_radius = [float(current_node["vdw_radius"])]
         covalent_radius = [float(current_node["covalent_radius"])]
         num_h_acceptors = [float(current_node["num_h_acceptors"])]
@@ -216,19 +225,7 @@ def compute_node_features_matrix(G):
         num_ar = [float(current_node["num_ar"])]
 
         features_vector = (
-            atomic_num
-            + degree
-            + valence
-            + formal_charge
-            + hybridization
-            + num_hs
-            + is_in_ring_3
-            + is_in_ring_4
-            + is_in_ring_5
-            + is_in_ring_6
-            + is_in_ring_7
-            + is_in_ring_8
-            + is_aromatic
+            one_hot_atm_features
             + vdw_radius
             + covalent_radius
             + num_h_acceptors
@@ -252,19 +249,7 @@ def compute_node_features_matrix(G):
         if i == 0:
             features = pd.DataFrame(
                 {
-                    "atomic_num": pd.Series(dtype="int"),
-                    "degree": pd.Series(dtype="int"),
-                    "valence": pd.Series(dtype="int"),
-                    "formal_charge": pd.Series(dtype="int"),
-                    "hybridization": pd.Series(dtype="int"),
-                    "num_hs": pd.Series(dtype="int"),
-                    "is_in_ring_3": pd.Series(dtype="int"),
-                    "is_in_ring_4": pd.Series(dtype="int"),
-                    "is_in_ring_5": pd.Series(dtype="int"),
-                    "is_in_ring_6": pd.Series(dtype="int"),
-                    "is_in_ring_7": pd.Series(dtype="int"),
-                    "is_in_ring_8": pd.Series(dtype="int"),
-                    "is_aromatic": pd.Series(dtype="int"),
+                    "one_hot_atm_features": pd.Series(one_hot_atm_features),
                     "vdw_radius": pd.Series(dtype="float"),
                     "covalent_radius": pd.Series(dtype="float"),
                     "num_h_acceptors": pd.Series(dtype="float"),
@@ -290,40 +275,22 @@ def compute_node_features_matrix(G):
 
     features = features.astype(
         {
-            "atomic_num": int,
-            "degree": int,
-            "valence": int,
-            "formal_charge": int,
-            "hybridization": int,
-            "num_hs": int,
-            "is_in_ring_3": int,
-            "is_in_ring_4": int,
-            "is_in_ring_5": int,
-            "is_in_ring_6": int,
-            "is_in_ring_7": int,
-            "is_in_ring_8": int,
-            "is_aromatic": int,
+            "one_hot_atm_features": int,
         }
     )
 
-    categorical_columns_selector = make_column_selector(dtype_include=int)
     numerical_columns_selector = make_column_selector(dtype_include=float)
 
     numerical_columns = numerical_columns_selector(features)
-    categorical_columns = categorical_columns_selector(features)
 
-    categorical_preprocessor = OneHotEncoder(
-        sparse=False, dtype=float, handle_unknown="infrequent_if_exist"
-    )
     numerical_preprocessor = MinMaxScaler(feature_range=(0, 1))
 
     preprocessor = ColumnTransformer(
         [
-            ("one-hot-encoder", categorical_preprocessor, categorical_columns),
             ("standard_scaler", numerical_preprocessor, numerical_columns),
         ]
     )
 
     features = preprocessor.fit_transform(features)
-    print(features)
+    
     return np.array(features)
