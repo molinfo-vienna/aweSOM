@@ -109,5 +109,5 @@ ENV/
 */_version.py
 
 # Output
-output_test/
-output_train/
+zaretzki_output_test/
+zaretzki_output_train/
