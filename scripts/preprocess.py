@@ -13,7 +13,7 @@ from som_gnn.utils import seed_everything
 
 
 
-def run(dir, file, split):
+def run(file, split):
     """Computes and saves the necessary data (graph, features, labels, graph_ids)
     to create a PyTorch Geometric custom dataset from an SDF file containing molecules.
 
@@ -22,7 +22,7 @@ def run(dir, file, split):
         file (string): the name of the input data file (must be .sdf)
     """
     # Import data from sdf file
-    df = PandasTools.LoadSDF(os.path.join(dir, file), removeHs=True)
+    df = PandasTools.LoadSDF(os.path.join(file), removeHs=True)
     df["soms"] = df["soms"].map(ast.literal_eval)
 
     # Generate networkx graphs from mols and save them in a json file
@@ -68,13 +68,6 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser("Preprocess the data.")
 
-    parser.add_argument("-d",
-        "--dir",
-        type=str,
-        required=False,
-        help="the directory where the input data is stored. There will be one training/evaluation and one test set."+
-            " The test set size is based on the '--split' parameter.",    
-    )
     parser.add_argument("-f",
         "--file",
         type=str,
@@ -106,6 +99,6 @@ if __name__ == "__main__":
     logging.info("Start preprocessing...")
 
     try:
-        run(args.dir, args.file, args.split)
+        run(args.file, args.split)
     except Exception as e:
         logging.error("The preprocess was terminated:",e)
