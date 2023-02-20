@@ -109,5 +109,8 @@ ENV/
 */_version.py
 
 # Output
-zaretzki_output_test/
-zaretzki_output_train/
+output_zaretzki_test/
+output_zaretzki_train/
+output_bi_test/
+output_test/
+data/data_BI

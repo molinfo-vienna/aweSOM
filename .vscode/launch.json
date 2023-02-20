@@ -11,6 +11,20 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Debug Preprocess",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/preprocess.py",
+            "args": [
+                "-f public_metabolites.sdf", 
+                "-d ../data/data_BI", 
+                "-s 100", 
+                "-v DEBUG"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

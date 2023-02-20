@@ -1,19 +1,14 @@
-
 import argparse
-import os
 import ast
 import logging
-import numpy as np
+import os
+import shutil
+
 from rdkit.Chem import PandasTools
-import networkx as nx
 from torch_geometric import seed_everything
-import pandas as pd
-import matplotlib.pyplot as plt
 
-from som_gnn.process_input_data import compute_node_features_matrix, mol_to_nx
+from som_gnn.process_input_data import make_dir, generate_preprocessed_data, save_preprocessed_data
 from som_gnn.utils import seed_everything
-
-
 
 def run(file, dir, split):
     """Computes and saves the necessary data (graph, features, labels, graph_ids)
@@ -25,55 +20,36 @@ def run(file, dir, split):
         split (int): the split ratio of train/test set n(e.g 20 means that 
                 20% of the data are in the test set.)
     """
+
     # Import data from sdf file
-    df = PandasTools.LoadSDF(os.path.join(file), removeHs=True)
+    df = PandasTools.LoadSDF(os.path.join(dir, file), removeHs=True)
     df["soms"] = df["soms"].map(ast.literal_eval)
 
-    # Generate networkx graphs from mols and save them in a json file
-    df["G"] = df.apply(lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms), axis=1)
-    G = nx.disjoint_union_all(df["G"].to_list())
-    # with open(os.path.join(dir, "graph.json"), "w") as f:
-    #     f.write(json.dumps(json_graph.node_link_data(G)))
+    # Check whether the directory data/processed/*input_sdf_file_name*/ already exists,
+    # and add a prompt if the folder exists and the user wants to override it.
+    # Otherwise just create the train and test folders under that directory.
+    if os.path.exists(os.path.join(dir, os.path.splitext(file)[0])):
+        overwrite = input("Folder already exists. Overwrite? [y/n]")
+        if overwrite == "y":
+            shutil.rmtree(os.path.join(dir, os.path.splitext(file)[0]))
+            make_dir(file, dir)
+        if overwrite == "n":
+            return None
+    else:
+        make_dir(file, dir)
 
-    # Generate and save list of mol ids
-    mol_ids = []
-    for i in range(len(G.nodes)):
-        mol_ids.append(G.nodes[i]["mol_id"])
-    mol_ids = np.array(mol_ids)
-    # np.save(os.path.join(dir, "mol_ids.npy"), mol_ids)
-
-    # Generate and save list of atom ids
-    atom_ids = []
-    for i in range(len(G.nodes)):
-        atom_ids.append(G.nodes[i]["atom_id"])
-    atom_ids = np.array(atom_ids)
-    # np.save(os.path.join(dir, "atom_ids.npy"), atom_ids)
-
-    # Generate and save list of labels
-    labels = []
-    for i in range(len(G.nodes)):
-        labels.append(int(G.nodes[i]["is_som"]))
-    labels = np.array(labels)
-    # np.save(os.path.join(dir, "labels.npy"), labels)
-
-    # Compute node features matrix and save it to node_features.npy
-    node_features = compute_node_features_matrix(G)
-
-    ## Split the data into train/test set and save it under 
-    ## data/processed/*input_sdf_file_name*/train or test folder.
-    ### 1. First get name of input sdf, remove ".sdf" ending, check weather
-    ###     the folder already exists (this should be done before the data
-    ###     is preprocessed in order to safe time), and add a prompt if the folder
-    ###     exists and the user wants to override it. Otherwise just create the folders.
-    ### 2. split the data into the ratio and safe it accordingly
-
-    # np.save(os.path.join(dir, "other_node_features.npy"), node_features)
-
-    # df = pd.DataFrame(node_features)
-    # corr_matrix = df.corr()
-    # plt.imshow(corr_matrix, cmap="binary")
-    # plt.savefig(os.path.join(dir, "correlation_matrix.png"))
-
+    # Split the data into train/test set according to the split ratio
+    # Note: df.sample shuffles df randomly before sampling
+    # Generate and save preprocessed data
+    # under data/processed/*input_sdf_file_name*/train or test folder
+    df_test = df.sample(frac = split/100)
+    G_test, mol_ids_test, atom_ids_test, labels_test, node_features_test = generate_preprocessed_data(df_test)
+    save_preprocessed_data(G_test, mol_ids_test, atom_ids_test, labels_test, node_features_test, os.path.join(dir, os.path.splitext(file)[0], "test"))
+    
+    if split != 100:
+        df_train = df.drop(df_test.index)
+        G_train, mol_ids_train, atom_ids_train, labels_train, node_features_train = generate_preprocessed_data(df_train)
+        save_preprocessed_data(G_train, mol_ids_train, atom_ids_train, labels_train, node_features_train , os.path.join(dir, os.path.splitext(file)[0], "train"))
 
 if __name__ == "__main__":
     
@@ -85,33 +61,37 @@ if __name__ == "__main__":
         "--file",
         type=str,
         required=True,
-        help="the name of the input data file (must be .sdf)",    
+        help="The name of the input data file (must be .sdf).",    
+    )
+    parser.add_argument("-d",
+        "--dir",
+        type=str,
+        required=True,
+        help="The directory where the input data is stored.",    
     )
     parser.add_argument("-s",
         "--split",
         type=int,
         required=True,
-        help="how much of the input data should be saved as test data."+
-        " Maximum value is 100, which means that 100\% of the data will be stored in the test folder under the"+
-        " directory in '--dir'.",    
+        help="How much of the input data should be saved as test data.",  
     )
     parser.add_argument("-v",
         "--verbose",
-        dest="verbosityLevel", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        dest="verbosityLevel", 
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         default='WARNING',
         help="Set the verbosity level of the logger - default is on WARNING."
         )
-        
 
     args = parser.parse_args()
 
-    logging.basicConfig(filename='./output/logfile_preprocess.log', 
+    logging.basicConfig(filename= os.path.join(args.dir, 'logfile_preprocess.log'), 
                     level=getattr(logging, args.verbosityLevel), 
                     format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 
     logging.info("Start preprocessing...")
 
     try:
-        run(args.file, args.split)
+        run(args.file, args.dir, args.split)
     except Exception as e:
-        logging.error("The preprocess was terminated:",e)
+        logging.error("The preprocess was terminated:", e)
