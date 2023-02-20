@@ -77,8 +77,7 @@ if __name__ == "__main__":
         "--dir",
         type=str,
         required=True,
-        help="The directory where the input data is stored. There will be one training/evaluation and one test set."+
-            " The test set size is based on the '--split' parameter.",    
+        help="The directory where the input data is stored.",    
     )
     parser.add_argument("-o",
         "--out",

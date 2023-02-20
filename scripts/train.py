@@ -155,8 +155,7 @@ if __name__ == "__main__":
         "--dir",
         type=str,
         required=True,
-        help="The directory where the input data is stored. There will be one training/evaluation and one test set."+
-            " The test set size is based on the '--split' parameter.",    
+        help="The directory where the input data is stored.",    
     )
     parser.add_argument("-hd",
         "--hiddenLayersDimension",
@@ -218,7 +217,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("-v",
         "--verbose",
-        dest="verbosityLevel", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        dest="verbosityLevel", 
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         default='WARNING',
         help="Set the verbosity level of the logger - default is on WARNING."
         )

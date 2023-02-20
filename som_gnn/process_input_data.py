@@ -1,54 +1,106 @@
-import ast
 import json
-import matplotlib.pyplot as plt
 import networkx as nx
-from networkx.readwrite import json_graph
 import numpy as np
 import os
-import pandas as pd
 from rdkit import Chem
-from rdkit.Chem import Crippen, rdchem, rdMolDescriptors, PandasTools
-from sklearn.compose import ColumnTransformer, make_column_selector
-from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
+from rdkit.Chem import Crippen, rdchem, rdMolDescriptors
 from tqdm import tqdm
 
-from rdkit.Chem import HybridizationType
+HYBRIDIZATION_TYPE = ["UNSPECIFIED", 
+                      "S", 
+                      "SP", 
+                      "SP2", 
+                      "SP3", 
+                      "SP2D", 
+                      "SP3D", 
+                      "SP3D2", 
+                      "OTHER"],
+TOTAL_DEGREE = [0,1,2,3,4,5,6,7,"OTHER"],
+ELEM_LIST =[1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 34, 35, 53,"OTHER"],
+FORMAL_CHARGE = [-1,-2,1,2,"OTHER"],
+CIP_CONF = [8,2,4,"OTHER"],
+H_COUNT = [0,1,2,3,4,5,"OTHER"],
+TOTAL_VALENCE = [0,1,2,3,4,5,6,7,8,"OTHER"],
+RING_SIZE = [0,3,4,5,6,7,8,"OTHER"],
+H_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"],
+O_COUNT = [0,1,2,3,4,5,"OTHER"],
+N_COUNT = [0,1,2,3,4,5,"OTHER"],
+S_COUNT = [0,1,2,3,4,5,"OTHER"],
+HAL_COUNT = [0,1,2,3,4,5,"OTHER"],
+SP3C_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"],
+AR_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"],
+H_ACC_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"],
+H_DON_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"],
+RING_COUNT = [0,1,2,3,4,5,"OTHER"]
+ROT_BONDS_COUNT = [0,1,2,3,4,5,6,7,9,"OTHER"]
+
+BOND_STEREO = ["STEREONONE", 
+               "STEREOANY", 
+               "STEREOZ", 
+               "STEREOE", 
+               "STEREOCIS", 
+               "STEREOTRANS",
+               "OTHER",
+               ]
+BOND_TYPE = ["UNSPECIFIED", 
+             "SINGLE", 
+             "DOUBLE", 
+             "TRIPLE",
+             "OTHER",
+             ]
+
+def make_dir(file, dir):
+    for folder in ["train", "test"]:
+        os.makedirs(os.path.join(dir, os.path.splitext(file)[0], folder))
+
+def generate_preprocessed_data(df):
+
+    # Generate networkx graphs from mols
+    df["G"] = df.apply(lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms), axis=1)
+    G = nx.disjoint_union_all(df["G"].to_list())
+
+    # Compute list of mol ids
+    mol_ids = []
+    for i in range(len(G.nodes)):
+        mol_ids.append(G.nodes[i]["mol_id"])
+    mol_ids = np.array(mol_ids)
+
+    # Compute list of atom ids
+    atom_ids = []
+    for i in range(len(G.nodes)):
+        atom_ids.append(G.nodes[i]["atom_id"])
+    atom_ids = np.array(atom_ids)
+
+    # Compute list of labels
+    labels = []
+    for i in range(len(G.nodes)):
+        labels.append(int(G.nodes[i]["is_som"]))
+    labels = np.array(labels)
+    
+    # Compute node features matrix
+    node_features = compute_node_features_matrix(G)
+
+    return G, mol_ids, atom_ids, labels, node_features
 
 
-#TODO I simply copy pasted here - Bond Stereo and others needs to be adjusted
-HYBRIDIZATION_TYPE = [0,1,2,3,4,5,6,7,8],
-TOTAL_DEGREE = [0,1,2,3,4,5,6,7,"unknown"],
-ELEM_LIST =[1, 6, 7, 8, 16, 9, 15, 17, 35, 53,"unknown"],
-FORMAL_CHARG = [-1,-2,1,2,"unknown"],
-CIP_CONF = [8,2,4,"unknown"],
-H_COUNT = [0,1,2,3,4,5,"unknown"],
-TOTAL_VALENCE = [0,1,2,3,4,5,6,7,8,"unknown"],
-RING_SIZE = [0,3,4,5,6,7,8,"other"],
-H_COUNT = [0,1,2,3,4,5,"other"],
-O_COUNT = [0,1,2,3,4,5,"other"],
-N_COUNT = [0,1,2,3,4,5,"other"],
-S_COUNT = [0,1,2,3,4,5,"other"],
-HAL_COUNT = [0,1,2,3,4,5,"other"],
-SP3C_COUNT = [0,1,2,3,4,5,"other"],
-AR_COUNT = [0,1,2,3,4,5,"other"],
-H_ACC_COUNT = [0,1,2,3,4,5,"other"],
-H_DON_COUNT = [0,1,2,3,4,5,"other"],
-RING_COUNT = [0,1,2,3,4,5,"other"]
-
-ROT_BONDS_COUNT = [0,1,2,3,4,5,"other"]
-BOND_STEREO = ["others"]
-BOND_TYPE = [0,1,2,"others"]
+def save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, dir):
+    with open(os.path.join(dir, "graph.json"), "w") as f:
+        f.write(json.dumps(nx.readwrite.json_graph.node_link_data(G)))
+    np.save(os.path.join(dir, "mol_ids.npy"), mol_ids)
+    np.save(os.path.join(dir, "atom_ids.npy"), atom_ids)
+    np.save(os.path.join(dir, "labels.npy"), labels)
+    np.save(os.path.join(dir, "node_features.npy"), node_features)
 
 
 def _getAllowedSet(x, allowable_set):
         '''  
         PRIVATE METHOD
-        generates a one-hot encoded list for x. If x not in allowable_set,
-        the last value of the allowable_set is taken. \n
-        Input \n
-            x (list): list of target values \n
-            allowable_set (list): the allowed set \n
-        Returns: \n
+        Generates a one-hot encoded list for x. If x not in allowable_set,
+        the last value of the allowable_set is taken.
+        Args:
+            x (list): list of target values
+            allowable_set (list): the allowed set
+        Returns:
             (list): one-hot encoded list 
         '''
         if x not in allowable_set:
@@ -57,11 +109,6 @@ def _getAllowedSet(x, allowable_set):
 
 
 def generateBondFeatures(bond):
-    # bond_type=bond.GetBondTypeAsDouble(),
-    # bond_is_in_ring=bond.IsInRing(),
-    # bond_is_aromatic=bond.GetIsAromatic(),
-    # bond_is_conjugated=bond.GetIsConjugated(),
-    # bond_stereo=bond.GetStereo(),
 
     return ((_getAllowedSet(bond.GetBondTypeAsDouble(), BOND_TYPE)
                 +_getAllowedSet(bond.GetStereo(), BOND_STEREO)
@@ -69,20 +116,22 @@ def generateBondFeatures(bond):
                 +list([float(bond.GetIsConjugated())])
                 +list([float(bond.GetIsAromatic())])))
 
-def generateNodeFeatures(atom,mol,atm_ring_length):
+def generateNodeFeatures(atom, mol, atm_ring_length):
         ''' 
-        generates the node features for each atom \n
-        Input \n
-        atom (RDKit Atom): atom for the features calculation \n
-        mol (RDKit Molecule): molecule, the atom belongs to \n
-        Return \n
+        Generates the node features for each atom
+
+        Args:
+        atom (RDKit Atom): atom for the features calculation
+        mol (RDKit Molecule): molecule, the atom belongs to
+
+        Returns:
         (list): one-hot encoded atom feature list
         '''
         # list(map(lambda s: float(x == s), allowable_set))
         # map(lambda atom.GetAtomicNum(),ELEM_LIST: _getAllowedSet)
         return ((_getAllowedSet(atom.GetAtomicNum(), ELEM_LIST)
                 +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
-                +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARG) 
+                +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARGE) 
                 +_getAllowedSet(atom.GetHybridization(), HYBRIDIZATION_TYPE)
                 +_getAllowedSet(atm_ring_length, RING_SIZE)
                 +_getAllowedSet(atom.GetTotalNumHs(), H_COUNT))
@@ -98,14 +147,13 @@ def generateNodeFeatures(atom,mol,atm_ring_length):
                 +_getAllowedSet(rdMolDescriptors.CalcNumRotatableBonds(mol), ROT_BONDS_COUNT)
                 +_getAllowedSet(len(mol.GetAromaticAtoms()), AR_COUNT)
                 +list([float(atom.GetIsAromatic())])
-                +list([float(Chem.GetPeriodicTable().GetRvdw(atom.GetAtomicNum()))]) #TODO needs scaling
-                +list([float(Chem.GetPeriodicTable().GetRcovalent(atom.GetAtomicNum()))]) #TODO needs scaling
-                +list([float(rdMolDescriptors.CalcExactMolWt(mol))/700]) #TODO
-                +list([float(np.log(rdMolDescriptors.CalcTPSA(mol)))])#TODO
-                +list([float(np.log(Crippen.MolLogP(mol)))])#TODO
-                +list([float(np.log(rdMolDescriptors.CalcCrippenDescriptors(mol)[1]))])#TODO
-                +list([float(np.log(rdMolDescriptors.CalcLabuteASA(mol)))])#TODO
-                +list([float(generate_fraction_rotatable_bonds(mol)*0.1)])#TODO
+                +list([float(Chem.GetPeriodicTable().GetRvdw(atom.GetAtomicNum()))/2.])
+                +list([float(Chem.GetPeriodicTable().GetRcovalent(atom.GetAtomicNum()))/150.])
+                +list([float(rdMolDescriptors.CalcExactMolWt(mol))])#TODO
+                +list([float(rdMolDescriptors.CalcTPSA(mol))])#TODO
+                +list([float(rdMolDescriptors.CalcLabuteASA(mol))])#TODO
+                +list([float(Crippen.MolLogP(mol))])#TODO
+                +list([float(generate_fraction_rotatable_bonds(mol))])#TODO
                 )
 
 
@@ -187,7 +235,6 @@ def mol_to_nx(mol_id, mol, soms):
     rings = mol.GetRingInfo().AtomRings()
 
     # Assign each atom its molecular and atomic features and make it a node of G
-    # is_som = [(atom_idx in soms) for atom_idx in range(mol.GetNumAtoms())]
     for atom_idx in range(mol.GetNumAtoms()):
         atom = mol.GetAtomWithIdx(atom_idx)
         atm_ring_length = 0
@@ -196,14 +243,13 @@ def mol_to_nx(mol_id, mol, soms):
                 if atom_idx in ring:
                     atm_ring_length = len(ring)
         G.add_node(
-            atom_idx,  # node identifier
-            # Atomic Descriptors
-            node_features=generateNodeFeatures(atom,mol,atm_ring_length),
+            atom_idx, # node identifier
+            node_features=generateNodeFeatures(atom, mol, atm_ring_length),
+            is_som=(atom_idx in soms), # label
             # the next two elements are later used to compute the labels but will
             # not be used as features!
             mol_id=int(mol_id),
             atom_id=int(atom_idx),
-            is_som=(atom_idx in soms),
         )
     for bond in mol.GetBonds():
         G.add_edge(
@@ -228,11 +274,9 @@ def compute_node_features_matrix(G):
 
     num_nodes = len(G.nodes)
 
-
     for i in tqdm(range(num_nodes)):
         current_node = G.nodes[i]
         node_features = current_node["node_features"]
         # bond_features = current_node["bond_features"]
 
-    
     return np.array(node_features)
