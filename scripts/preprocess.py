@@ -7,19 +7,23 @@ import numpy as np
 from rdkit.Chem import PandasTools
 import networkx as nx
 from torch_geometric import seed_everything
+import pandas as pd
+import matplotlib.pyplot as plt
 
 from som_gnn.process_input_data import compute_node_features_matrix, mol_to_nx
 from som_gnn.utils import seed_everything
 
 
 
-def run(file, split):
+def run(file, dir, split):
     """Computes and saves the necessary data (graph, features, labels, graph_ids)
     to create a PyTorch Geometric custom dataset from an SDF file containing molecules.
 
     Args:
         dir (string): the directory where the input data is stored
         file (string): the name of the input data file (must be .sdf)
+        split (int): the split ratio of train/test set n(e.g 20 means that 
+                20% of the data are in the test set.)
     """
     # Import data from sdf file
     df = PandasTools.LoadSDF(os.path.join(file), removeHs=True)
@@ -54,7 +58,16 @@ def run(file, split):
 
     # Compute node features matrix and save it to node_features.npy
     node_features = compute_node_features_matrix(G)
-    # np.save(os.path.join(dir, "node_features.npy"), node_features)
+
+    ## Split the data into train/test set and save it under 
+    ## data/processed/*input_sdf_file_name*/train or test folder.
+    ### 1. First get name of input sdf, remove ".sdf" ending, check weather
+    ###     the folder already exists (this should be done before the data
+    ###     is preprocessed in order to safe time), and add a prompt if the folder
+    ###     exists and the user wants to override it. Otherwise just create the folders.
+    ### 2. split the data into the ratio and safe it accordingly
+
+    # np.save(os.path.join(dir, "other_node_features.npy"), node_features)
 
     # df = pd.DataFrame(node_features)
     # corr_matrix = df.corr()

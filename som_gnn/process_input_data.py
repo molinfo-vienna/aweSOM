@@ -14,15 +14,30 @@ from tqdm import tqdm
 
 from rdkit.Chem import HybridizationType
 
-HYBRIDIZATION_TYPE = [0,1,2,3,4,5,6,7,8]
-TOTAL_DEGREE = [0,1,2,3,4,5,6,7,"unknown"]
-ELEM_LIST =[1, 6, 7, 8, 16, 9, 15, 17, 35, 53,"unknown"]
-FORMAL_CHARG = [-1,-2,1,2,"unknown"]
-CIP_CONF = [8,2,4,"unknown"]
-H_COUNT = [0,1,2,3,4,5,"unknown"]
-TOTAL_VALENCE = [0,1,2,3,4,5,6,7,8,"unknown"] # needs 
-RING_SIZE = [0,3,4,5,6,7,8,"other"]
-H_COUNT = [0,1,2,3,4,5,"unknown"]
+
+#TODO I simply copy pasted here - Bond Stereo and others needs to be adjusted
+HYBRIDIZATION_TYPE = [0,1,2,3,4,5,6,7,8],
+TOTAL_DEGREE = [0,1,2,3,4,5,6,7,"unknown"],
+ELEM_LIST =[1, 6, 7, 8, 16, 9, 15, 17, 35, 53,"unknown"],
+FORMAL_CHARG = [-1,-2,1,2,"unknown"],
+CIP_CONF = [8,2,4,"unknown"],
+H_COUNT = [0,1,2,3,4,5,"unknown"],
+TOTAL_VALENCE = [0,1,2,3,4,5,6,7,8,"unknown"],
+RING_SIZE = [0,3,4,5,6,7,8,"other"],
+H_COUNT = [0,1,2,3,4,5,"other"],
+O_COUNT = [0,1,2,3,4,5,"other"],
+N_COUNT = [0,1,2,3,4,5,"other"],
+S_COUNT = [0,1,2,3,4,5,"other"],
+HAL_COUNT = [0,1,2,3,4,5,"other"],
+SP3C_COUNT = [0,1,2,3,4,5,"other"],
+AR_COUNT = [0,1,2,3,4,5,"other"],
+H_ACC_COUNT = [0,1,2,3,4,5,"other"],
+H_DON_COUNT = [0,1,2,3,4,5,"other"],
+RING_COUNT = [0,1,2,3,4,5,"other"]
+
+ROT_BONDS_COUNT = [0,1,2,3,4,5,"other"]
+BOND_STEREO = ["others"]
+BOND_TYPE = [0,1,2,"others"]
 
 
 def _getAllowedSet(x, allowable_set):
@@ -41,15 +56,30 @@ def _getAllowedSet(x, allowable_set):
         return list(map(lambda s: float(x == s), allowable_set))
 
 
-def atomFeatures(atom,mol,atm_ring_length):
+def generateBondFeatures(bond):
+    # bond_type=bond.GetBondTypeAsDouble(),
+    # bond_is_in_ring=bond.IsInRing(),
+    # bond_is_aromatic=bond.GetIsAromatic(),
+    # bond_is_conjugated=bond.GetIsConjugated(),
+    # bond_stereo=bond.GetStereo(),
+
+    return ((_getAllowedSet(bond.GetBondTypeAsDouble(), BOND_TYPE)
+                +_getAllowedSet(bond.GetStereo(), BOND_STEREO)
+                +list([float(bond.IsInRing())])
+                +list([float(bond.GetIsConjugated())])
+                +list([float(bond.GetIsAromatic())])))
+
+def generateNodeFeatures(atom,mol,atm_ring_length):
         ''' 
-        generates the atom features for each atom \n
+        generates the node features for each atom \n
         Input \n
         atom (RDKit Atom): atom for the features calculation \n
         mol (RDKit Molecule): molecule, the atom belongs to \n
         Return \n
         (list): one-hot encoded atom feature list
         '''
+        # list(map(lambda s: float(x == s), allowable_set))
+        # map(lambda atom.GetAtomicNum(),ELEM_LIST: _getAllowedSet)
         return ((_getAllowedSet(atom.GetAtomicNum(), ELEM_LIST)
                 +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
                 +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARG) 
@@ -57,7 +87,26 @@ def atomFeatures(atom,mol,atm_ring_length):
                 +_getAllowedSet(atm_ring_length, RING_SIZE)
                 +_getAllowedSet(atom.GetTotalNumHs(), H_COUNT))
                 +_getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE)
-                +list([float(atom.GetIsAromatic())]))
+                +_getAllowedSet(generate_num_element(mol, "O"), O_COUNT)
+                +_getAllowedSet(generate_num_element(mol, "N"), N_COUNT)
+                +_getAllowedSet(generate_num_element(mol, "S"), S_COUNT)
+                +_getAllowedSet(generate_num_halogens(mol), HAL_COUNT)
+                +_getAllowedSet(generate_num_sp3c(mol), SP3C_COUNT)
+                +_getAllowedSet(rdMolDescriptors.CalcNumHBA(mol), H_ACC_COUNT)
+                +_getAllowedSet(rdMolDescriptors.CalcNumHBD(mol), H_DON_COUNT)
+                +_getAllowedSet(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
+                +_getAllowedSet(rdMolDescriptors.CalcNumRotatableBonds(mol), ROT_BONDS_COUNT)
+                +_getAllowedSet(len(mol.GetAromaticAtoms()), AR_COUNT)
+                +list([float(atom.GetIsAromatic())])
+                +list([float(Chem.GetPeriodicTable().GetRvdw(atom.GetAtomicNum()))]) #TODO needs scaling
+                +list([float(Chem.GetPeriodicTable().GetRcovalent(atom.GetAtomicNum()))]) #TODO needs scaling
+                +list([float(rdMolDescriptors.CalcExactMolWt(mol))/700]) #TODO
+                +list([float(np.log(rdMolDescriptors.CalcTPSA(mol)))])#TODO
+                +list([float(np.log(Crippen.MolLogP(mol)))])#TODO
+                +list([float(np.log(rdMolDescriptors.CalcCrippenDescriptors(mol)[1]))])#TODO
+                +list([float(np.log(rdMolDescriptors.CalcLabuteASA(mol)))])#TODO
+                +list([float(generate_fraction_rotatable_bonds(mol)*0.1)])#TODO
+                )
 
 
 def generate_fraction_rotatable_bonds(mol):
@@ -146,31 +195,11 @@ def mol_to_nx(mol_id, mol, soms):
             for ring in rings:
                 if atom_idx in ring:
                     atm_ring_length = len(ring)
-
         G.add_node(
             atom_idx,  # node identifier
             # Atomic Descriptors
-            one_hot_atm_features=atomFeatures(atom,mol,atm_ring_length),
-            vdw_radius=Chem.GetPeriodicTable().GetRvdw(atom.GetAtomicNum()),
-            covalent_radius = Chem.GetPeriodicTable().GetRcovalent(atom.GetAtomicNum()),
-            # Molecular Descriptors
-            num_h_acceptors=rdMolDescriptors.CalcNumHBA(mol),
-            num_h_donors=rdMolDescriptors.CalcNumHBD(mol),
-            num_rings=rdMolDescriptors.CalcNumRings(mol),
-            num_rotatable_bonds=rdMolDescriptors.CalcNumRotatableBonds(mol),
-            molwt=rdMolDescriptors.CalcExactMolWt(mol),
-            tpsa=rdMolDescriptors.CalcTPSA(mol),
-            logp=Crippen.MolLogP(mol),
-            refractivity=rdMolDescriptors.CalcCrippenDescriptors(mol)[1],
-            labute_asa=rdMolDescriptors.CalcLabuteASA(mol),
-            frac_rotatable_bonds=generate_fraction_rotatable_bonds(mol),
-            num_O=generate_num_element(mol, "O"),
-            num_N=generate_num_element(mol, "N"),
-            num_S=generate_num_element(mol, "S"),
-            num_hal=generate_num_halogens(mol),
-            num_sp3C=generate_num_sp3c(mol),
-            num_ar=len(mol.GetAromaticAtoms()),
-            # the next two elements are later used to compute the labels but will of course
+            node_features=generateNodeFeatures(atom,mol,atm_ring_length),
+            # the next two elements are later used to compute the labels but will
             # not be used as features!
             mol_id=int(mol_id),
             atom_id=int(atom_idx),
@@ -178,13 +207,10 @@ def mol_to_nx(mol_id, mol, soms):
         )
     for bond in mol.GetBonds():
         G.add_edge(
+            # not used as features
             bond.GetBeginAtomIdx(),
             bond.GetEndAtomIdx(),
-            bond_type=bond.GetBondTypeAsDouble(),
-            bond_is_in_ring=bond.IsInRing(),
-            bond_is_aromatic=bond.GetIsAromatic(),
-            bond_is_conjugated=bond.GetIsConjugated(),
-            bond_stereo=bond.GetStereo(),
+            bond_features = generateBondFeatures(bond)
         )
     return G
 
@@ -202,95 +228,11 @@ def compute_node_features_matrix(G):
 
     num_nodes = len(G.nodes)
 
+
     for i in tqdm(range(num_nodes)):
         current_node = G.nodes[i]
-        one_hot_atm_features = current_node["one_hot_atm_features"]
-        vdw_radius = [float(current_node["vdw_radius"])]
-        covalent_radius = [float(current_node["covalent_radius"])]
-        num_h_acceptors = [float(current_node["num_h_acceptors"])]
-        num_h_donors = [float(current_node["num_h_donors"])]
-        num_rings = [float(current_node["num_rings"])]
-        num_rotatable_bonds = [float(current_node["num_rotatable_bonds"])]
-        molwt = [float(current_node["molwt"])]
-        tpsa = [float(current_node["tpsa"])]
-        logp = [float(current_node["logp"])]
-        refractivity = [float(current_node["refractivity"])]
-        labute_asa = [float(current_node["labute_asa"])]
-        frac_rotatable_bonds = [float(current_node["frac_rotatable_bonds"])]
-        num_O = [float(current_node["num_O"])]
-        num_N = [float(current_node["num_N"])]
-        num_S = [float(current_node["num_S"])]
-        num_hal = [float(current_node["num_hal"])]
-        num_sp3C = [float(current_node["num_sp3C"])]
-        num_ar = [float(current_node["num_ar"])]
+        node_features = current_node["node_features"]
+        # bond_features = current_node["bond_features"]
 
-        features_vector = (
-            one_hot_atm_features
-            + vdw_radius
-            + covalent_radius
-            + num_h_acceptors
-            + num_h_donors
-            + num_rings
-            + num_rotatable_bonds
-            + molwt
-            + tpsa
-            + logp
-            + refractivity
-            + labute_asa
-            + frac_rotatable_bonds
-            + num_O
-            + num_N
-            + num_S
-            + num_hal
-            + num_sp3C
-            + num_ar
-        )
-
-        if i == 0:
-            features = pd.DataFrame(
-                {
-                    "one_hot_atm_features": pd.Series(one_hot_atm_features),
-                    "vdw_radius": pd.Series(dtype="float"),
-                    "covalent_radius": pd.Series(dtype="float"),
-                    "num_h_acceptors": pd.Series(dtype="float"),
-                    "num_h_donors": pd.Series(dtype="float"),
-                    "num_rings": pd.Series(dtype="float"),
-                    "num_rotatable_bonds": pd.Series(dtype="float"),
-                    "molwt": pd.Series(dtype="float"),
-                    "tpsa": pd.Series(dtype="float"),
-                    "logp": pd.Series(dtype="float"),
-                    "refractivity": pd.Series(dtype="float"),
-                    "labute_asa": pd.Series(dtype="float"),
-                    "frac_rotatable_bonds": pd.Series(dtype="float"),
-                    "num_O": pd.Series(dtype="float"),
-                    "num_N": pd.Series(dtype="float"),
-                    "num_S": pd.Series(dtype="float"),
-                    "num_hal": pd.Series(dtype="float"),
-                    "num_sp3C": pd.Series(dtype="float"),
-                    "num_ar": pd.Series(dtype="float"),
-                }
-            )
-
-        features.loc[len(features)] = features_vector
-
-    features = features.astype(
-        {
-            "one_hot_atm_features": int,
-        }
-    )
-
-    numerical_columns_selector = make_column_selector(dtype_include=float)
-
-    numerical_columns = numerical_columns_selector(features)
-
-    numerical_preprocessor = MinMaxScaler(feature_range=(0, 1))
-
-    preprocessor = ColumnTransformer(
-        [
-            ("standard_scaler", numerical_preprocessor, numerical_columns),
-        ]
-    )
-
-    features = preprocessor.fit_transform(features)
     
-    return np.array(features)
+    return np.array(node_features)
