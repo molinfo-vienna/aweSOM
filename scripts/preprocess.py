@@ -29,7 +29,7 @@ def run(file, dir, split):
     # and add a prompt if the folder exists and the user wants to override it.
     # Otherwise just create the train and test folders under that directory.
     if os.path.exists(os.path.join(dir, os.path.splitext(file)[0])):
-        overwrite = input("Folder already exists. Overwrite? [y/n]")
+        overwrite = input("Folder already exists. Overwrite? [y/n] \n")
         if overwrite == "y":
             shutil.rmtree(os.path.join(dir, os.path.splitext(file)[0]))
             make_dir(file, dir)
@@ -43,13 +43,17 @@ def run(file, dir, split):
     # Generate and save preprocessed data
     # under data/processed/*input_sdf_file_name*/train or test folder
     df_test = df.sample(frac = split/100)
+    logging.info("Start preprocessing test set...")
     G_test, mol_ids_test, atom_ids_test, labels_test, node_features_test = generate_preprocessed_data(df_test)
     save_preprocessed_data(G_test, mol_ids_test, atom_ids_test, labels_test, node_features_test, os.path.join(dir, os.path.splitext(file)[0], "test"))
+    logging.info("Preprocessing test set sucessful!")
     
     if split != 100:
+        logging.info("Start preprocessing training set...")
         df_train = df.drop(df_test.index)
         G_train, mol_ids_train, atom_ids_train, labels_train, node_features_train = generate_preprocessed_data(df_train)
         save_preprocessed_data(G_train, mol_ids_train, atom_ids_train, labels_train, node_features_train , os.path.join(dir, os.path.splitext(file)[0], "train"))
+        logging.info("Preprocessing training set sucessful!")
 
 if __name__ == "__main__":
     
