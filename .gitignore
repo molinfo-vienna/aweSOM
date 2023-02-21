@@ -111,6 +111,8 @@ ENV/
 # Output
 output_zaretzki_test/
 output_zaretzki_train/
+output_zaretzki_train_new/
 output_bi_test/
 output_test/
 data/data_BI
+hps.sh

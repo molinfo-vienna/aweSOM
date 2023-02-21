@@ -41,7 +41,7 @@
                 "-bs", "8", 
                 "-p", "5", 
                 "-dt", "5", 
-                "-o", "output_test", 
+                "-o", "output_test/training", 
                 "-v", "DEBUG"
             ],
             "console": "integratedTerminal",
