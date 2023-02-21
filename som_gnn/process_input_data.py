@@ -147,13 +147,7 @@ def generateNodeFeatures(atom, mol, atm_ring_length):
                 +_getAllowedSet(rdMolDescriptors.CalcNumRotatableBonds(mol), ROT_BONDS_COUNT)
                 +_getAllowedSet(len(mol.GetAromaticAtoms()), AR_COUNT)
                 +list([float(atom.GetIsAromatic())])
-                +list([float(Chem.GetPeriodicTable().GetRvdw(atom.GetAtomicNum()))/2.])
-                +list([float(Chem.GetPeriodicTable().GetRcovalent(atom.GetAtomicNum()))/150.])
-                +list([float(rdMolDescriptors.CalcExactMolWt(mol))])#TODO
-                +list([float(rdMolDescriptors.CalcTPSA(mol))])#TODO
-                +list([float(rdMolDescriptors.CalcLabuteASA(mol))])#TODO
-                +list([float(Crippen.MolLogP(mol))])#TODO
-                +list([float(generate_fraction_rotatable_bonds(mol))])#TODO
+                +list([float(generate_fraction_rotatable_bonds(mol))])
                 )
 
 
@@ -274,7 +268,7 @@ def compute_node_features_matrix(G):
 
     num_nodes = len(G.nodes)
 
-    for i in tqdm(range(num_nodes)):
+    for i in range(num_nodes):
         current_node = G.nodes[i]
         node_features = current_node["node_features"]
         # bond_features = current_node["bond_features"]
