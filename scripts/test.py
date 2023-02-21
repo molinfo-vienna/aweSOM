@@ -83,7 +83,7 @@ if __name__ == "__main__":
         "--out",
         type=str,
         required=True,
-        help="The directory where the output is written."   
+        help="The directory where the output will be written."   
     )
     parser.add_argument("-mp",
         "--modelsPath",

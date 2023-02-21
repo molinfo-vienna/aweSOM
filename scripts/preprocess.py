@@ -7,8 +7,8 @@ import shutil
 from rdkit.Chem import PandasTools
 from torch_geometric import seed_everything
 
-from som_gnn.process_input_data import make_dir, generate_preprocessed_data, save_preprocessed_data
-from som_gnn.utils import seed_everything
+from som_gnn.process_input_data import generate_preprocessed_data, save_preprocessed_data
+from som_gnn.utils import seed_everything, make_dir
 
 def run(file, dir, split):
     """Computes and saves the necessary data (graph, features, labels, graph_ids)
