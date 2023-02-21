@@ -2,9 +2,7 @@ import json
 import networkx as nx
 import numpy as np
 import os
-from rdkit import Chem
-from rdkit.Chem import Crippen, rdchem, rdMolDescriptors
-from tqdm import tqdm
+from rdkit.Chem import rdchem, rdMolDescriptors
 
 HYBRIDIZATION_TYPE = ["UNSPECIFIED", 
                       "S", 
@@ -49,48 +47,6 @@ BOND_TYPE = ["UNSPECIFIED",
              "OTHER",
              ]
 
-def make_dir(file, dir):
-    for folder in ["train", "test"]:
-        os.makedirs(os.path.join(dir, os.path.splitext(file)[0], folder))
-
-def generate_preprocessed_data(df):
-
-    # Generate networkx graphs from mols
-    df["G"] = df.apply(lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms), axis=1)
-    G = nx.disjoint_union_all(df["G"].to_list())
-
-    # Compute list of mol ids
-    mol_ids = []
-    for i in range(len(G.nodes)):
-        mol_ids.append(G.nodes[i]["mol_id"])
-    mol_ids = np.array(mol_ids)
-
-    # Compute list of atom ids
-    atom_ids = []
-    for i in range(len(G.nodes)):
-        atom_ids.append(G.nodes[i]["atom_id"])
-    atom_ids = np.array(atom_ids)
-
-    # Compute list of labels
-    labels = []
-    for i in range(len(G.nodes)):
-        labels.append(int(G.nodes[i]["is_som"]))
-    labels = np.array(labels)
-    
-    # Compute node features matrix
-    node_features = compute_node_features_matrix(G)
-
-    return G, mol_ids, atom_ids, labels, node_features
-
-
-def save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, dir):
-    with open(os.path.join(dir, "graph.json"), "w") as f:
-        f.write(json.dumps(nx.readwrite.json_graph.node_link_data(G)))
-    np.save(os.path.join(dir, "mol_ids.npy"), mol_ids)
-    np.save(os.path.join(dir, "atom_ids.npy"), atom_ids)
-    np.save(os.path.join(dir, "labels.npy"), labels)
-    np.save(os.path.join(dir, "node_features.npy"), node_features)
-
 
 def _getAllowedSet(x, allowable_set):
         '''  
@@ -106,49 +62,6 @@ def _getAllowedSet(x, allowable_set):
         if x not in allowable_set:
             x = allowable_set[-1]
         return list(map(lambda s: float(x == s), allowable_set))
-
-
-def generateBondFeatures(bond):
-
-    return ((_getAllowedSet(bond.GetBondTypeAsDouble(), BOND_TYPE)
-                +_getAllowedSet(bond.GetStereo(), BOND_STEREO)
-                +list([float(bond.IsInRing())])
-                +list([float(bond.GetIsConjugated())])
-                +list([float(bond.GetIsAromatic())])))
-
-def generateNodeFeatures(atom, mol, atm_ring_length):
-        ''' 
-        Generates the node features for each atom
-
-        Args:
-        atom (RDKit Atom): atom for the features calculation
-        mol (RDKit Molecule): molecule, the atom belongs to
-
-        Returns:
-        (list): one-hot encoded atom feature list
-        '''
-        # list(map(lambda s: float(x == s), allowable_set))
-        # map(lambda atom.GetAtomicNum(),ELEM_LIST: _getAllowedSet)
-        return ((_getAllowedSet(atom.GetAtomicNum(), ELEM_LIST)
-                +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
-                +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARGE) 
-                +_getAllowedSet(atom.GetHybridization(), HYBRIDIZATION_TYPE)
-                +_getAllowedSet(atm_ring_length, RING_SIZE)
-                +_getAllowedSet(atom.GetTotalNumHs(), H_COUNT))
-                +_getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE)
-                +_getAllowedSet(generate_num_element(mol, "O"), O_COUNT)
-                +_getAllowedSet(generate_num_element(mol, "N"), N_COUNT)
-                +_getAllowedSet(generate_num_element(mol, "S"), S_COUNT)
-                +_getAllowedSet(generate_num_halogens(mol), HAL_COUNT)
-                +_getAllowedSet(generate_num_sp3c(mol), SP3C_COUNT)
-                +_getAllowedSet(rdMolDescriptors.CalcNumHBA(mol), H_ACC_COUNT)
-                +_getAllowedSet(rdMolDescriptors.CalcNumHBD(mol), H_DON_COUNT)
-                +_getAllowedSet(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
-                +_getAllowedSet(rdMolDescriptors.CalcNumRotatableBonds(mol), ROT_BONDS_COUNT)
-                +_getAllowedSet(len(mol.GetAromaticAtoms()), AR_COUNT)
-                +list([float(atom.GetIsAromatic())])
-                +list([float(generate_fraction_rotatable_bonds(mol))])
-                )
 
 
 def generate_fraction_rotatable_bonds(mol):
@@ -214,6 +127,71 @@ def generate_num_element(mol, element):
     return len([1 for a in mol.GetAtoms() if a.GetSymbol() == element])
 
 
+def compute_node_features_matrix(G):
+    """Takes as input a NetworkX Graph object (which already contains the
+    features for each individual nodes) and extracts/returns its corresponding node features matrix.
+
+    Args:
+        G (NetworkX Graph object)
+
+    Returns:
+        features (numpy array): a numpy array of dimension (number of nodes, number of node features)
+    """
+
+    num_nodes = len(G.nodes)
+    node_features = np.empty((len(G.nodes()), len(G.nodes()[0]['node_features'])))
+
+    for i in range(num_nodes):
+        current_node = G.nodes[i]
+        node_features[i,:] = (current_node["node_features"])
+
+    return node_features
+
+
+def generateBondFeatures(bond):
+
+    return ((_getAllowedSet(bond.GetBondTypeAsDouble(), BOND_TYPE)
+                +_getAllowedSet(bond.GetStereo(), BOND_STEREO)
+                +list([float(bond.IsInRing())])
+                +list([float(bond.GetIsConjugated())])
+                +list([float(bond.GetIsAromatic())])))
+
+
+def generateNodeFeatures(atom, mol, atm_ring_length):
+        ''' 
+        Generates the node features for each atom
+
+        Args:
+        atom (RDKit Atom): atom for the features calculation
+        mol (RDKit Molecule): molecule, the atom belongs to
+
+        Returns:
+        (list): one-hot encoded atom feature list
+        '''
+        # list(map(lambda s: float(x == s), allowable_set))
+        # map(lambda atom.GetAtomicNum(),ELEM_LIST: _getAllowedSet)
+        return ((_getAllowedSet(atom.GetAtomicNum(), ELEM_LIST)
+                +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
+                +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARGE) 
+                +_getAllowedSet(atom.GetHybridization(), HYBRIDIZATION_TYPE)
+                +_getAllowedSet(atm_ring_length, RING_SIZE)
+                +_getAllowedSet(atom.GetTotalNumHs(), H_COUNT))
+                +_getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE)
+                +_getAllowedSet(generate_num_element(mol, "O"), O_COUNT)
+                +_getAllowedSet(generate_num_element(mol, "N"), N_COUNT)
+                +_getAllowedSet(generate_num_element(mol, "S"), S_COUNT)
+                +_getAllowedSet(generate_num_halogens(mol), HAL_COUNT)
+                +_getAllowedSet(generate_num_sp3c(mol), SP3C_COUNT)
+                +_getAllowedSet(rdMolDescriptors.CalcNumHBA(mol), H_ACC_COUNT)
+                +_getAllowedSet(rdMolDescriptors.CalcNumHBD(mol), H_DON_COUNT)
+                +_getAllowedSet(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
+                +_getAllowedSet(rdMolDescriptors.CalcNumRotatableBonds(mol), ROT_BONDS_COUNT)
+                +_getAllowedSet(len(mol.GetAromaticAtoms()), AR_COUNT)
+                +list([float(atom.GetIsAromatic())])
+                +list([float(generate_fraction_rotatable_bonds(mol))])
+                )
+
+
 def mol_to_nx(mol_id, mol, soms):
     """Takes as input an RDKit mol object and return its corresponding NetworkX Graph
 
@@ -255,22 +233,40 @@ def mol_to_nx(mol_id, mol, soms):
     return G
 
 
-def compute_node_features_matrix(G):
-    """Takes as input a NetworkX Graph object (which already contains the
-    features for each individual nodes) and extracts/returns its corresponding node features matrix.
+def generate_preprocessed_data(df):
 
-    Args:
-        G (NetworkX Graph object)
+    # Generate networkx graphs from mols
+    df["G"] = df.apply(lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms), axis=1)
+    G = nx.disjoint_union_all(df["G"].to_list())
 
-    Returns:
-        features (numpy array): a numpy array of dimension (number of nodes, number of node features)
-    """
+    # Compute list of mol ids
+    mol_ids = []
+    for i in range(len(G.nodes)):
+        mol_ids.append(G.nodes[i]["mol_id"])
+    mol_ids = np.array(mol_ids)
 
-    num_nodes = len(G.nodes)
+    # Compute list of atom ids
+    atom_ids = []
+    for i in range(len(G.nodes)):
+        atom_ids.append(G.nodes[i]["atom_id"])
+    atom_ids = np.array(atom_ids)
 
-    for i in range(num_nodes):
-        current_node = G.nodes[i]
-        node_features = current_node["node_features"]
-        # bond_features = current_node["bond_features"]
+    # Compute list of labels
+    labels = []
+    for i in range(len(G.nodes)):
+        labels.append(int(G.nodes[i]["is_som"]))
+    labels = np.array(labels)
+    
+    # Compute node features matrix
+    node_features = compute_node_features_matrix(G)
 
-    return np.array(node_features)
+    return G, mol_ids, atom_ids, labels, node_features
+
+
+def save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, dir):
+    with open(os.path.join(dir, "graph.json"), "w") as f:
+        f.write(json.dumps(nx.readwrite.json_graph.node_link_data(G)))
+    np.save(os.path.join(dir, "mol_ids.npy"), mol_ids)
+    np.save(os.path.join(dir, "atom_ids.npy"), atom_ids)
+    np.save(os.path.join(dir, "labels.npy"), labels)
+    np.save(os.path.join(dir, "node_features.npy"), node_features)

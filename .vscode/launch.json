@@ -18,10 +18,45 @@
             "request": "launch",
             "program": "scripts/preprocess.py",
             "args": [
-                "-f public_metabolites.sdf", 
-                "-d ../data/data_BI", 
-                "-s 100", 
-                "-v DEBUG"
+                "-f", "data.sdf", 
+                "-d", "data/data_zaretzki", 
+                "-s", "10", 
+                "-v", "DEBUG"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train.py",
+            "args": [
+                "-d", "data/data_zaretzki/data/train", 
+                "-hd", "128", 
+                "-do", "0.1", 
+                "-e", "500", 
+                "-lr", "0.001", 
+                "-wd", "0.001", 
+                "-bs", "8", 
+                "-p", "5", 
+                "-dt", "5", 
+                "-o", "output_test", 
+                "-v", "DEBUG"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Test",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/test.py",
+            "args": [
+                "-d", "data/data_zaretzki/data/test", 
+                "-o", "output_test/testing", 
+                "-mp", "output_test/training/results.csv", 
+                "-v", "DEBUG"
             ],
             "console": "integratedTerminal",
             "justMyCode": true

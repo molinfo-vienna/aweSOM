@@ -19,7 +19,6 @@ from sklearn.metrics import (
     roc_curve,
 )
 
-
 ################################
 ##################### NN related utility functions
 
@@ -86,6 +85,10 @@ class MCC_BCE_Loss(torch.nn.Module):
 
 ################################
 ##################### general utility functions
+
+def make_dir(file, dir):
+    for folder in ["train", "test"]:
+        os.makedirs(os.path.join(dir, os.path.splitext(file)[0], folder))
 
 def average(lst):
     return sum(lst) / len(lst)
