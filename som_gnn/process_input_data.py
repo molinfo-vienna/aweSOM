@@ -12,23 +12,23 @@ HYBRIDIZATION_TYPE = ["UNSPECIFIED",
                       "SP2D", 
                       "SP3D", 
                       "SP3D2", 
-                      "OTHER"],
+                      "OTHER"]
 TOTAL_DEGREE = [0,1,2,3,4,5,6,7,"OTHER"],
-ELEM_LIST =[1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 34, 35, 53,"OTHER"],
-FORMAL_CHARGE = [-1,-2,1,2,"OTHER"],
-CIP_CONF = [8,2,4,"OTHER"],
-H_COUNT = [0,1,2,3,4,5,"OTHER"],
-TOTAL_VALENCE = [0,1,2,3,4,5,6,7,8,"OTHER"],
-RING_SIZE = [0,3,4,5,6,7,8,"OTHER"],
-H_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"],
-O_COUNT = [0,1,2,3,4,5,"OTHER"],
-N_COUNT = [0,1,2,3,4,5,"OTHER"],
-S_COUNT = [0,1,2,3,4,5,"OTHER"],
+ELEM_LIST =[1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 34, 35, 53,"OTHER"]
+FORMAL_CHARGE = [-1,-2,1,2,"OTHER"]
+CIP_CONF = [8,2,4,"OTHER"]
+H_COUNT = [0,1,2,3,4,5,"OTHER"]
+TOTAL_VALENCE = [0,1,2,3,4,5,6,7,8,"OTHER"]
+RING_SIZE = [0,3,4,5,6,7,8,"OTHER"]
+H_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"]
+O_COUNT = [0,1,2,3,4,5,"OTHER"]
+N_COUNT = [0,1,2,3,4,5,"OTHER"]
+S_COUNT = [0,1,2,3,4,5,"OTHER"]
 HAL_COUNT = [0,1,2,3,4,5,"OTHER"],
-SP3C_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"],
-AR_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"],
-H_ACC_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"],
-H_DON_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"],
+SP3C_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"]
+AR_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"]
+H_ACC_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"]
+H_DON_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"]
 RING_COUNT = [0,1,2,3,4,5,"OTHER"]
 ROT_BONDS_COUNT = [0,1,2,3,4,5,6,7,9,"OTHER"]
 

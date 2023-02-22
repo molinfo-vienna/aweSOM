@@ -19,7 +19,7 @@
             "program": "scripts/preprocess.py",
             "args": [
                 "-f", "data.sdf", 
-                "-d", "data/data_zaretzki", 
+                "-d", "data/data_metaQSAR", 
                 "-s", "10", 
                 "-v", "DEBUG"
             ],

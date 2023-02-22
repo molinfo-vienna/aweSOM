@@ -108,11 +108,15 @@ ENV/
 # In-tree generated files
 */_version.py
 
+# Data
+data/data_BI
+
 # Output
 output_zaretzki_test/
 output_zaretzki_train/
 output_zaretzki_train_new/
 output_bi_test/
 output_test/
-data/data_BI
+
+# Other
 hps.sh
