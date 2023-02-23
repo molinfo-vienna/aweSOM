@@ -86,9 +86,9 @@ class MCC_BCE_Loss(torch.nn.Module):
 ################################
 ##################### general utility functions
 
-def make_dir(file, dir):
+def make_dir(dir):
     for folder in ["train", "test"]:
-        os.makedirs(os.path.join(dir, os.path.splitext(file)[0], folder))
+        os.makedirs(os.path.join(dir, "preprocessed", folder))
 
 def average(lst):
     return sum(lst) / len(lst)
@@ -195,9 +195,10 @@ def save_individual(
             pred_top2.append(0)
     top2 = np.sum(pred_top2) / len(np.unique(mol_id))
 
-    # Compute and plot ROC-AUC score and ROC-curve, get best threshold
+    # Compute ROC-AUC score, get best threshold
     roc_auc = roc_auc_score(y_true, y_pred)
-    best_threshold = plot_roc_curve(y_true, y_pred, False)
+    fpr, tpr, thresholds = roc_curve(y_true, y_pred)
+    best_threshold = thresholds[np.argmax(tpr - fpr)]
 
     # Compute binary predictions from probability predictions with best threshold
     y_pred_bin = y_pred > best_threshold
@@ -352,7 +353,8 @@ def save_average(
         # Compute and plot ROC-AUC score and ROC-curve, get best threshold
         roc_auc = roc_auc_score(y_trues[key], y_preds[key])
         roc_auc_list.append(roc_auc)
-        best_threshold = plot_roc_curve(y_trues[key], y_preds[key], False)
+        fpr, tpr, thresholds = roc_curve(y_trues[key], y_preds[key])
+        best_threshold = thresholds[np.argmax(tpr - fpr)]
         best_threshold_list.append(best_threshold)
 
         # Compute binary predictions from probability predictions with best threshold
@@ -442,7 +444,6 @@ def save_predict(
     for key in y_preds_bin:
         y_preds_voted[key] = Counter(y_preds_bin[key]).most_common()[0][0]
 
-
     mcc = matthews_corrcoef(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values()))
     precision = precision_score(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values()))
     recall = recall_score(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values()))
@@ -483,3 +484,48 @@ def save_predict(
         )
         writer.writerows(rows)
     f.close()
+
+
+def save_test(
+    mccs, 
+    precisions, 
+    recalls, 
+    out, 
+):
+
+    rows = zip(
+        mccs, 
+        precisions, 
+        recalls, 
+    )
+    with open(
+        os.path.join(out, "results.csv"),
+        "w",
+        encoding="UTF8",
+        newline="",
+    ) as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            (
+            "mcc", 
+            "precision", 
+            "recall", 
+            )
+        )
+        writer.writerows(rows)
+    f.close()
+
+    results = {}
+    results["MCC Average"] = np.average(mccs)
+    results["MCC Standard Deviation"] = np.std((mccs))
+    results["Precision Average"] = np.average(precisions)
+    results["Precision Standard Deviation"] = np.std((precisions))
+    results["Recall Average"] = np.average(recalls)
+    results["Recall Standard Deviation"] = np.std((recalls))
+
+    with open(
+        os.path.join(out, "results.txt"),
+        "w",
+        encoding="UTF8",
+    ) as f:
+        f.write(json.dumps(results))

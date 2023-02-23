@@ -19,7 +19,7 @@
             "program": "scripts/preprocess.py",
             "args": [
                 "-f", "data.sdf", 
-                "-d", "data/data_metaQSAR", 
+                "-d", "data/zaretzki", 
                 "-s", "10", 
                 "-v", "DEBUG"
             ],
@@ -41,7 +41,7 @@
                 "-bs", "8", 
                 "-p", "5", 
                 "-dt", "5", 
-                "-o", "output_test/training", 
+                "-o", "output/zaretzki/train_new", 
                 "-v", "DEBUG"
             ],
             "console": "integratedTerminal",
@@ -53,9 +53,26 @@
             "request": "launch",
             "program": "scripts/test.py",
             "args": [
-                "-d", "data/data_zaretzki/data/test", 
-                "-o", "output_test/testing", 
-                "-mp", "output_test/training/results.csv", 
+                "-d", "data/zaretzki/preprocessed", 
+                "-o", "output/zaretzki/test", 
+                "-mp", "output/zaretzki/train/S1.csv", 
+                "-e", "1000", 
+                "-p", "5", 
+                "-dt", "5", 
+                "-v", "DEBUG"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Predict",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/predict.py",
+            "args": [
+                "-d", "data/zaretzki/preprocessed/test", 
+                "-o", "output/zaretzki/predict", 
+                "-mp", "output/zaretzki/train/S1.csv", 
                 "-v", "DEBUG"
             ],
             "console": "integratedTerminal",

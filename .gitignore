@@ -109,14 +109,12 @@ ENV/
 */_version.py
 
 # Data
-data/data_BI
+data/BI
+data/metaQSAR
+data/EBoMD2
 
 # Output
-output_zaretzki_test/
-output_zaretzki_train/
-output_zaretzki_train_new/
-output_bi_test/
-output_test/
+output/
 
 # Other
 hps.sh
