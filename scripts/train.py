@@ -1,10 +1,12 @@
 import argparse
 import logging
 import os
+import shutil
+import sys
 import torch
 
 from operator import itemgetter
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import KFold
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 
@@ -21,7 +23,6 @@ from som_gnn.utils import (
 def run(
         device, 
         dataset, 
-        train_val_data, 
         hdim, 
         dropout, 
         epochs, 
@@ -35,13 +36,14 @@ def run(
 
     logging.info("Start training...")
 
-    kf = KFold(n_splits=10, shuffle=False)
+    n_splits = 10
+    kf = KFold(n_splits=n_splits, shuffle=False)
 
     y_preds = {}
     y_trues = {}
     mol_ids = {}
 
-    for fold_num, (train_index, val_index) in enumerate(kf.split(train_val_data)):
+    for fold_num, (train_index, val_index) in enumerate(kf.split(dataset)):
 
         # Create results directory 
         output_subdirectory = os.path.join(
@@ -69,8 +71,8 @@ def run(
         ).to(device)
 
         # Split training and validation data for the current fold
-        train_data = itemgetter(*train_index)(train_val_data)
-        val_data = itemgetter(*val_index)(train_val_data)
+        train_data = itemgetter(*train_index)(dataset)
+        val_data = itemgetter(*val_index)(dataset)
         print(f"Training set: {len(train_data)} molecules.")
         print(f"Validation set: {len(val_data)} molecules.")
 
@@ -84,7 +86,9 @@ def run(
 
         train_losses = []
         val_losses = []
-        print("Training...")
+        print('-' * 20)
+        print(f'Training {fold_num+1}/{n_splits}')
+        print('-' * 20)
         for epoch in tqdm(range(epochs)):
             final_num_epochs = epoch
             train_loss = model.train(train_loader, lr, wd, device)
@@ -225,6 +229,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # if os.path.exists(args.out):
+    #     overwrite = input("Folder already exists. Overwrite? [y/n] \n")
+    #     if overwrite == "y":
+    #         shutil.rmtree(args.out)
+    #         os.makedirs(args.out)
+    #     if overwrite == "n":
+    #         sys.exit()
+    # else:
+    #     os.makedirs(args.out)
+
     logging.basicConfig(filename= os.path.join(args.out, 'logfile_train.log'), 
                     level=getattr(logging, args.verbosityLevel), 
                     format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
@@ -232,28 +246,21 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Create/Load Custom PyTorch Geometric Dataset
-    logging.info("Loading data...")
+    logging.info("Loading data")
     dataset = SOM(root=args.dir)
     logging.info("Data successfully loaded!")
 
     # Print dataset info
-    print(f"Number of graphs: {len(dataset)}")
+    print(f"Number of molecules in the data set: {len(dataset)}")
     print(f"Number of node features: {dataset.num_node_features}")
     print(f"Number of edge features: {dataset.num_edge_features}")
     print(f"Number of classes: {dataset.num_classes}")
 
-    # Training/Evaluation/Test Split
-    logging.info("Splitting data...")
-    train_val_data, test_data = train_test_split(
-        dataset, test_size=0.1, random_state=42, shuffle=True
-    )
-    logging.info("Data sucessfully splitted!")
-
+    logging.info("Start training")
     try:
         run(
         device,
         dataset,
-        train_val_data,
         args.hiddenLayersDimension,
         args.dropout,
         args.epochs,

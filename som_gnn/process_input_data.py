@@ -236,7 +236,7 @@ def mol_to_nx(mol_id, mol, soms):
 def generate_preprocessed_data(df):
 
     # Generate networkx graphs from mols
-    df["G"] = df.apply(lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms), axis=1)
+    df["G"] = df.apply(lambda x: mol_to_nx(x.ID, x.ROMol, x.soms), axis=1)
     G = nx.disjoint_union_all(df["G"].to_list())
 
     # Compute list of mol ids

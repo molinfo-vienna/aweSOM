@@ -28,15 +28,15 @@ def run(file, dir, split):
     # Check whether the directory data/processed/*input_sdf_file_name*/ already exists,
     # and add a prompt if the folder exists and the user wants to override it.
     # Otherwise just create the train and test folders under that directory.
-    if os.path.exists(os.path.join(dir, os.path.splitext(file)[0])):
+    if os.path.exists(os.path.join(dir, "preprocessed")):
         overwrite = input("Folder already exists. Overwrite? [y/n] \n")
         if overwrite == "y":
-            shutil.rmtree(os.path.join(dir, os.path.splitext(file)[0]))
-            make_dir(file, dir)
+            shutil.rmtree(os.path.join(dir, "preprocessed"))
+            make_dir(dir)
         if overwrite == "n":
             return None
     else:
-        make_dir(file, dir)
+        make_dir(dir)
 
     # Split the data into train/test set according to the split ratio
     # Note: df.sample shuffles df randomly before sampling
@@ -45,14 +45,14 @@ def run(file, dir, split):
     df_test = df.sample(frac = split/100)
     logging.info("Start preprocessing test set...")
     G_test, mol_ids_test, atom_ids_test, labels_test, node_features_test = generate_preprocessed_data(df_test)
-    save_preprocessed_data(G_test, mol_ids_test, atom_ids_test, labels_test, node_features_test, os.path.join(dir, os.path.splitext(file)[0], "test"))
+    save_preprocessed_data(G_test, mol_ids_test, atom_ids_test, labels_test, node_features_test, os.path.join(dir, "preprocessed/test"))
     logging.info("Preprocessing test set sucessful!")
     
     if split != 100:
         logging.info("Start preprocessing training set...")
         df_train = df.drop(df_test.index)
         G_train, mol_ids_train, atom_ids_train, labels_train, node_features_train = generate_preprocessed_data(df_train)
-        save_preprocessed_data(G_train, mol_ids_train, atom_ids_train, labels_train, node_features_train , os.path.join(dir, os.path.splitext(file)[0], "train"))
+        save_preprocessed_data(G_train, mol_ids_train, atom_ids_train, labels_train, node_features_train , os.path.join(dir, "preprocessed/train"))
         logging.info("Preprocessing training set sucessful!")
 
 if __name__ == "__main__":
@@ -93,7 +93,8 @@ if __name__ == "__main__":
                     level=getattr(logging, args.verbosityLevel), 
                     format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 
-    logging.info("Start preprocessing...")
+    logging.info("Start preprocessing")
+    print("Preprocessing... This can take a few minutes.")
 
     try:
         run(args.file, args.dir, args.split)
