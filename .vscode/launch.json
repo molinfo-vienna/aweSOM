@@ -53,12 +53,9 @@
             "request": "launch",
             "program": "scripts/test.py",
             "args": [
-                "-d", "data/zaretzki/preprocessed", 
+                "-d", "data/zaretzki/preprocessed/test", 
                 "-o", "output/zaretzki/test", 
                 "-mp", "output/zaretzki/train/S1.csv", 
-                "-e", "1000", 
-                "-p", "5", 
-                "-dt", "5", 
                 "-v", "DEBUG"
             ],
             "console": "integratedTerminal",
