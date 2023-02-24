@@ -432,8 +432,6 @@ def save_predict(
     opt_thresholds,
 ):
 
-    results = {}
-    
     y_preds_bin = {}
     for threshold in opt_thresholds:
         for key in y_preds:
@@ -444,13 +442,12 @@ def save_predict(
     for key in y_preds_bin:
         y_preds_voted[key] = Counter(y_preds_bin[key]).most_common()[0][0]
 
-    mcc = matthews_corrcoef(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values()))
-    precision = precision_score(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values()))
-    recall = recall_score(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values()))
-
-    results["MCC"] = mcc
-    results["Precision"] = precision
-    results["Recall"] = recall
+    results = {}
+    y_true=list(y_trues.values())
+    y_pred=list(y_preds_voted.values())
+    results["MCC"] = matthews_corrcoef(y_true, y_pred)
+    results["Precision"] = precision_score(y_true, y_pred)
+    results["Recall"] = recall_score(y_true, y_pred)
 
     with open(
         os.path.join(outdir, "results.txt"),
@@ -484,6 +481,68 @@ def save_predict(
         )
         writer.writerows(rows)
     f.close()
+
+
+# def save_predict(
+#     outdir,
+#     y_preds,
+#     y_trues,
+#     opt_thresholds, 
+# ):
+
+#     y_preds_avg = {}
+#     y_preds_bin = {}
+
+#     for key in y_preds:
+#         y_preds_avg[key] = np.average(y_preds[key])
+    
+#     y_true = list(y_trues.values())
+#     y_pred_avg = list(y_preds_avg.values())
+#     opt_threshold = plot_roc_curve(y_true, y_pred_avg, False)
+
+#     for key in y_preds_avg:
+#         y_preds_bin.setdefault(key,int(y_preds_avg[key] > opt_threshold))
+
+#     y_pred_bin=list(y_preds_bin.values())
+#     results = {}
+#     results["MCC"] = matthews_corrcoef(y_true, y_pred_bin)
+#     results["Precision"] = precision_score(y_true, y_pred_bin)
+#     results["Recall"] = recall_score(y_true, y_pred_bin)
+
+#     with open(
+#         os.path.join(outdir, "results.txt"),
+#         "w",
+#         encoding="UTF8",
+#     ) as f:
+#         f.write(json.dumps(results))
+
+#     # Save molecular identifiers, atom identifiers, true labels, and predicted labels of single atoms to csv file
+#     # (serves results visualization purposes)
+#     rows = zip(
+#         [k for (k,_) in y_trues.keys()], 
+#         [k for (_,k) in y_trues.keys()],  
+#         y_pred_avg, 
+#         y_pred_bin, 
+#         y_true,
+#     )
+#     with open(
+#         os.path.join(outdir, "predictions.csv"),
+#         "w",
+#         encoding="UTF8",
+#         newline="",
+#     ) as f:
+#         writer = csv.writer(f)
+#         writer.writerow(
+#             (
+#                 "mol_id",
+#                 "atom_id",
+#                 "som_probability",
+#                 "predicted_label",
+#                 "true_label",
+#             )
+#         )
+#         writer.writerows(rows)
+#     f.close()
 
 
 def save_test(

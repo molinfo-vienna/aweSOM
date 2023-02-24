@@ -7,19 +7,19 @@ import sys
 import torch
 
 from collections import Counter
+from operator import itemgetter
 from sklearn.metrics import (
     matthews_corrcoef,
     precision_score,
     recall_score, 
 )
+from sklearn.model_selection import KFold
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
-
 
 from som_gnn.graph_neural_nets import GIN
 from som_gnn.pyg_dataset_creator import SOM
 from som_gnn.utils import (
-    EarlyStopping,
     plot_roc_curve, 
     save_test,
     seed_everything, 
@@ -27,72 +27,56 @@ from som_gnn.utils import (
 
 
 def run(
-    device,
-    train_data, 
+    device, 
     test_data, 
-    out,
-    modelsPath,
-    epochs, 
-    patience, 
-    delta, 
+    out, 
+    modelsPath, 
 ):
 
     logging.info("Start testing...")
 
     models = pd.read_csv(modelsPath).to_dict()
 
+    n_splits = 5
+    kf = KFold(n_splits=n_splits, shuffle=False)
+
     mccs = []
     precisions = []
     recalls = []
 
-    num_testing_phases = 10
-    for i in range(num_testing_phases):
+    for fold_num, (_, index) in enumerate(kf.split(test_data)):
 
-        print('\n', '-' * 20)
-        print(f'Testing Phase {i+1}/{num_testing_phases}')
         print('-' * 20)
-        print("Retraining models...")
+        print(f'Testing Phase {fold_num+1}/{n_splits}')
+
+        # Get subset of test data
+        sub_test_data = itemgetter(*index)(test_data)
+
+        y_preds = {}
+        y_trues = {}
+        opt_thresholds = []
     
         # Build voting classifier based on the models stored in models
         # and store their predictions
-        num_models = len(models['Results Folder'])
-        for j in range(num_models):
-
-            print('-' * 20)
-            print(f'Training {j+1}/{num_models}')
-            print('-' * 20)
-
-            y_preds = {}
-            y_trues = {}
-            opt_thresholds = []
+        for j in range(len(models['Results Folder'])):
 
             # Initialize model
             model = GIN(
-                in_dim=train_data.num_features,
+                in_dim=test_data.num_features,
                 hdim=models['Dimension of Hidden Layers'][j],
-                edge_dim=train_data.num_edge_features,
+                edge_dim=test_data.num_edge_features,
                 dropout=models['Dropout'][j],
             ).to(device)
 
-            # Load saved model
-            #model.load_state_dict(torch.load(os.path.join(models['Results Folder'][j], "model.pt")))
-
             # Load data
-            train_loader = DataLoader(train_data, batch_size=models['Batch Size'][j], shuffle=True)
-            test_loader = DataLoader(test_data, batch_size=models['Batch Size'][j], shuffle=True)
+            data_loader = DataLoader(sub_test_data, batch_size=models['Batch Size'][j])
 
-            # Train model
-            early_stopping = EarlyStopping(patience, delta)
+            # Load saved model and apply it to the test data current test data subset
+            model.load_state_dict(torch.load(os.path.join(models['Results Folder'][j], "model.pt")))
+            _, y_pred, mol_id, atom_id, y_true = model.test(data_loader, device)
 
-            for _ in tqdm(range(epochs)):
-                train_loss = model.train(train_loader, models['Learning Rate'][j], models['Weight Decay'][j], device)
-                if early_stopping.early_stop(train_loss):
-                    break
-
-            # Apply trained model to test data
-            _, y_pred, mol_id, atom_id, y_true = model.test(test_loader, device)
-
-            # Compute best decision threshold
+            # Compute best decision threshold for current model and
+            # append it to opt_thresholds list
             opt_threshold = plot_roc_curve(y_true, y_pred, False)
 
             for j, element in enumerate(zip(mol_id, atom_id)):
@@ -112,21 +96,19 @@ def run(
             y_preds_voted[key] = Counter(y_preds_bin[key]).most_common()[0][0]
 
         # Compute metric of the predictions made by the current voting classifier
-        # and append it to list of preictions
+        # and append it to list of predictions
         mccs.append(matthews_corrcoef(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values())))
         precisions.append(precision_score(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values())))
         recalls.append(recall_score(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values())))
 
+    logging.info("Saving results...")
     save_test(
         mccs, 
         precisions, 
         recalls, 
         out, 
     )
-
     logging.info("Testing succesful!")
-    
-    logging.info("Saving results...")
 
 
 if __name__ == "__main__":
@@ -152,28 +134,6 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="The path of the csv file holding the metadata of the models chosen for the ensemble classifier.",
-    )
-    parser.add_argument("-e",
-        "--epochs",
-        type=int,
-        required=True,
-        help="the maximum number of training epochs",
-    )
-    parser.add_argument("-p",
-        "--patience",
-        type=int,
-        required=True,
-        default=5,
-        help="early stopping: number of epochs with no improvement of the \
-                        validation or test loss after which training will be stopped",
-    )
-    parser.add_argument("-dt",
-        "--delta",
-        type=float,
-        required=True,
-        default=5,
-        help="early stopping: minimum change in the monitored quantity to qualify as an improvement, \
-                        i.e. an absolute change of less than delta will count as no improvement",  
     )
     parser.add_argument("-v",
         "--verbose",
@@ -202,28 +162,22 @@ if __name__ == "__main__":
 
     # Create/Load Custom PyTorch Geometric Dataset
     logging.info("Loading data")
-    train_data = SOM(root=os.path.join(args.dir, "train"))
-    test_data = SOM(root=os.path.join(args.dir, "test"))
+    test_data = SOM(args.dir)
     logging.info("Data successfully loaded!")
 
     # Print dataset info
-    print(f"Number of molecules in the training set: {len(train_data)}")
-    print(f"Number of molecules in the test set: {len(test_data)}")
-    print(f"Number of node features: {train_data.num_node_features}")
-    print(f"Number of edge features: {train_data.num_edge_features}")
-    print(f"Number of classes: {train_data.num_classes}")
+    print(f"Number of molecules: {len(test_data)}")
+    print(f"Number of node features: {test_data.num_node_features}")
+    print(f"Number of edge features: {test_data.num_edge_features}")
+    print(f"Number of classes: {test_data.num_classes}")
 
     logging.info("Start testing")
     try:
         run(
         device,
-        train_data,
         test_data, 
         args.out,
         args.modelsPath,
-        args.epochs, 
-        args.patience,
-        args.delta
         )
     except Exception as e:
         logging.error("Testing was terminated:", e)
