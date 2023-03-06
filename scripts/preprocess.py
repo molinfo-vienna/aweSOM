@@ -38,6 +38,9 @@ def run(file, dir, split):
     else:
         make_dir(dir)
 
+    logging.info("Start preprocessing...")
+    print("Preprocessing... This can take a few minutes.")
+
     # Split the data into train/test set according to the split ratio
     # Note: df.sample shuffles df randomly before sampling
     # Generate and save preprocessed data
@@ -92,9 +95,6 @@ if __name__ == "__main__":
     logging.basicConfig(filename= os.path.join(args.dir, 'logfile_preprocess.log'), 
                     level=getattr(logging, args.verbosityLevel), 
                     format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-
-    logging.info("Start preprocessing")
-    print("Preprocessing... This can take a few minutes.")
 
     try:
         run(args.file, args.dir, args.split)
