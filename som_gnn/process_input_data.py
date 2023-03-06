@@ -168,8 +168,6 @@ def generateNodeFeatures(atom, mol, atm_ring_length):
         Returns:
         (list): one-hot encoded atom feature list
         '''
-        # list(map(lambda s: float(x == s), allowable_set))
-        # map(lambda atom.GetAtomicNum(),ELEM_LIST: _getAllowedSet)
         return ((_getAllowedSet(atom.GetAtomicNum(), ELEM_LIST)
                 +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
                 +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARGE) 
@@ -177,18 +175,18 @@ def generateNodeFeatures(atom, mol, atm_ring_length):
                 +_getAllowedSet(atm_ring_length, RING_SIZE)
                 +_getAllowedSet(atom.GetTotalNumHs(), H_COUNT))
                 +_getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE)
-                +_getAllowedSet(generate_num_element(mol, "O"), O_COUNT)
-                +_getAllowedSet(generate_num_element(mol, "N"), N_COUNT)
-                +_getAllowedSet(generate_num_element(mol, "S"), S_COUNT)
-                +_getAllowedSet(generate_num_halogens(mol), HAL_COUNT)
-                +_getAllowedSet(generate_num_sp3c(mol), SP3C_COUNT)
-                +_getAllowedSet(rdMolDescriptors.CalcNumHBA(mol), H_ACC_COUNT)
-                +_getAllowedSet(rdMolDescriptors.CalcNumHBD(mol), H_DON_COUNT)
-                +_getAllowedSet(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
-                +_getAllowedSet(rdMolDescriptors.CalcNumRotatableBonds(mol), ROT_BONDS_COUNT)
-                +_getAllowedSet(len(mol.GetAromaticAtoms()), AR_COUNT)
                 +list([float(atom.GetIsAromatic())])
-                +list([float(generate_fraction_rotatable_bonds(mol))])
+                # +_getAllowedSet(generate_num_element(mol, "O"), O_COUNT)
+                # +_getAllowedSet(generate_num_element(mol, "N"), N_COUNT)
+                # +_getAllowedSet(generate_num_element(mol, "S"), S_COUNT)
+                # +_getAllowedSet(generate_num_halogens(mol), HAL_COUNT)
+                # +_getAllowedSet(generate_num_sp3c(mol), SP3C_COUNT)
+                # +_getAllowedSet(rdMolDescriptors.CalcNumHBA(mol), H_ACC_COUNT)
+                # +_getAllowedSet(rdMolDescriptors.CalcNumHBD(mol), H_DON_COUNT)
+                # +_getAllowedSet(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
+                # +_getAllowedSet(rdMolDescriptors.CalcNumRotatableBonds(mol), ROT_BONDS_COUNT)
+                # +_getAllowedSet(len(mol.GetAromaticAtoms()), AR_COUNT)
+                # +list([float(generate_fraction_rotatable_bonds(mol))])
                 )
 
 
