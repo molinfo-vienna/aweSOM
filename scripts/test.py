@@ -171,7 +171,6 @@ if __name__ == "__main__":
     print(f"Number of edge features: {test_data.num_edge_features}")
     print(f"Number of classes: {test_data.num_classes}")
 
-    logging.info("Start testing")
     try:
         run(
         device,
