@@ -1,7 +1,9 @@
+import numpy as np
 import torch
 from torch.nn import Sequential, Linear, BatchNorm1d, Dropout, LeakyReLU
 from torch_geometric.nn import GINEConv, global_add_pool
-from som_gnn.utils import MCC_BCE_Loss, MCC_Loss
+from sklearn.utils.class_weight import compute_class_weight
+from som_gnn.utils import MCC_BCE_Loss, weighted_BCE_Loss
 
 
 class GIN(torch.nn.Module):
@@ -56,18 +58,22 @@ class GIN(torch.nn.Module):
         # Classify
         h = self.lin(h)
 
-        return h
+        return torch.sigmoid(h)
+
 
 
     def train(self, loader, lr, wd, device):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=wd)
         loss_function = MCC_BCE_Loss()
+        #loss_function = weighted_BCE_Loss()
         loss = 0
         total_num_instances = 0
         for data in loader:
             data = data.to(device)
             out = self(data.x, data.edge_index, data.edge_attr, data.batch)
             batch_loss = loss_function(out[:, 0].to(float), data.y.to(float))
+            #class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
+            #batch_loss = loss_function(out[:, 0].to(float), data.y.to(float), class_weights)
             loss += batch_loss * len(data.batch)
             total_num_instances += len(data.batch)
             optimizer.zero_grad()
@@ -80,6 +86,7 @@ class GIN(torch.nn.Module):
     @torch.no_grad()
     def test(self, loader, device):
         loss_function = MCC_BCE_Loss()
+        #loss_function = weighted_BCE_Loss()
         loss = 0
         total_num_instances = 0
         y_preds = []
@@ -90,6 +97,8 @@ class GIN(torch.nn.Module):
             data = data.to(device)
             out = self(data.x, data.edge_index, data.edge_attr, data.batch)
             batch_loss = loss_function(out[:, 0].to(float), data.y.to(float))
+            #class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
+            #batch_loss = loss_function(out[:, 0].to(float), data.y.to(float), class_weights)
             loss += batch_loss * len(data.batch)
             total_num_instances += len(data.batch)
             y_preds.append(torch.sigmoid(out))
