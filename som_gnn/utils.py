@@ -19,8 +19,8 @@ from sklearn.metrics import (
     roc_curve,
 )
 
-################################
-##################### NN related utility functions
+
+#################### NN related utility functions ####################
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
@@ -46,23 +46,23 @@ class EarlyStopping:
                 return True
         return False
 
-################################
-##################### loss utility functions
 
-class MCC_Loss(torch.nn.Module):
+#################### loss related utility functions ####################
+
+class weighted_BCE_Loss(torch.nn.Module):
     def __init__(self):
-        super(MCC_Loss, self).__init__()
+        super(weighted_BCE_Loss, self).__init__()
 
-    def forward(self, predictions, targets):
-        predictions = torch.sigmoid(predictions)
-        TP = torch.sum(predictions * targets)
-        TN = torch.sum((1 - predictions) * (1 - targets))
-        FP = torch.sum((1 - targets) * predictions)
-        FN = torch.sum(targets * (1 - predictions))
-        MCC_loss = 1 - (TP * TN - FP * FN) / (
-            torch.sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
-        )
-        return MCC_loss
+    def forward(self, output, target, class_weights=None):
+        if class_weights is not None:
+            assert len(class_weights) == 2
+            
+            loss = class_weights[1] * (target * torch.log(output)) + \
+                class_weights[0] * ((1 - target) * torch.log(1 - output))
+        else:
+            loss = target * torch.log(output) + (1 - target) * torch.log(1 - output)
+
+        return torch.neg(torch.mean(loss))
 
 
 class MCC_BCE_Loss(torch.nn.Module):
@@ -70,7 +70,6 @@ class MCC_BCE_Loss(torch.nn.Module):
         super(MCC_BCE_Loss, self).__init__()
 
     def forward(self, predictions, targets):
-        predictions = torch.sigmoid(predictions)
         TP = torch.sum(predictions * targets)
         TN = torch.sum((1 - predictions) * (1 - targets))
         FP = torch.sum((1 - targets) * predictions)
@@ -83,8 +82,7 @@ class MCC_BCE_Loss(torch.nn.Module):
         return MCC_BCE_loss
 
 
-################################
-##################### general utility functions
+#################### general utility functions ####################
 
 def make_dir(dir):
     for folder in ["train", "test"]:
