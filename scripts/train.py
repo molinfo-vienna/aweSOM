@@ -229,15 +229,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # if os.path.exists(args.out):
-    #     overwrite = input("Folder already exists. Overwrite? [y/n] \n")
-    #     if overwrite == "y":
-    #         shutil.rmtree(args.out)
-    #         os.makedirs(args.out)
-    #     if overwrite == "n":
-    #         sys.exit()
-    # else:
-    #     os.makedirs(args.out)
+    if not os.path.exists(args.out):
+        os.makedirs(args.out)
 
     logging.basicConfig(filename= os.path.join(args.out, 'logfile_train.log'), 
                     level=getattr(logging, args.verbosityLevel), 
@@ -256,7 +249,6 @@ if __name__ == "__main__":
     print(f"Number of edge features: {dataset.num_edge_features}")
     print(f"Number of classes: {dataset.num_classes}")
 
-    logging.info("Start training")
     try:
         run(
         device,
