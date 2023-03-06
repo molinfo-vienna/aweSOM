@@ -54,8 +54,6 @@ def run(
             y_trues[element] = y_true[j]
         
         opt_thresholds.append(models['Optimal Threshold'][i])
-
-    logging.info("Predicting succesful!")
     
     logging.info("Saving results...")
     save_predict(
@@ -64,6 +62,8 @@ def run(
         y_trues,
         opt_thresholds,
     )
+    print("Done!")
+    logging.info("Predicting succesful!")
 
 
 if __name__ == "__main__":
@@ -126,7 +126,6 @@ if __name__ == "__main__":
     print(f"Number of edge features: {dataset.num_edge_features}")
     print(f"Number of classes: {dataset.num_classes}")
 
-    logging.info("Start predicting")
     try:
         run(
         device,
