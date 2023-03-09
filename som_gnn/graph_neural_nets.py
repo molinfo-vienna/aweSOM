@@ -61,10 +61,9 @@ class GIN(torch.nn.Module):
         return torch.sigmoid(h)
 
 
-
     def train(self, loader, lr, wd, device):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=wd)
-        loss_function = MCC_BCE_Loss()
+        loss_function = torch.nn.BCELoss(reduction="sum")
         #loss_function = weighted_BCE_Loss()
         loss = 0
         total_num_instances = 0
@@ -85,7 +84,7 @@ class GIN(torch.nn.Module):
 
     @torch.no_grad()
     def test(self, loader, device):
-        loss_function = MCC_BCE_Loss()
+        loss_function = torch.nn.BCELoss(reduction="sum")
         #loss_function = weighted_BCE_Loss()
         loss = 0
         total_num_instances = 0

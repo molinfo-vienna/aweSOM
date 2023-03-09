@@ -32,16 +32,16 @@
             "request": "launch",
             "program": "scripts/train.py",
             "args": [
-                "-d", "data/data_zaretzki/data/train", 
-                "-hd", "128", 
+                "-d", "data/zaretzki/preprocessed/train", 
+                "-hd", "64", 
                 "-do", "0.1", 
-                "-e", "500", 
+                "-e", "1000", 
                 "-lr", "0.001", 
                 "-wd", "0.001", 
                 "-bs", "8", 
                 "-p", "5", 
-                "-dt", "5", 
-                "-o", "output/zaretzki/train_new", 
+                "-dt", "0.05", 
+                "-o", "output/zaretzki/debug/train", 
                 "-v", "DEBUG"
             ],
             "console": "integratedTerminal",
@@ -54,8 +54,8 @@
             "program": "scripts/test.py",
             "args": [
                 "-d", "data/zaretzki/preprocessed/test", 
-                "-o", "output/zaretzki/test", 
-                "-mp", "output/zaretzki/train/S1.csv", 
+                "-o", "output/zaretzki/atom_bce/test2", 
+                "-mp", "output/zaretzki/atom_bce/models/models2.csv", 
                 "-v", "DEBUG"
             ],
             "console": "integratedTerminal",
@@ -68,8 +68,8 @@
             "program": "scripts/predict.py",
             "args": [
                 "-d", "data/zaretzki/preprocessed/test", 
-                "-o", "output/zaretzki/predict", 
-                "-mp", "output/zaretzki/train/S1.csv", 
+                "-o", "output/zaretzki/atom_bce/predict2", 
+                "-mp", "output/zaretzki/atom_bce/models/models2.csv", 
                 "-v", "DEBUG"
             ],
             "console": "integratedTerminal",
