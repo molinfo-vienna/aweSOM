@@ -5,10 +5,8 @@ import numpy as np
 import os
 import random
 import torch
-
-from collections import Counter
-
 import torch.nn.functional as F
+from collections import Counter
 
 from sklearn.metrics import (
     auc,
@@ -70,16 +68,16 @@ class MCC_BCE_Loss(torch.nn.Module):
         super(MCC_BCE_Loss, self).__init__()
 
     def forward(self, predictions, targets):
-        TP = torch.sum(predictions * targets)
-        TN = torch.sum((1 - predictions) * (1 - targets))
-        FP = torch.sum((1 - targets) * predictions)
-        FN = torch.sum(targets * (1 - predictions))
-        MCC_loss = 1 - (TP * TN - FP * FN) / (
-            torch.sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
+        tp = torch.sum(predictions * targets)
+        tn = torch.sum((1 - predictions) * (1 - targets))
+        fp = torch.sum((1 - targets) * predictions)
+        fn = torch.sum(targets * (1 - predictions))
+        MCC = (tp * tn - fp * fn) / (
+            torch.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
         )
+        MCC_loss = 1 - MCC
         BCE_loss = F.binary_cross_entropy(predictions, targets, reduction="sum")
-        MCC_BCE_loss = MCC_loss + BCE_loss
-        return MCC_BCE_loss
+        return MCC_loss + BCE_loss
 
 
 #################### general utility functions ####################
@@ -226,23 +224,6 @@ def save_individual(
         )
         writer.writerows(rows)
     f.close()
-
-    with open(
-        os.path.join(output_subdirectory, "hp.csv"),
-        "w",
-        encoding="UTF8",
-        newline="",
-    ) as f:
-        writer = csv.writer(f)
-        writer.writerow(        
-            [
-                hdim,
-                dropout,
-                lr,
-                wd,
-                bs,
-            ]
-        )
 
     data = [
         str(output_subdirectory),
@@ -479,68 +460,6 @@ def save_predict(
         )
         writer.writerows(rows)
     f.close()
-
-
-# def save_predict(
-#     outdir,
-#     y_preds,
-#     y_trues,
-#     opt_thresholds, 
-# ):
-
-#     y_preds_avg = {}
-#     y_preds_bin = {}
-
-#     for key in y_preds:
-#         y_preds_avg[key] = np.average(y_preds[key])
-    
-#     y_true = list(y_trues.values())
-#     y_pred_avg = list(y_preds_avg.values())
-#     opt_threshold = plot_roc_curve(y_true, y_pred_avg, False)
-
-#     for key in y_preds_avg:
-#         y_preds_bin.setdefault(key,int(y_preds_avg[key] > opt_threshold))
-
-#     y_pred_bin=list(y_preds_bin.values())
-#     results = {}
-#     results["MCC"] = matthews_corrcoef(y_true, y_pred_bin)
-#     results["Precision"] = precision_score(y_true, y_pred_bin)
-#     results["Recall"] = recall_score(y_true, y_pred_bin)
-
-#     with open(
-#         os.path.join(outdir, "results.txt"),
-#         "w",
-#         encoding="UTF8",
-#     ) as f:
-#         f.write(json.dumps(results))
-
-#     # Save molecular identifiers, atom identifiers, true labels, and predicted labels of single atoms to csv file
-#     # (serves results visualization purposes)
-#     rows = zip(
-#         [k for (k,_) in y_trues.keys()], 
-#         [k for (_,k) in y_trues.keys()],  
-#         y_pred_avg, 
-#         y_pred_bin, 
-#         y_true,
-#     )
-#     with open(
-#         os.path.join(outdir, "predictions.csv"),
-#         "w",
-#         encoding="UTF8",
-#         newline="",
-#     ) as f:
-#         writer = csv.writer(f)
-#         writer.writerow(
-#             (
-#                 "mol_id",
-#                 "atom_id",
-#                 "som_probability",
-#                 "predicted_label",
-#                 "true_label",
-#             )
-#         )
-#         writer.writerows(rows)
-#     f.close()
 
 
 def save_test(

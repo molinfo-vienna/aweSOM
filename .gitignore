@@ -109,12 +109,14 @@ ENV/
 */_version.py
 
 # Data
-data/BI
-data/metaQSAR
-data/EBoMD2
+data/BI/
+data/metaQSAR/
+data/EBoMD2/
+data/zaretzki_mol/
 
 # Output
 output/
 
 # Other
-hps.sh
+hps_metaQSAR.sh
+hps_zaretzki.sh
