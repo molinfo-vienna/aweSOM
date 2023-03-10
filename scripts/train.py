@@ -82,7 +82,7 @@ def run(
 
         """ ---------- Train Model ---------- """
 
-        early_stopping = EarlyStopping(patience, delta)
+        early_stopper = EarlyStopping(patience=patience, delta=delta, verbose=False)
 
         train_losses = []
         val_losses = []
@@ -95,7 +95,8 @@ def run(
             train_losses.append(train_loss.item())
             val_loss, _, _, _, _ = model.test(val_loader, device)
             val_losses.append(val_loss.item())
-            if early_stopping.early_stop(val_loss):
+            early_stopper(val_loss)
+            if early_stopper.early_stop:
                 break
         torch.save(
             model.state_dict(),
