@@ -15,19 +15,17 @@ def run(file, dir, split):
     to create a PyTorch Geometric custom dataset from an SDF file containing molecules.
 
     Args:
-        dir (string): the directory where the input data is stored
-        file (string): the name of the input data file (must be .sdf)
-        split (int): the split ratio of train/test set n(e.g 20 means that 
-                20% of the data are in the test set.)
+        file (string):  the name of the (.sdf) input data file
+        dir (string):   the directory where the input data is stored
+        split (int):    the split ratio of train/test set (e.g 20 means 
+                        that 20% of the data is in the test set)
     """
 
-    # Import data from sdf file
+    # Import data
     df = PandasTools.LoadSDF(os.path.join(dir, file), removeHs=True)
     df["soms"] = df["soms"].map(ast.literal_eval)
 
-    # Check whether the directory data/processed/*input_sdf_file_name*/ already exists,
-    # and add a prompt if the folder exists and the user wants to override it.
-    # Otherwise just create the train and test folders under that directory.
+    # Create *dir*/preprocessed/train/ and dir/preprocessed/test/ directories
     if os.path.exists(os.path.join(dir, "preprocessed")):
         overwrite = input("Folder already exists. Overwrite? [y/n] \n")
         if overwrite == "y":
@@ -42,15 +40,15 @@ def run(file, dir, split):
     print("Preprocessing... This can take a few minutes.")
 
     # Split the data into train/test set according to the split ratio
-    # Note: df.sample shuffles df randomly before sampling
-    # Generate and save preprocessed data
-    # under data/processed/*input_sdf_file_name*/train or test folder
+    # Note: df.sample shuffles dataframe randomly before sampling
     df_test = df.sample(frac = split/100)
     logging.info("Start preprocessing test set...")
+
+    # Generate and save preprocessed data
+    # under *dir*/processed/train or test folder
     G_test, mol_ids_test, atom_ids_test, labels_test, node_features_test = generate_preprocessed_data(df_test)
     save_preprocessed_data(G_test, mol_ids_test, atom_ids_test, labels_test, node_features_test, os.path.join(dir, "preprocessed/test"))
     logging.info("Preprocessing test set sucessful!")
-    
     if split != 100:
         logging.info("Start preprocessing training set...")
         df_train = df.drop(df_test.index)
@@ -80,14 +78,14 @@ if __name__ == "__main__":
         "--split",
         type=int,
         required=True,
-        help="How much of the input data should be saved as test data.",  
+        help="The split ratio of train/test set (e.g 20 means that 20% of the data is in the test set)",  
     )
     parser.add_argument("-v",
         "--verbose",
         dest="verbosityLevel", 
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        default='WARNING',
-        help="Set the verbosity level of the logger - default is on WARNING."
+        default='INFO',
+        help="Set the verbosity level of the logger - default is on INFO."
         )
 
     args = parser.parse_args()

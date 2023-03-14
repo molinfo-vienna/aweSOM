@@ -1,0 +1,11 @@
+Results Folder,Dimension of Hidden Layers,Dropout,Learning Rate,Weight Decay,Batch Size,Fold,Epochs,Validation Loss,Optimal Threshold,MCC,Top1 Accuracy,Top2 Accuracy,Precision,Recall,ROC AUC Score
+output/zaretzki/atom_weighted_bce/models/128_2e-01_1e-03_1e-04_32_0,128,0.2,0.001,0.0001,32,0,81,0.4873361040410735,0.652,0.393,0.597,0.79,0.335,0.782,0.848
+output/zaretzki/atom_weighted_bce/models/128_2e-01_1e-03_1e-04_32_1,128,0.2,0.001,0.0001,32,1,160,0.3441192035929177,0.641,0.539,0.645,0.839,0.425,0.87,0.921
+output/zaretzki/atom_weighted_bce/models/128_2e-01_1e-03_1e-04_32_2,128,0.2,0.001,0.0001,32,2,51,0.4590259072797552,0.607,0.345,0.672,0.754,0.249,0.857,0.851
+output/zaretzki/atom_weighted_bce/models/128_2e-01_1e-03_1e-04_32_3,128,0.2,0.001,0.0001,32,3,77,0.4797804369735883,0.65,0.452,0.639,0.803,0.381,0.715,0.874
+output/zaretzki/atom_weighted_bce/models/128_2e-01_1e-03_1e-04_32_4,128,0.2,0.001,0.0001,32,4,105,0.45566956744501497,0.657,0.536,0.672,0.803,0.476,0.753,0.888
+output/zaretzki/atom_weighted_bce/models/128_2e-01_1e-03_1e-04_32_5,128,0.2,0.001,0.0001,32,5,105,0.47098782305739517,0.63,0.483,0.705,0.82,0.485,0.629,0.871
+output/zaretzki/atom_weighted_bce/models/128_2e-01_1e-03_1e-04_32_6,128,0.2,0.001,0.0001,32,6,96,0.5157619826952234,0.631,0.48,0.607,0.787,0.416,0.708,0.867
+output/zaretzki/atom_weighted_bce/models/128_2e-01_1e-03_1e-04_32_7,128,0.2,0.001,0.0001,32,7,66,0.5335183771941456,0.597,0.325,0.557,0.689,0.23,0.78,0.834
+output/zaretzki/atom_weighted_bce/models/128_2e-01_1e-03_1e-04_32_8,128,0.2,0.001,0.0001,32,8,53,0.5399089016719848,0.613,0.294,0.492,0.721,0.203,0.695,0.833
+output/zaretzki/atom_weighted_bce/models/128_2e-01_1e-03_1e-04_32_9,128,0.2,0.001,0.0001,32,9,62,0.46625435192839443,0.605,0.454,0.623,0.82,0.409,0.887,0.849

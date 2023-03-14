@@ -93,8 +93,8 @@ if __name__ == "__main__":
     parser.add_argument("-v",
         "--verbose",
         dest="verbosityLevel", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        default='WARNING',
-        help="Set the verbosity level of the logger - default is on WARNING."
+        default='INFO',
+        help="Set the verbosity level of the logger - default is on INFO."
         )
 
     args = parser.parse_args()

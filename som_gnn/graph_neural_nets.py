@@ -65,42 +65,41 @@ class GIN(torch.nn.Module):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=wd)
         loss_function = torch.nn.BCELoss(reduction="sum")
         #loss_function = weighted_BCE_Loss()
-        loss = 0
-        total_num_instances = 0
+        running_loss = 0
+        num_samples = 0
         for data in loader:
             data = data.to(device)
-            out = self(data.x, data.edge_index, data.edge_attr, data.batch)
-            batch_loss = loss_function(out[:, 0].to(float), data.y.to(float))
-            #class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
-            #batch_loss = loss_function(out[:, 0].to(float), data.y.to(float), class_weights)
-            loss += batch_loss * len(data.batch)
-            total_num_instances += len(data.batch)
             optimizer.zero_grad()
+            outputs = self(data.x, data.edge_index, data.edge_attr, data.batch)
+            batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float))
+            #class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
+            #batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float), class_weights)
+            running_loss += batch_loss * len(data.batch)
+            num_samples += len(data.batch)
             batch_loss.backward()
             optimizer.step()
-        loss /= total_num_instances
-        return loss
+        return running_loss/num_samples
 
 
     @torch.no_grad()
     def test(self, loader, device):
         loss_function = torch.nn.BCELoss(reduction="sum")
         #loss_function = weighted_BCE_Loss()
-        loss = 0
-        total_num_instances = 0
+        running_loss = 0
+        num_samples = 0
         y_preds = []
         mol_ids = []
         atom_ids = []
         y_trues = []
         for data in loader:
             data = data.to(device)
-            out = self(data.x, data.edge_index, data.edge_attr, data.batch)
-            batch_loss = loss_function(out[:, 0].to(float), data.y.to(float))
+            outputs = self(data.x, data.edge_index, data.edge_attr, data.batch)
+            batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float))
             #class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
-            #batch_loss = loss_function(out[:, 0].to(float), data.y.to(float), class_weights)
-            loss += batch_loss * len(data.batch)
-            total_num_instances += len(data.batch)
-            y_preds.append(torch.sigmoid(out))
+            #batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float), class_weights)
+            running_loss += batch_loss * len(data.batch)
+            num_samples += len(data.batch)
+            y_preds.append(torch.sigmoid(outputs))
             mol_ids.append(data.mol_id)
             atom_ids.append(data.atom_id)
             y_trues.append(data.y)
@@ -110,5 +109,4 @@ class GIN(torch.nn.Module):
             torch.cat(atom_ids, dim=0).cpu().numpy(),
             torch.cat(y_trues, dim=0).cpu().numpy(),
         )
-        loss /= total_num_instances
-        return loss, y_pred, mol_id, atom_id, y_true
+        return running_loss/num_samples, y_pred, mol_id, atom_id, y_true
