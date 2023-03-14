@@ -3,16 +3,15 @@ import logging
 import networkx as nx
 from networkx.readwrite import json_graph
 import numpy as np
+import os
 import torch
 from torch_geometric.data import InMemoryDataset, Data
 
 
 class SOM(InMemoryDataset):
-    """This dataset is created from a preprocessed list of small molecules
-    obtained from the MetaQSAR data set, which is a manually compiled resource
-    of published measured data on xenobiotic metabolism, including expert-curated
-    SoMs and reaction annotations for discovery compounds and drugs.
-
+    """Creates a PyTorch Geometric Dataset from preprocessed input data.
+    The preprocessed data is generated from an input .sdf file via methods 
+    from the process_input_data.py file.
     Args:
         root (string): The directory where the dataset will be saved.
         transform (callable, optional): A function/transform that takes in an
@@ -49,6 +48,10 @@ class SOM(InMemoryDataset):
         return ["data.pt"]
 
     def process(self):
+
+        logging.basicConfig(filename= os.path.join(self.root, 'logfile_pyg_dataset_creator.log'), 
+                level=getattr(logging), 
+                format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 
         with open(self.root + "/graph.json", "r") as f:
             G = nx.DiGraph(json_graph.node_link_graph(json.load(f)))

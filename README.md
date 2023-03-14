@@ -1,4 +1,4 @@
-SOM_GNN
+SOM-GNN
 ==============================
 [//]: # (Badges)
 [![GitHub Actions Build Status](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/som_gnn/workflows/CI/badge.svg)](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/som_gnn/actions?query=workflow%3ACI)
@@ -9,7 +9,7 @@ A Graph Neural Network (GNN) for the prediction of Sites of Metabolism (SoMs).
 
 ### Installation
 
-### Example Usage
+### Usage
 
 #### Dataset Generation
 
@@ -17,13 +17,8 @@ A Graph Neural Network (GNN) for the prediction of Sites of Metabolism (SoMs).
 
 #### Model Testing
 
+#### Predicting SoMs
 
-### Copyright
+### License
 
-Copyright (c) 2022, Roxane Jacob - University of Vienna
-
-
-### Acknowledgements
- 
-Project based on the 
-[Computational Molecular Science Python Cookiecutter](https://github.com/molssi/cookiecutter-cms) version 1.1.
+This project is licensed under the MIT license.

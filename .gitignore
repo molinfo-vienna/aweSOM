@@ -110,13 +110,20 @@ ENV/
 
 # Data
 data/BI/
-data/metaQSAR/
 data/EBoMD2/
+data/metaQSAR/
 data/zaretzki_mol/
 
 # Output
-output/
+output/BI/
+output/EBoMD2/
+output/metaQSAR/
+output/zaretzki/old/
+output/zaretzki/atom_bce/train
+output/zaretzki/atom_mol_bce/train
+output/zaretzki/atom_weighted_bce/train
 
 # Other
 hps_metaQSAR.sh
 hps_zaretzki.sh
+.vscode/
