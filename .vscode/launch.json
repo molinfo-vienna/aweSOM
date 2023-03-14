@@ -11,6 +11,69 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Debug Preprocess",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/preprocess.py",
+            "args": [
+                "-f", "data.sdf", 
+                "-d", "data/zaretzki", 
+                "-s", "10", 
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train.py",
+            "args": [
+                "-d", "data/zaretzki/preprocessed/train", 
+                "-hd", "1024", 
+                "-do", "0.1", 
+                "-e", "1000", 
+                "-lr", "0.001", 
+                "-wd", "0.01", 
+                "-bs", "32",
+                "-p", "20", 
+                "-dt", "0", 
+                "-o", "output/zaretzki/debug/train", 
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Test",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/test.py",
+            "args": [
+                "-d", "data/zaretzki_mol/preprocessed/test", 
+                "-o", "output/zaretzki/atom_mol_bce/test2", 
+                "-mp", "output/zaretzki/atom_mol_bce/models/models2.csv", 
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Predict",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/predict.py",
+            "args": [
+                "-d", "data/zaretzki_mol/preprocessed/test", 
+                "-o", "output/zaretzki/atom_mol_bce/predict2", 
+                "-mp", "output/zaretzki/atom_mol_bce/models/models2.csv", 
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }
