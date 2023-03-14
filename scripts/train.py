@@ -76,13 +76,13 @@ def run(
         print(f"Training set: {len(train_data)} molecules.")
         print(f"Validation set: {len(val_data)} molecules.")
 
-        #  Training and Validation Data Loader
+        #  Create training and validation data loader
         train_loader = DataLoader(train_data, batch_size=bs, shuffle=True)
         val_loader = DataLoader(val_data, batch_size=bs, shuffle=True)
 
         """ ---------- Train Model ---------- """
 
-        early_stopping = EarlyStopping(patience, delta)
+        early_stopper = EarlyStopping(patience=patience, delta=delta, verbose=False)
 
         train_losses = []
         val_losses = []
@@ -95,7 +95,8 @@ def run(
             train_losses.append(train_loss.item())
             val_loss, _, _, _, _ = model.test(val_loader, device)
             val_losses.append(val_loss.item())
-            if early_stopping.early_stop(val_loss):
+            early_stopper(val_loss)
+            if early_stopper.early_stop:
                 break
         torch.save(
             model.state_dict(),
@@ -165,53 +166,53 @@ if __name__ == "__main__":
         "--hiddenLayersDimension",
         type=int,
         required=True,
-        help="the size of the hidden layers",
+        help="The size of the hidden layers.",
     )
     parser.add_argument("-do",
         "--dropout",
         type=float,
         required=True,
-        help="dropout probability",
+        help="Dropout probability.",
     )
     parser.add_argument("-e",
         "--epochs",
         type=int,
         required=True,
-        help="the maximum number of training epochs",
+        help="The maximum number of training epochs.",
     )
     parser.add_argument("-lr",
         "--learningRate",
         type=float,
         required=True,
-        help="learning rate",
+        help="Learning rate of the optimizer.",
     )
     parser.add_argument("-wd",
         "--weightDecay",
         type=float,
         required=True,
-        help="weight decay",
+        help="Weight decay of the optimizer.",
     )
     parser.add_argument("-bs",
         "--batchSize", 
         type=int,
         required=True,
-        help="batch size",
+        help="Batch size.",
     )
     parser.add_argument("-p",
         "--patience",
         type=int,
         required=True,
         default=5,
-        help="early stopping: number of epochs with no improvement of the \
-                        validation or test loss after which training will be stopped",
+        help="Early stopping: number of epochs with no improvement of the \
+                        validation or test loss after which training will be stopped.",
     )
     parser.add_argument("-dt",
         "--delta",
         type=float,
         required=True,
         default=5,
-        help="early stopping: minimum change in the monitored quantity to qualify as an improvement, \
-                        i.e. an absolute change of less than delta will count as no improvement",  
+        help="Early stopping: minimum change in the monitored quantity to qualify as an improvement, \
+                        i.e. an absolute change of less than delta will count as no improvement.",  
     )
     parser.add_argument("-o",
         "--out",
@@ -223,8 +224,8 @@ if __name__ == "__main__":
         "--verbose",
         dest="verbosityLevel", 
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        default='WARNING',
-        help="Set the verbosity level of the logger - default is on WARNING."
+        default='INFO',
+        help="Set the verbosity level of the logger - default is on INFO."
         )
 
     args = parser.parse_args()

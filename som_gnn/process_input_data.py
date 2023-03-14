@@ -49,27 +49,26 @@ BOND_TYPE = ["UNSPECIFIED",
 
 
 def _getAllowedSet(x, allowable_set):
-        '''  
-        PRIVATE METHOD
-        Generates a one-hot encoded list for x. If x not in allowable_set,
-        the last value of the allowable_set is taken.
-        Args:
-            x (list): list of target values
-            allowable_set (list): the allowed set
-        Returns:
-            (list): one-hot encoded list 
-        '''
-        if x not in allowable_set:
-            x = allowable_set[-1]
-        return list(map(lambda s: float(x == s), allowable_set))
+    """
+    PRIVATE METHOD
+    Generates a one-hot encoded list for x. If x not in allowable_set,
+    the last value of the allowable_set is taken.
+    Args:
+        x (list): list of target values
+        allowable_set (list): the allowed set
+    Returns:
+        (list): one-hot encoded list 
+    """
+    if x not in allowable_set:
+        x = allowable_set[-1]
+    return list(map(lambda s: float(x == s), allowable_set))
 
 
 def generate_fraction_rotatable_bonds(mol):
-    """ Computes the fraction of rotatable bonds in the parsed molecule
-
+    """
+    Computes the fraction of rotatable bonds in the parsed molecule.
     Args:
-        mol (RDKit Mol): n RDKit Mol object
-
+        mol (RDKit Mol): RDKit Mol object
     Returns:
         float: the fraction of rotatable bond
     """
@@ -83,12 +82,11 @@ def generate_fraction_rotatable_bonds(mol):
 
 
 def generate_num_sp3c(mol):
-    """Compute the number of SP3 hybridized carbon atoms
-    in the parsed molecule
-
+    """
+    Compute the number of SP3 hybridized carbon atoms
+    in the parsed molecule.
     Args:
-        mol (RDKit Mol): an RDKit Mol object
-
+        mol (RDKit Mol): RDKit Mol object
     Returns:
         int: the number of SP3 hybridized carbon atoms
     """
@@ -102,42 +100,40 @@ def generate_num_sp3c(mol):
 
 
 def generate_num_halogens(mol):
-    """Computes the number of halogens in the parsed molecule
-
+    """
+    Computes the number of halogens in the parsed molecule
     Args:
-        mol (RDKit Mol): an RDKit Mol object
-
+        mol (RDKit Mol): RDKit Mol object
     Returns:
-        int: number of halogens
+        int: the number of halogens
     """
     return len([1 for a in mol.GetAtoms() if a.GetSymbol() in ["F", "Cl", "Br", "I"]])
 
 
 def generate_num_element(mol, element):
-    """Computes the number of atoms corresponding to a specific element
-    in the parsed molecule
-
+    """
+    Computes the number of atoms corresponding to a specific element
+    in the parsed molecule.
     Args:
-        mol (RDKit Mol): an RDKit Mol object
+        mol (RDKit Mol): RDKit Mol object
         element (string): the element to count
-
     Returns:
-        int: number of atoms corresponding to parsed element
+        int: the number of atoms corresponding to the parsed element
     """
     return len([1 for a in mol.GetAtoms() if a.GetSymbol() == element])
 
 
 def compute_node_features_matrix(G):
-    """Takes as input a NetworkX Graph object (which already contains the
-    features for each individual nodes) and extracts/returns its corresponding node features matrix.
-
+    """
+    Takes as input a NetworkX Graph object (which already contains the
+    features for each individual nodes) and extracts/returns its 
+    corresponding node features matrix.
     Args:
         G (NetworkX Graph object)
-
     Returns:
-        features (numpy array): a numpy array of dimension (number of nodes, number of node features)
+        features (numpy array): a 2D array of dimension (number of nodes, 
+                                number of node features)
     """
-
     num_nodes = len(G.nodes)
     node_features = np.empty((len(G.nodes()), len(G.nodes()[0]['node_features'])))
 
@@ -149,7 +145,13 @@ def compute_node_features_matrix(G):
 
 
 def generateBondFeatures(bond):
-
+    """
+    Generates the edge features for each bond
+    Args:
+        bond (RDKit Bond): bond for the features calculation
+    Returns:
+        (list): one-hot encoded atom feature list
+    """
     return ((_getAllowedSet(bond.GetBondTypeAsDouble(), BOND_TYPE)
                 +_getAllowedSet(bond.GetStereo(), BOND_STEREO)
                 +list([float(bond.IsInRing())])
@@ -158,50 +160,52 @@ def generateBondFeatures(bond):
 
 
 def generateNodeFeatures(atom, mol, atm_ring_length):
-        ''' 
-        Generates the node features for each atom
-
-        Args:
+    """
+    Generates the node features for each atom
+    Args:
         atom (RDKit Atom): atom for the features calculation
         mol (RDKit Molecule): molecule, the atom belongs to
-
-        Returns:
+        atm_ring_length (int):
+    Returns:
         (list): one-hot encoded atom feature list
-        '''
-        return ((_getAllowedSet(atom.GetAtomicNum(), ELEM_LIST)
-                +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
-                +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARGE) 
-                +_getAllowedSet(atom.GetHybridization(), HYBRIDIZATION_TYPE)
-                +_getAllowedSet(atm_ring_length, RING_SIZE)
-                +_getAllowedSet(atom.GetTotalNumHs(), H_COUNT))
-                +_getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE)
-                +list([float(atom.GetIsAromatic())])
-                # +_getAllowedSet(generate_num_element(mol, "O"), O_COUNT)
-                # +_getAllowedSet(generate_num_element(mol, "N"), N_COUNT)
-                # +_getAllowedSet(generate_num_element(mol, "S"), S_COUNT)
-                # +_getAllowedSet(generate_num_halogens(mol), HAL_COUNT)
-                # +_getAllowedSet(generate_num_sp3c(mol), SP3C_COUNT)
-                # +_getAllowedSet(rdMolDescriptors.CalcNumHBA(mol), H_ACC_COUNT)
-                # +_getAllowedSet(rdMolDescriptors.CalcNumHBD(mol), H_DON_COUNT)
-                # +_getAllowedSet(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
-                # +_getAllowedSet(rdMolDescriptors.CalcNumRotatableBonds(mol), ROT_BONDS_COUNT)
-                # +_getAllowedSet(len(mol.GetAromaticAtoms()), AR_COUNT)
-                # +list([float(generate_fraction_rotatable_bonds(mol))])
-                )
+    """
+    return ((_getAllowedSet(atom.GetAtomicNum(), ELEM_LIST)
+            +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
+            +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARGE) 
+            +_getAllowedSet(atom.GetHybridization(), HYBRIDIZATION_TYPE)
+            +_getAllowedSet(atm_ring_length, RING_SIZE)
+            +_getAllowedSet(atom.GetTotalNumHs(), H_COUNT))
+            +_getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE)
+            +list([float(atom.GetIsAromatic())])
+            # +_getAllowedSet(generate_num_element(mol, "O"), O_COUNT)
+            # +_getAllowedSet(generate_num_element(mol, "N"), N_COUNT)
+            # +_getAllowedSet(generate_num_element(mol, "S"), S_COUNT)
+            # +_getAllowedSet(generate_num_halogens(mol), HAL_COUNT)
+            # +_getAllowedSet(generate_num_sp3c(mol), SP3C_COUNT)
+            # +_getAllowedSet(rdMolDescriptors.CalcNumHBA(mol), H_ACC_COUNT)
+            # +_getAllowedSet(rdMolDescriptors.CalcNumHBD(mol), H_DON_COUNT)
+            # +_getAllowedSet(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
+            # +_getAllowedSet(rdMolDescriptors.CalcNumRotatableBonds(mol), ROT_BONDS_COUNT)
+            # +_getAllowedSet(len(mol.GetAromaticAtoms()), AR_COUNT)
+            # +list([float(generate_fraction_rotatable_bonds(mol))])
+            )
 
 
 def mol_to_nx(mol_id, mol, soms):
-    """Takes as input an RDKit mol object and return its corresponding NetworkX Graph
-
+    """
+    Takes as input an RDKit mol object and return its corresponding NetworkX Graph
     Args:
         mol_id (int): the molecular ID of the parsed mol
         mol (RDKit Mol): an RDKit Mol object
-        soms (list): a list of the indices of atoms that are SoMs
+        soms (list): a list of the indices of atoms that are SoMs (This is 
+                    of course only relevant for training data. If there is no info
+                    about which atom is a SoM, then the list is simply empty.)
     Returns:
         NetworkX Graph with node and edge attributes
     """
     G = nx.Graph()
-    # get ring info
+
+    # Get ring info
     rings = mol.GetRingInfo().AtomRings()
 
     # Assign each atom its molecular and atomic features and make it a node of G
@@ -216,14 +220,15 @@ def mol_to_nx(mol_id, mol, soms):
             atom_idx, # node identifier
             node_features=generateNodeFeatures(atom, mol, atm_ring_length),
             is_som=(atom_idx in soms), # label
-            # the next two elements are later used to compute the labels but will
-            # not be used as features!
+            # the next two elements are later used to assign the
+            # predicted labels but are of course not used as features!
             mol_id=int(mol_id),
             atom_id=int(atom_idx),
         )
     for bond in mol.GetBonds():
         G.add_edge(
-            # not used as features
+            # the next two elements are only used to identify bonds,
+            # they are not used a features.
             bond.GetBeginAtomIdx(),
             bond.GetEndAtomIdx(),
             bond_features = generateBondFeatures(bond)
@@ -232,6 +237,21 @@ def mol_to_nx(mol_id, mol, soms):
 
 
 def generate_preprocessed_data(df):
+    """
+    Generates the necessary preprocessed data from the input data.
+    Args:
+        df (pandas dataframe): input data
+    Returns:
+        G (NetworkX Graph): a molecular graph describing the entire input data
+                            (individual molecules are processed as subgraphs of 
+                            one big graph object)
+        mol_ids (numpy array): an array with the molecular ID of each node in G
+                                (i.e. the molecule, to which each atom belongs to)
+        atom_ids (numpy array): an array with the atom ID of each node in G
+        labels (numpy array): an array with the SoM labels (0/1) of each node in G
+        node_features (numpy array): a 2D array of dimension (number of nodes, 
+                        number of node features)
+    """
 
     # Generate networkx graphs from mols
     df["G"] = df.apply(lambda x: mol_to_nx(x.ID, x.ROMol, x.soms), axis=1)
