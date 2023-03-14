@@ -10,7 +10,7 @@ description = "A short description of the project (less than one line)."
 dynamic = ["version"]
 readme = "README.md"
 authors = [
-    { name = "Roxane Jacob - COMP3D Group - University of Vienna", email = "a12030167@unet.univie.ac.at" }
+    { name = "Roxane Jacob - COMP3D Group - University of Vienna", email = "roxane.axel.jacob@univie.ac.at" }
 ]
 license = { text = "MIT" }
 # See https://pypi.org/classifiers/
