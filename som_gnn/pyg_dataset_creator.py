@@ -49,10 +49,6 @@ class SOM(InMemoryDataset):
 
     def process(self):
 
-        logging.basicConfig(filename= os.path.join(self.root, 'logfile_pyg_dataset_creator.log'), 
-                level=getattr(logging), 
-                format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-
         with open(self.root + "/graph.json", "r") as f:
             G = nx.DiGraph(json_graph.node_link_graph(json.load(f)))
 
