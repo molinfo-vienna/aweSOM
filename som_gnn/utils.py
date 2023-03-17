@@ -507,11 +507,11 @@ def save_test(
 
     results = {}
     results["MCC Average"] = np.average(mccs)
-    results["MCC Standard Deviation"] = np.std((mccs))
+    results["MCC Standard Deviation"] = np.std(mccs)
     results["Precision Average"] = np.average(precisions)
-    results["Precision Standard Deviation"] = np.std((precisions))
+    results["Precision Standard Deviation"] = np.std(precisions)
     results["Recall Average"] = np.average(recalls)
-    results["Recall Standard Deviation"] = np.std((recalls))
+    results["Recall Standard Deviation"] = np.std(recalls)
 
     with open(
         os.path.join(out, "results.txt"),
