@@ -19,7 +19,7 @@
             "program": "scripts/preprocess.py",
             "args": [
                 "-f", "data.sdf", 
-                "-d", "data/zaretzki", 
+                "-d", "data/zaretzki_mol", 
                 "-s", "10", 
                 "-v", "INFO"
             ],
@@ -32,17 +32,17 @@
             "request": "launch",
             "program": "scripts/train.py",
             "args": [
-                "-d", "data/zaretzki/preprocessed/train", 
-                "-hd", "1024", 
+                "-d", "data/zaretzki_min/preprocessed/train", 
+                "-hd", "32", 
                 "-do", "0.1", 
                 "-e", "1000", 
-                "-lr", "0.001", 
+                "-lr", "0.01", 
                 "-wd", "0.01", 
-                "-bs", "32",
+                "-bs", "16",
                 "-p", "20", 
                 "-dt", "0", 
                 "-o", "output/zaretzki/debug/train", 
-                "-v", "INFO"
+                "-v", "DEBUG"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
@@ -54,8 +54,8 @@
             "program": "scripts/test.py",
             "args": [
                 "-d", "data/zaretzki_mol/preprocessed/test", 
-                "-o", "output/zaretzki/atom_mol_bce/test2", 
-                "-mp", "output/zaretzki/atom_mol_bce/models/models2.csv", 
+                "-o", "output/zaretzki/min/mol_bce/test1", 
+                "-mp", "output/zaretzki/min/mol_bce/models/models1.csv", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",
@@ -68,8 +68,8 @@
             "program": "scripts/predict.py",
             "args": [
                 "-d", "data/zaretzki_mol/preprocessed/test", 
-                "-o", "output/zaretzki/atom_mol_bce/predict2", 
-                "-mp", "output/zaretzki/atom_mol_bce/models/models2.csv", 
+                "-o", "output/zaretzki/min/mol_bce/predict1", 
+                "-mp", "output/zaretzki/min/mol_bce/models/models1.csv", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",

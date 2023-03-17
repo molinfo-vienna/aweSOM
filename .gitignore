@@ -113,17 +113,23 @@ data/BI/
 data/EBoMD2/
 data/metaQSAR/
 data/zaretzki_mol/
+data/zaretzki_old/
+data/zaretzki_new/
+data/zaretzki_weird/
 
 # Output
 output/BI/
 output/EBoMD2/
 output/metaQSAR/
 output/zaretzki/old/
-output/zaretzki/atom_bce/train
-output/zaretzki/atom_mol_bce/train
-output/zaretzki/atom_weighted_bce/train
+output/zaretzki/new/
+output/zaretzki/weird/
+output/zaretzki/min/atom_bce/train
+output/zaretzki/min/atom_weightbce/train
+output/zaretzki/min/atom_mccbce/train
+output/zaretzki/min/mol_bce/train
 
 # Other
+hps.sh
 hps_metaQSAR.sh
-hps_zaretzki.sh
 .vscode/

@@ -1,1 +1,0 @@
-{"MCC Average": 0.5691949275894914, "MCC Standard Deviation": 0.07759654987888302, "Precision Average": 0.5020112261120665, "Precision Standard Deviation": 0.07443235049928286, "Recall Average": 0.8370327333485228, "Recall Standard Deviation": 0.0581164978217079}
