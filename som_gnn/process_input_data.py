@@ -4,33 +4,16 @@ import numpy as np
 import os
 from rdkit.Chem import rdchem, rdMolDescriptors
 
-HYBRIDIZATION_TYPE = ["UNSPECIFIED", 
-                      "S", 
-                      "SP", 
+ELEM_LIST =[5, 6, 7, 8, 9, 14, 15, 16, 17, 34, 35, 53,"OTHER"]
+HYBRIDIZATION_TYPE = ["SP", 
                       "SP2", 
                       "SP3", 
-                      "SP2D", 
-                      "SP3D", 
-                      "SP3D2", 
                       "OTHER"]
-TOTAL_DEGREE = [0,1,2,3,4,5,6,7,"OTHER"],
-ELEM_LIST =[1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 34, 35, 53,"OTHER"]
-FORMAL_CHARGE = [-1,-2,1,2,"OTHER"]
-CIP_CONF = [8,2,4,"OTHER"]
-H_COUNT = [0,1,2,3,4,5,"OTHER"]
-TOTAL_VALENCE = [0,1,2,3,4,5,6,7,8,"OTHER"]
+FORMAL_CHARGE = [-1,0,1,"OTHER"]
 RING_SIZE = [0,3,4,5,6,7,8,"OTHER"]
-H_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"]
-O_COUNT = [0,1,2,3,4,5,"OTHER"]
-N_COUNT = [0,1,2,3,4,5,"OTHER"]
-S_COUNT = [0,1,2,3,4,5,"OTHER"]
-HAL_COUNT = [0,1,2,3,4,5,"OTHER"],
-SP3C_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"]
-AR_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"]
-H_ACC_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"]
-H_DON_COUNT = [0,1,2,3,4,5,6,7,8,9,"OTHER"]
+TOTAL_DEGREE = [1,2,3,4,"OTHER"]
+TOTAL_VALENCE = [1,2,3,4,5,6,"OTHER"]
 RING_COUNT = [0,1,2,3,4,5,"OTHER"]
-ROT_BONDS_COUNT = [0,1,2,3,4,5,6,7,9,"OTHER"]
 
 BOND_STEREO = ["STEREONONE", 
                "STEREOANY", 
@@ -81,38 +64,43 @@ def generate_fraction_rotatable_bonds(mol):
     return num_rotatable_bonds / num_bonds
 
 
-def generate_num_sp3c(mol):
+def generate_fraction_HBA(mol):
     """
-    Compute the number of SP3 hybridized carbon atoms
-    in the parsed molecule.
+    Computes the fraction of hydrogen bond acceptors in the parsed molecule.
     Args:
         mol (RDKit Mol): RDKit Mol object
     Returns:
-        int: the number of SP3 hybridized carbon atoms
+        float: the fraction of rotatable bond
     """
-    return len(
-        [
-            1
-            for a in mol.GetAtoms()
-            if a.GetHybridization() == rdchem.HybridizationType.SP3
-        ]
-    )
+    num_HBA = rdMolDescriptors.CalcNumHBA(mol)
+    num_atoms = mol.GetNumAtoms()
+
+    if num_atoms == 0:
+        return 0
+
+    return num_HBA / num_atoms
 
 
-def generate_num_halogens(mol):
+def generate_fraction_HBD(mol):
     """
-    Computes the number of halogens in the parsed molecule
+    Computes the fraction of hydrogen bond donors in the parsed molecule.
     Args:
         mol (RDKit Mol): RDKit Mol object
     Returns:
-        int: the number of halogens
+        float: the fraction of rotatable bond
     """
-    return len([1 for a in mol.GetAtoms() if a.GetSymbol() in ["F", "Cl", "Br", "I"]])
+    num_HBD = rdMolDescriptors.CalcNumHBD(mol)
+    num_atoms = mol.GetNumAtoms()
+
+    if num_atoms == 0:
+        return 0
+
+    return num_HBD / num_atoms
 
 
-def generate_num_element(mol, element):
+def generate_fraction_element(mol, element):
     """
-    Computes the number of atoms corresponding to a specific element
+    Computes the fraction of atoms corresponding to a specific element
     in the parsed molecule.
     Args:
         mol (RDKit Mol): RDKit Mol object
@@ -120,7 +108,35 @@ def generate_num_element(mol, element):
     Returns:
         int: the number of atoms corresponding to the parsed element
     """
-    return len([1 for a in mol.GetAtoms() if a.GetSymbol() == element])
+    return len([1 for a in mol.GetAtoms() if a.GetSymbol() == element]) / mol.GetNumAtoms()
+
+
+def generate_fraction_halogens(mol):
+    """
+    Computes the fraction of halogens in the parsed molecule
+    Args:
+        mol (RDKit Mol): RDKit Mol object
+    Returns:
+        int: the number of halogens
+    """
+    return len([1 for a in mol.GetAtoms() if a.GetSymbol() in ["F", "Cl", "Br", "I"]]) / mol.GetNumAtoms()
+
+
+def generate_fraction_aromatics(mol):
+    """
+    Computes the fraction of aromatic atoms in the parsed molecule.
+    Args:
+        mol (RDKit Mol): RDKit Mol object
+    Returns:
+        float: the fraction of rotatable bond
+    """
+    num_ar = len(mol.GetAromaticAtoms())
+    num_atoms = mol.GetNumAtoms()
+
+    if num_atoms == 0:
+        return 0
+
+    return num_ar / num_atoms
 
 
 def compute_node_features_matrix(G):
@@ -152,12 +168,12 @@ def generateBondFeatures(bond):
     Returns:
         (list): one-hot encoded atom feature list
     """
-    return ((_getAllowedSet(bond.GetBondTypeAsDouble(), BOND_TYPE)
+    return (_getAllowedSet(bond.GetBondTypeAsDouble(), BOND_TYPE)
                 +_getAllowedSet(bond.GetStereo(), BOND_STEREO)
                 +list([float(bond.IsInRing())])
                 +list([float(bond.GetIsConjugated())])
-                +list([float(bond.GetIsAromatic())])))
-
+                +list([float(bond.GetIsAromatic())])
+            )
 
 def generateNodeFeatures(atom, mol, atm_ring_length):
     """
@@ -169,25 +185,22 @@ def generateNodeFeatures(atom, mol, atm_ring_length):
     Returns:
         (list): one-hot encoded atom feature list
     """
-    return ((_getAllowedSet(atom.GetAtomicNum(), ELEM_LIST)
-            +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
-            +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARGE) 
-            +_getAllowedSet(atom.GetHybridization(), HYBRIDIZATION_TYPE)
-            +_getAllowedSet(atm_ring_length, RING_SIZE)
-            +_getAllowedSet(atom.GetTotalNumHs(), H_COUNT))
-            +_getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE)
-            +list([float(atom.GetIsAromatic())])
-            # +_getAllowedSet(generate_num_element(mol, "O"), O_COUNT)
-            # +_getAllowedSet(generate_num_element(mol, "N"), N_COUNT)
-            # +_getAllowedSet(generate_num_element(mol, "S"), S_COUNT)
-            # +_getAllowedSet(generate_num_halogens(mol), HAL_COUNT)
-            # +_getAllowedSet(generate_num_sp3c(mol), SP3C_COUNT)
-            # +_getAllowedSet(rdMolDescriptors.CalcNumHBA(mol), H_ACC_COUNT)
-            # +_getAllowedSet(rdMolDescriptors.CalcNumHBD(mol), H_DON_COUNT)
-            # +_getAllowedSet(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
-            # +_getAllowedSet(rdMolDescriptors.CalcNumRotatableBonds(mol), ROT_BONDS_COUNT)
-            # +_getAllowedSet(len(mol.GetAromaticAtoms()), AR_COUNT)
-            # +list([float(generate_fraction_rotatable_bonds(mol))])
+    return (_getAllowedSet(atom.GetAtomicNum(), ELEM_LIST)
+            # +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARGE)
+            # +_getAllowedSet(str(atom.GetHybridization()), HYBRIDIZATION_TYPE)
+            # +_getAllowedSet(atm_ring_length, RING_SIZE)
+            # +list([float(atom.GetIsAromatic())])
+            # +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
+            # +_getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE)
+            +list([float(generate_fraction_element(mol, "N"))])
+            +list([float(generate_fraction_element(mol, "O"))])
+            +list([float(generate_fraction_element(mol, "S"))])
+            +list([float(generate_fraction_halogens(mol))])
+            +list([float(generate_fraction_rotatable_bonds(mol))])
+            +list([float(generate_fraction_HBA(mol))])
+            +list([float(generate_fraction_HBD(mol))])
+            +list([float(generate_fraction_aromatics(mol))])
+            +_getAllowedSet(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
             )
 
 
