@@ -1,5 +1,6 @@
 import argparse
 import logging
+import numpy as np
 import os
 import pandas as pd
 import shutil
@@ -43,6 +44,8 @@ def run(
     mccs = []
     precisions = []
     recalls = []
+    top1s = []
+    top2s = []
 
     for fold_num, (_, index) in enumerate(kf.split(test_data)):
 
@@ -96,16 +99,40 @@ def run(
             y_preds_voted[key] = Counter(y_preds_bin[key]).most_common()[0][0]
 
         # Compute metric of the predictions made by the current voting classifier
-        # and append it to list of predictions
         mccs.append(matthews_corrcoef(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values())))
         precisions.append(precision_score(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values())))
         recalls.append(recall_score(y_true=list(y_trues.values()), y_pred=list(y_preds_voted.values())))
+
+        # Compute the averaged SoM probability per atom
+        y_preds_avg = [sum(preds_list)/len(preds_list) for preds_list in y_preds.values()]
+
+        # Compute top1 and top2 accuracies
+        mol_ids = np.unique([a for a,b in y_trues.keys()])
+        pred_top1 = []
+        pred_top2 = []
+        for mol_id in mol_ids: 
+            mask = [a == mol_id for a,b in y_trues.keys()]
+            idx = np.argpartition([y_preds_avg[i] for i, x in enumerate(mask) if x], -1)[-1:]
+            if [list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[0]]:
+                pred_top1.append(1)
+            else:
+                pred_top1.append(0)
+            idx = np.argpartition([y_preds_avg[i] for i, x in enumerate(mask) if x], -2)[-2:]
+            if ([list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[0]] or 
+                [list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[1]]):
+                pred_top2.append(1)
+            else:
+                pred_top2.append(0)
+        top1s.append(np.sum(pred_top1) / len(mol_ids))
+        top2s.append(np.sum(pred_top2) / len(mol_ids))
 
     logging.info("Saving results...")
     save_test(
         mccs, 
         precisions, 
         recalls, 
+        top1s, 
+        top2s, 
         out, 
     )
     logging.info("Testing succesful!")
