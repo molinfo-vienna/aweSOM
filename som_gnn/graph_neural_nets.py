@@ -62,17 +62,18 @@ class GIN(torch.nn.Module):
 
     def train(self, loader, lr, wd, device):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=wd)
-        #loss_function = torch.nn.BCELoss(reduction="sum")
-        loss_function = weighted_BCE_Loss()
+        loss_function = torch.nn.BCELoss(reduction="sum")
+        #loss_function = weighted_BCE_Loss()
+        #loss_function = MCC_BCE_Loss()
         running_loss = 0
         num_samples = 0
         for data in loader:
             data = data.to(device)
             optimizer.zero_grad()
             outputs = self(data.x, data.edge_index, data.edge_attr, data.batch)
-            #batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float))
-            class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
-            batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float), class_weights)
+            batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float))
+            #class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
+            #batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float), class_weights)
             running_loss += batch_loss * len(data.batch)
             num_samples += len(data.batch)
             batch_loss.backward()
@@ -82,8 +83,9 @@ class GIN(torch.nn.Module):
 
     @torch.no_grad()
     def test(self, loader, device):
-        #loss_function = torch.nn.BCELoss(reduction="sum")
-        loss_function = weighted_BCE_Loss()
+        loss_function = torch.nn.BCELoss(reduction="sum")
+        #loss_function = weighted_BCE_Loss()
+        #loss_function = MCC_BCE_Loss()
         running_loss = 0
         num_samples = 0
         y_preds = []
@@ -93,9 +95,9 @@ class GIN(torch.nn.Module):
         for data in loader:
             data = data.to(device)
             outputs = self(data.x, data.edge_index, data.edge_attr, data.batch)
-            #batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float))
-            class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
-            batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float), class_weights)
+            batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float))
+            #class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
+            #batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float), class_weights)
             running_loss += batch_loss * len(data.batch)
             num_samples += len(data.batch)
             y_preds.append(outputs)
