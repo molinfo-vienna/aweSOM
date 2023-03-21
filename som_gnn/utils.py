@@ -504,6 +504,8 @@ def save_test(
     mccs, 
     precisions, 
     recalls, 
+    top1s, 
+    top2s, 
     out, 
 ):
 
@@ -511,9 +513,11 @@ def save_test(
         mccs, 
         precisions, 
         recalls, 
+        top1s, 
+        top2s, 
     )
     with open(
-        os.path.join(out, "results.csv"),
+        os.path.join(out, "individual_results.csv"),
         "w",
         encoding="UTF8",
         newline="",
@@ -524,22 +528,47 @@ def save_test(
             "mcc", 
             "precision", 
             "recall", 
+            "top1", 
+            "top2", 
             )
         )
         writer.writerows(rows)
     f.close()
 
-    results = {}
-    results["MCC Average"] = np.average(mccs)
-    results["MCC Standard Deviation"] = np.std(mccs)
-    results["Precision Average"] = np.average(precisions)
-    results["Precision Standard Deviation"] = np.std(precisions)
-    results["Recall Average"] = np.average(recalls)
-    results["Recall Standard Deviation"] = np.std(recalls)
-
+    row_metrics = [
+        np.round(np.average(mccs), 2), 
+        np.round(np.average(precisions), 2),
+        np.round(np.average(recalls), 2),
+        np.round(np.average(top1s), 2),
+        np.round(np.average(top2s), 2),
+    ]
+    row_std = [
+        np.round(np.std(mccs), 2),
+        np.round(np.std(precisions), 2),
+        np.round(np.std(recalls), 2),
+        np.round(np.std(top1s), 2),
+        np.round(np.std(top2s), 2),
+    ]
+    metric_names = [
+        "mcc", 
+        "precision", 
+        "recall", 
+        "top1", 
+        "top2", 
+        ]
     with open(
-        os.path.join(out, "results.txt"),
+        os.path.join(out, "results_summary.csv"),
         "w",
         encoding="UTF8",
+        newline="",
     ) as f:
-        f.write(json.dumps(results))
+        writer = csv.writer(f)
+        writer.writerow(
+            (
+            "metric", 
+            "averaged value", 
+            "standard deviation", 
+            )
+        )
+        writer.writerows(zip(metric_names, row_metrics, row_std))
+    f.close()
