@@ -49,9 +49,9 @@ def run(
         # Apply model to data
         _, y_pred, mol_id, atom_id, y_true = model.test(loader, device)
 
-        for j, element in enumerate(zip(mol_id, atom_id)):
-            y_preds.setdefault(element,[]).append(y_pred[:, 0][j])
-            y_trues[element] = y_true[j]
+        for index, molid_atomid_tuple in enumerate(zip(mol_id, atom_id)):
+            y_preds.setdefault(molid_atomid_tuple,[]).append(y_pred[:, 0][index])
+            y_trues[molid_atomid_tuple] = y_true[index]
         
         opt_thresholds.append(models['Optimal Threshold'][i])
     
