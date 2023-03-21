@@ -120,7 +120,7 @@ data/zaretzki_weird/
 # Output
 output/BI/
 output/EBoMD2/
-output/metaQSAR/
+output/metaQSAR/train/
 output/zaretzki/old/
 output/zaretzki/new/
 output/zaretzki/weird/
