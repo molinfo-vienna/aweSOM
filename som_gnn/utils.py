@@ -419,18 +419,40 @@ def save_predict(
     y_trues,
     opt_thresholds,
 ):
-
+    # Compute binary labels (y_preds_bin) from SoM probabilities (y_preds)
     y_preds_bin = {}
     for threshold in opt_thresholds:
         for key in y_preds:
             for y_pred in y_preds[key]:
                 y_preds_bin.setdefault(key,[]).append(int(y_pred > threshold))
 
+    # Let the models in the ensemble classifier vote for the final binary label
     y_preds_voted = {}
     for key in y_preds_bin:
         y_preds_voted[key] = Counter(y_preds_bin[key]).most_common()[0][0]
 
+    # Average SoM probability outputs
     y_preds_avg = [sum(preds_list)/len(preds_list) for preds_list in y_preds.values()]
+
+    # Compute top1 and top2 accuracies
+    mol_ids = np.unique([a for a,b in y_trues.keys()])
+    pred_top1 = []
+    pred_top2 = []
+    for mol_id in mol_ids: 
+        mask = [a == mol_id for a,b in y_trues.keys()]
+        idx = np.argpartition([y_preds_avg[i] for i, x in enumerate(mask) if x], -1)[-1:]
+        if [list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[0]]:
+            pred_top1.append(1)
+        else:
+            pred_top1.append(0)
+        idx = np.argpartition([y_preds_avg[i] for i, x in enumerate(mask) if x], -2)[-2:]
+        if ([list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[0]] or 
+            [list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[1]]):
+            pred_top2.append(1)
+        else:
+            pred_top2.append(0)
+    top1 = np.sum(pred_top1) / len(mol_ids)
+    top2 = np.sum(pred_top2) / len(mol_ids)
 
     results = {}
     y_true=list(y_trues.values())
@@ -438,6 +460,8 @@ def save_predict(
     results["MCC"] = matthews_corrcoef(y_true, y_pred)
     results["Precision"] = precision_score(y_true, y_pred)
     results["Recall"] = recall_score(y_true, y_pred)
+    results["Top1"] = top1
+    results["Top2"] = top2
 
     with open(
         os.path.join(outdir, "results.txt"),
