@@ -109,6 +109,7 @@ ENV/
 */_version.py
 
 # Data
+data/test/
 data/BI/
 data/EBoMD2/
 data/metaQSAR/
@@ -118,6 +119,7 @@ data/zaretzki_new/
 data/zaretzki_weird/
 
 # Output
+output/test/
 output/BI/
 output/EBoMD2/
 output/metaQSAR/train/
