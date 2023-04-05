@@ -36,7 +36,6 @@ def run(file, dir, split):
     else:
         make_dir(dir)
 
-    logging.info("Start preprocessing...")
     print("Preprocessing... This can take a few minutes.")
 
     # Split the data into train/test set according to the split ratio
@@ -55,6 +54,8 @@ def run(file, dir, split):
         G_train, mol_ids_train, atom_ids_train, labels_train, node_features_train = generate_preprocessed_data(df_train)
         save_preprocessed_data(G_train, mol_ids_train, atom_ids_train, labels_train, node_features_train , os.path.join(dir, "preprocessed/train"))
         logging.info("Preprocessing training set sucessful!")
+
+    print("Preprocessing sucessful!")
 
 if __name__ == "__main__":
     
