@@ -32,8 +32,11 @@ To load new data for model training/testing and/or prediction purposes run the f
 ```python scripts/preprocess.py -f FILE.sdf -d DIRECTORY -s SPLIT -v VERBOSE```
 
 ```FILE``` is the name of the data file. Only ```.sdf``` files are currently supported.
+
 ```DIRECTORY``` is the directory under which the data file is stored.
+
 ```SPLIT``` indicates the split ratio of training and test data. E.g. 20 means that 20% of the data will be stored as test data (recommended for training/testing purposes). We recommend setting ```SPLIT``` to 100 for predicting purposes, i.e. if you simply wish to apply the already trained model to your data.
+
 ```VERBOSE``` should be set to the desired verbosity level, e.g. ```INFO```.
 
 The output of the preprocessing steps will be written in the ```DIRECTORY/preprocessed/train/``` and ```DIRECTORY/preprocessed/test/``` folders. These folders will be automatically created when executing ```preprocess.py```.
