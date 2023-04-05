@@ -19,7 +19,7 @@
             "program": "scripts/preprocess.py",
             "args": [
                 "-f", "data.sdf", 
-                "-d", "data/BI", 
+                "-d", "data/EBoMD2", 
                 "-s", "100", 
                 "-v", "INFO"
             ],
@@ -53,9 +53,10 @@
             "request": "launch",
             "program": "scripts/test.py",
             "args": [
-                "-d", "data/zaretzki_mol/preprocessed/test", 
-                "-o", "output/zaretzki/min/mol_bce/test2", 
-                "-mp", "output/zaretzki/min/mol_bce/models/models2.csv", 
+                "-d", "data/zaretzki/FC4/preprocessed/test", 
+                "-m", "output/zaretzki/FC4/bce/train", 
+                "-n", "5", 
+                "-o", "output/zaretzki/FC4/bce/test/5", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",
@@ -67,9 +68,10 @@
             "request": "launch",
             "program": "scripts/predict.py",
             "args": [
-                "-d", "data/BI/preprocessed/test", 
-                "-o", "output/BI", 
-                "-mp", "output/zaretzki/min/atom_bce/models/models1.csv", 
+                "-d", "data/zaretzki/FC4/preprocessed/test", 
+                "-m", "output/zaretzki/FC4/bce/train", 
+                "-n", "5", 
+                "-o", "output/zaretzki/FC4/bce/predict/5", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",

@@ -119,12 +119,13 @@ output/test/
 output/BI/
 output/EBoMD2/
 output/metaQSAR/
-output/zaretzki/FC1/bce/train
-output/zaretzki/FC1/mcc_bce/train
-output/zaretzki/FC1/weight_bce/train
-output/zaretzki/FC2/bce/train
-output/zaretzki/FC3/bce/train
-output/zaretzki/FC4/bce/train
+output/zaretzki/FC1/bce/train/
+output/zaretzki/FC1/mcc_bce/train/
+output/zaretzki/FC1/weight_bce/train/
+output/zaretzki/FC2/bce/train/
+output/zaretzki/FC3/bce/train/
+output/zaretzki/FC4/bce/train/
 
 # Other
 hps.sh
+res.sh
