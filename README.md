@@ -12,6 +12,7 @@ A Graph Neural Network (GNN) for the prediction of Sites of Metabolism (SoMs).
 1. Clone the repository and cd into the repository root:
 
 ```git clone https://github.com/molinfo-vienna/som_gnn.git```
+
 ```cd som_gnn```
 
 2. Create a conda environment with the required dependencies:
