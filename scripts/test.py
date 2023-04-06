@@ -30,13 +30,19 @@ from som_gnn.utils import (
 def run(
     device, 
     test_data, 
-    out, 
-    modelsPath, 
+    modelsDirectory, 
+    numModels, 
+    outputDirectory, 
 ):
-
+    print("Start testing...")
     logging.info("Start testing...")
 
-    models = pd.read_csv(modelsPath).to_dict()
+    # Load info about trained models (hyperparameters, performances, directories)
+    models_df = pd.read_csv(os.path.join(modelsDirectory, "results.csv"))
+    # Sort models according to MCC
+    models_df_ranked = models_df.sort_values(by=['MCC'], ascending=False)
+    # Save metadata of the n best models to dict
+    best_models = models_df_ranked.head(numModels).reset_index().to_dict()
 
     n_splits = 5
     kf = KFold(n_splits=n_splits, shuffle=False)
@@ -61,21 +67,21 @@ def run(
     
         # Build voting classifier based on the models stored in models
         # and store their predictions
-        for j in range(len(models['Results Folder'])):
+        for j in range(len(best_models['Results Folder'])):
 
             # Initialize model
             model = GIN(
                 in_dim=test_data.num_features,
-                hdim=models['Dimension of Hidden Layers'][j],
+                hdim=best_models['Dimension of Hidden Layers'][j],
                 edge_dim=test_data.num_edge_features,
-                dropout=models['Dropout'][j],
+                dropout=best_models['Dropout'][j],
             ).to(device)
 
             # Load data
-            data_loader = DataLoader(sub_test_data, batch_size=models['Batch Size'][j])
+            data_loader = DataLoader(sub_test_data, batch_size=best_models['Batch Size'][j])
 
             # Load saved model and apply it to the test data current test data subset
-            model.load_state_dict(torch.load(os.path.join(models['Results Folder'][j], "model.pt")))
+            model.load_state_dict(torch.load(os.path.join(best_models['Results Folder'][j], "model.pt")))
             _, y_pred, mol_id, atom_id, y_true = model.test(data_loader, device)
 
             # Compute best decision threshold for current model and
@@ -133,8 +139,10 @@ def run(
         recalls, 
         top1s, 
         top2s, 
-        out, 
+        outputDirectory, 
     )
+
+    print("Testing succesful!")
     logging.info("Testing succesful!")
 
 
@@ -145,22 +153,30 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("Testing the model.")
 
     parser.add_argument("-d",
-        "--dir",
+        "--dataDirectory",
         type=str,
         required=True,
         help="The directory where the training and test data is stored.",    
     )
+    parser.add_argument("-m",
+        "--modelsDirectory",
+        type=str,
+        required=True,
+        help="The directory where the trained models and the csv file containing \
+         the trained models' hyperparameters and performance is stored.",
+    )
+    parser.add_argument("-n",
+        "--numModels",
+        type=int,
+        required=True,
+        help="The number of models to use for the ensemble classifier. \
+            E.g. 10 will get the 10 best models from all models stored in the modelsDirectory.",
+    )
     parser.add_argument("-o",
-        "--out",
+        "--outputDirectory",
         type=str,
         required=True,
         help="The directory where the output will be written."   
-    )
-    parser.add_argument("-mp",
-        "--modelsPath",
-        type=str,
-        required=True,
-        help="The path of the csv file holding the metadata of the models chosen for the ensemble classifier.",
     )
     parser.add_argument("-v",
         "--verbose",
@@ -171,17 +187,17 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if os.path.exists(args.out):
+    if os.path.exists(args.outputDirectory):
         overwrite = input("Folder already exists. Overwrite? [y/n] \n")
         if overwrite == "y":
-            shutil.rmtree(args.out)
-            os.makedirs(args.out)
+            shutil.rmtree(args.outputDirectory)
+            os.makedirs(args.outputDirectory)
         if overwrite == "n":
             sys.exit()
     else:
-        os.makedirs(args.out)
+        os.makedirs(args.outputDirectory)
 
-    logging.basicConfig(filename= os.path.join(args.out, 'logfile_predict.log'), 
+    logging.basicConfig(filename= os.path.join(args.outputDirectory, 'logfile_predict.log'), 
                     level=getattr(logging, args.verbosityLevel), 
                     format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 
@@ -189,7 +205,7 @@ if __name__ == "__main__":
 
     # Create/Load Custom PyTorch Geometric Dataset
     logging.info("Loading data")
-    test_data = SOM(args.dir)
+    test_data = SOM(args.dataDirectory)
     logging.info("Data successfully loaded!")
 
     # Print dataset info
@@ -202,8 +218,9 @@ if __name__ == "__main__":
         run(
         device,
         test_data, 
-        args.out,
-        args.modelsPath,
+        args.modelsDirectory, 
+        args.numModels, 
+        args.outputDirectory,
         )
     except Exception as e:
         logging.error("Testing was terminated:", e)

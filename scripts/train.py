@@ -163,7 +163,7 @@ if __name__ == "__main__":
         help="The directory where the input data is stored.",    
     )
     parser.add_argument("-hd",
-        "--hiddenLayersDimension",
+        "--dimensionHiddenLayers",
         type=int,
         required=True,
         help="The size of the hidden layers.",
@@ -215,7 +215,7 @@ if __name__ == "__main__":
                         i.e. an absolute change of less than delta will count as no improvement.",  
     )
     parser.add_argument("-o",
-        "--out",
+        "--outputDirectory",
         type=str,
         required=True,
         help="The directory where the output is written."   
@@ -230,10 +230,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if not os.path.exists(args.out):
-        os.makedirs(args.out)
+    if not os.path.exists(args.outputDirectory):
+        os.makedirs(args.outputDirectory)
 
-    logging.basicConfig(filename= os.path.join(args.out, 'logfile_train.log'), 
+    logging.basicConfig(filename= os.path.join(args.outputDirectory, 'logfile_train.log'), 
                     level=getattr(logging, args.verbosityLevel), 
                     format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 
@@ -254,7 +254,7 @@ if __name__ == "__main__":
         run(
         device,
         dataset,
-        args.hiddenLayersDimension,
+        args.dimensionHiddenLayers,
         args.dropout,
         args.epochs,
         args.learningRate,
@@ -262,7 +262,7 @@ if __name__ == "__main__":
         args.batchSize,
         args.patience,
         args.delta,
-        args.out,
+        args.outputDirectory,
         )
     except Exception as e:
         logging.error("Training was terminated:", e)
