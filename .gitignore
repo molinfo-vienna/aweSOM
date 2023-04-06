@@ -109,29 +109,23 @@ ENV/
 */_version.py
 
 # Data
-data/test/
 data/BI/
 data/EBoMD2/
 data/metaQSAR/
-data/zaretzki_mol/
-data/zaretzki_old/
-data/zaretzki_new/
-data/zaretzki_weird/
+data/test/
 
 # Output
 output/test/
 output/BI/
 output/EBoMD2/
-output/metaQSAR/train/
-output/zaretzki/old/
-output/zaretzki/new/
-output/zaretzki/weird/
-output/zaretzki/min/atom_bce/train
-output/zaretzki/min/atom_weightbce/train
-output/zaretzki/min/atom_mccbce/train
-output/zaretzki/min/mol_bce/train
+output/metaQSAR/
+output/zaretzki/FC1/bce/train/
+output/zaretzki/FC1/mcc_bce/train/
+output/zaretzki/FC1/weight_bce/train/
+output/zaretzki/FC2/bce/train/
+output/zaretzki/FC3/bce/train/
+output/zaretzki/FC4/bce/train/
 
 # Other
 hps.sh
-hps_metaQSAR.sh
-.vscode/
+res.sh

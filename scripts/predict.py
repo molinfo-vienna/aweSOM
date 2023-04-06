@@ -18,33 +18,40 @@ from som_gnn.utils import (
 def run(
     device,
     dataset,
-    out,
-    modelsPath,
+    modelsDirectory, 
+    numModels, 
+    outputDirectory, 
 ):
 
+    print("Start predicting...")
     logging.info("Start predicting...")
 
     y_preds = {}
     y_trues = {}
     opt_thresholds = []
 
-    models = pd.read_csv(modelsPath).to_dict()
+    # Load info about trained models (hyperparameters, performances, directories)
+    models_df = pd.read_csv(os.path.join(modelsDirectory, "results.csv"))
+    # Sort models according to MCC
+    models_df_ranked = models_df.sort_values(by=['MCC'], ascending=False)
+    # Save metadata of the n best models to dict
+    best_models = models_df_ranked.head(numModels).reset_index().to_dict()
     
-    for i in range(len(models['Results Folder'])):
+    for i in range(len(best_models['Results Folder'])):
 
         # Initialize model
         model = GIN(
             in_dim=dataset.num_features,
-            hdim=models['Dimension of Hidden Layers'][i],
+            hdim=best_models['Dimension of Hidden Layers'][i],
             edge_dim=dataset.num_edge_features,
-            dropout=models['Dropout'][i],
+            dropout=best_models['Dropout'][i],
         ).to(device)
 
         # Load saved model
-        model.load_state_dict(torch.load(os.path.join(models['Results Folder'][i], "model.pt")))
+        model.load_state_dict(torch.load(os.path.join(best_models['Results Folder'][i], "model.pt")))
 
         # Load data
-        loader = DataLoader(dataset, batch_size=models['Batch Size'][i], shuffle=True)
+        loader = DataLoader(dataset, batch_size=best_models['Batch Size'][i], shuffle=True)
 
         # Apply model to data
         _, y_pred, mol_id, atom_id, y_true = model.test(loader, device)
@@ -53,16 +60,16 @@ def run(
             y_preds.setdefault(molid_atomid_tuple,[]).append(y_pred[:, 0][index])
             y_trues[molid_atomid_tuple] = y_true[index]
         
-        opt_thresholds.append(models['Optimal Threshold'][i])
+        opt_thresholds.append(best_models['Optimal Threshold'][i])
     
     logging.info("Saving results...")
     save_predict(
-        out,
+        outputDirectory, 
         y_preds,
         y_trues,
         opt_thresholds,
     )
-    print("Done!")
+    print("Predicting succesful!")
     logging.info("Predicting succesful!")
 
 
@@ -78,17 +85,25 @@ if __name__ == "__main__":
         required=True,
         help="The directory where the input data is stored.",    
     )
+    parser.add_argument("-m",
+        "--modelsDirectory",
+        type=str,
+        required=True,
+        help="The directory where the trained models and the csv file containing \
+         the trained models' hyperparameters and performance is stored.",
+    )
+    parser.add_argument("-n",
+        "--numModels",
+        type=int,
+        required=True,
+        help="The number of models to use for the ensemble classifier. \
+            E.g. 10 will get the 10 best models from all models stored in the modelsDirectory.",
+    )
     parser.add_argument("-o",
-        "--out",
+        "--outputDirectory",
         type=str,
         required=True,
         help="The directory where the output will be written."   
-    )
-    parser.add_argument("-mp",
-        "--modelsPath",
-        type=str,
-        required=True,
-        help="The path of the csv file holding the metadata of the models chosen for the ensemble classifier.",
     )
     parser.add_argument("-v",
         "--verbose",
@@ -99,17 +114,17 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if os.path.exists(args.out):
+    if os.path.exists(args.outputDirectory):
         overwrite = input("Folder already exists. Overwrite? [y/n] \n")
         if overwrite == "y":
-            shutil.rmtree(args.out)
-            os.makedirs(args.out)
+            shutil.rmtree(args.outputDirectory)
+            os.makedirs(args.outputDirectory)
         if overwrite == "n":
             sys.exit()
     else:
-        os.makedirs(args.out)
+        os.makedirs(args.outputDirectory)
 
-    logging.basicConfig(filename= os.path.join(args.out, 'logfile_predict.log'), 
+    logging.basicConfig(filename= os.path.join(args.outputDirectory, 'logfile_predict.log'), 
                     level=getattr(logging, args.verbosityLevel), 
                     format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 
@@ -129,9 +144,10 @@ if __name__ == "__main__":
     try:
         run(
         device,
-        dataset,
-        args.out,
-        args.modelsPath,
+        dataset, 
+        args.modelsDirectory, 
+        args.numModels, 
+        args.outputDirectory,
         )
     except Exception as e:
         logging.error("Predicting was terminated:", e)
