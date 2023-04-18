@@ -134,5 +134,6 @@ output/zaretzki/FC4/weight_bce/train/
 output/zaretzki/test/FC1/train
 
 # Other
-hps.sh
-res.sh
+train.sh
+test.sh
+predict.sh
