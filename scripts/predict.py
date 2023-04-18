@@ -29,7 +29,6 @@ def run(
     y_preds = {}
     y_trues = {}
     opt_thresholds = []
-
     # Load info about trained models (hyperparameters, performances, directories)
     models_df = pd.read_csv(os.path.join(modelsDirectory, "results.csv"))
     # Sort models according to MCC
@@ -69,6 +68,7 @@ def run(
         y_trues,
         opt_thresholds,
     )
+    
     print("Predicting succesful!")
     logging.info("Predicting succesful!")
 
@@ -90,7 +90,7 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="The directory where the trained models and the csv file containing \
-         the trained models' hyperparameters and performance is stored.",
+            the trained models' hyperparameters and performance is stored.",
     )
     parser.add_argument("-n",
         "--numModels",
@@ -115,7 +115,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if os.path.exists(args.outputDirectory):
-        overwrite = input("Folder already exists. Overwrite? [y/n] \n")
+        overwrite = input(f"{args.outputDirectory} already exists. Overwrite? [y/n] \n")
         if overwrite == "y":
             shutil.rmtree(args.outputDirectory)
             os.makedirs(args.outputDirectory)
@@ -143,11 +143,11 @@ if __name__ == "__main__":
 
     try:
         run(
-        device,
+        device, 
         dataset, 
         args.modelsDirectory, 
         args.numModels, 
-        args.outputDirectory,
+        args.outputDirectory, 
         )
     except Exception as e:
         logging.error("Predicting was terminated:", e)

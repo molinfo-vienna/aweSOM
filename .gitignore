@@ -123,8 +123,15 @@ output/zaretzki/FC1/bce/train/
 output/zaretzki/FC1/mcc_bce/train/
 output/zaretzki/FC1/weight_bce/train/
 output/zaretzki/FC2/bce/train/
+output/zaretzki/FC2/mcc_bce/train/
+output/zaretzki/FC2/weight_bce/train/
 output/zaretzki/FC3/bce/train/
+output/zaretzki/FC3/mcc_bce/train/
+output/zaretzki/FC3/weight_bce/train/
 output/zaretzki/FC4/bce/train/
+output/zaretzki/FC4/mcc_bce/train/
+output/zaretzki/FC4/weight_bce/train/
+output/zaretzki/test/FC1/train
 
 # Other
 hps.sh
