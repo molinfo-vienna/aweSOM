@@ -1,0 +1,6 @@
+metric,averaged value,standard deviation
+mcc,0.53,0.04
+precision,0.41,0.04
+recall,0.86,0.02
+top1,0.77,0.04
+top2,0.89,0.03
