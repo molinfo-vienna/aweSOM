@@ -131,9 +131,7 @@ output/zaretzki/FC3/weight_bce/train/
 output/zaretzki/FC4/bce/train/
 output/zaretzki/FC4/mcc_bce/train/
 output/zaretzki/FC4/weight_bce/train/
-output/zaretzki/test/FC1/train
+output/zaretzki/test/FC1/train/
 
 # Other
-train.sh
-test.sh
-predict.sh
+shell_scripts/
