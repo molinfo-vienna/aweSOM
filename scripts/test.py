@@ -188,7 +188,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if os.path.exists(args.outputDirectory):
-        overwrite = input("Folder already exists. Overwrite? [y/n] \n")
+        overwrite = input(f"{args.outputDirectory} already exists. Overwrite? [y/n] \n")
         if overwrite == "y":
             shutil.rmtree(args.outputDirectory)
             os.makedirs(args.outputDirectory)

@@ -434,6 +434,11 @@ def save_predict(
     # Average SoM probability outputs
     y_preds_avg = [sum(preds_list)/len(preds_list) for preds_list in y_preds.values()]
 
+    # Average optimal thresholds
+    opt_thresholds_avg = np.round(np.average(opt_thresholds), 2)
+    # Compute standard deviation in optimal thresholds
+    opt_thresholds_std = np.round(np.std(opt_thresholds), 2)
+
     # Compute top1 and top2 accuracies
     mol_ids = np.unique([a for a,b in y_trues.keys()])
     pred_top1 = []
@@ -462,6 +467,8 @@ def save_predict(
     results["Recall"] = recall_score(y_true, y_pred)
     results["Top1"] = top1
     results["Top2"] = top2
+    results["Optimal Threshold Average"] = opt_thresholds_avg
+    results["Optimal Threshold Standard Deviation"] = opt_thresholds_std
 
     with open(
         os.path.join(outdir, "results.txt"),
