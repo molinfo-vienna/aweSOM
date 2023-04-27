@@ -68,12 +68,10 @@
             "request": "launch",
             "program": "scripts/predict.py",
             "args": [
-                "-d", "data/zaretzki/FC1/preprocessed/test", 
-                "-m1", "output/zaretzki/FC1/weight_bce/train", 
-                "-m2", "output/zaretzki/FC1/bce/train", 
-                "-x", "True",
-                "-n", "10", 
-                "-o", "output/zaretzki/FC1/mixed/predict/10", 
+                "-d", "data/zaretzki/FC3/preprocessed/test", 
+                "-m", "output/zaretzki/FC3/mcc_bce/train", 
+                "-n", "15", 
+                "-o", "output/zaretzki/FC3/mcc_bce/predict/15", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",
