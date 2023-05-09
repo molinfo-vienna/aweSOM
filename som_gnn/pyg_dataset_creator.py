@@ -112,5 +112,6 @@ class SOM(InMemoryDataset):
 
             except:
                 logging.warning(f"An error occurred on molecule with mol_id {mol_id}.")
+                continue
 
         torch.save(self.collate(data_list), self.processed_paths[0])
