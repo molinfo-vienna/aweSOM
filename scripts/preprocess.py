@@ -47,12 +47,14 @@ def run(file, dir, split, featuresCombination):
     # Generate and save preprocessed data
     # under *dir*/processed/train or test folder
     G_test, mol_ids_test, atom_ids_test, labels_test, node_features_test = generate_preprocessed_data(df_test, featuresCombination)
+    logging.info("Saving preprocessed test set...")
     save_preprocessed_data(G_test, mol_ids_test, atom_ids_test, labels_test, node_features_test, os.path.join(dir, "preprocessed/test"))
     logging.info("Preprocessing test set sucessful!")
     if split != 100:
         logging.info("Start preprocessing training set...")
         df_train = df.drop(df_test.index)
         G_train, mol_ids_train, atom_ids_train, labels_train, node_features_train = generate_preprocessed_data(df_train, featuresCombination)
+        logging.info("Saving preprocessed train set...")
         save_preprocessed_data(G_train, mol_ids_train, atom_ids_train, labels_train, node_features_train , os.path.join(dir, "preprocessed/train"))
         logging.info("Preprocessing training set sucessful!")
 
