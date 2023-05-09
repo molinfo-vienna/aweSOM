@@ -23,6 +23,7 @@ from som_gnn.utils import (
 def run(
         device, 
         dataset, 
+        loss, 
         hdim, 
         dropout, 
         epochs, 
@@ -64,10 +65,10 @@ def run(
 
         # Initialize model
         model = GIN(
-            in_dim=dataset.num_features,
-            hdim=hdim,
-            edge_dim=dataset.num_edge_features,
-            dropout=dropout,
+            in_dim=dataset.num_features, 
+            hdim=hdim, 
+            edge_dim=dataset.num_edge_features, 
+            dropout=dropout, 
         ).to(device)
 
         # Split training and validation data for the current fold
@@ -91,9 +92,9 @@ def run(
         print('-' * 20)
         for epoch in tqdm(range(epochs)):
             final_num_epochs = epoch
-            train_loss = model.train(train_loader, lr, wd, device)
+            train_loss = model.train(train_loader, loss, lr, wd, device)
             train_losses.append(train_loss.item())
-            val_loss, _, _, _, _ = model.test(val_loader, device)
+            val_loss, _, _, _, _ = model.test(val_loader, loss, device)
             val_losses.append(val_loss.item())
             early_stopper(val_loss)
             if early_stopper.early_stop:
@@ -110,7 +111,7 @@ def run(
 
         """ ---------- Validate Model ---------- """
 
-        _, y_pred, mol_id, atom_id, y_true = model.test(val_loader, device)
+        _, y_pred, mol_id, atom_id, y_true = model.test(val_loader, loss, device)
 
         y_preds[fold_num] = y_pred[:, 0]
         y_trues[fold_num] = y_true
@@ -161,6 +162,12 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="The directory where the input data is stored.",    
+    )
+    parser.add_argument("-l",
+        "--loss",
+        type=str,
+        required=True,
+        help="The loss function. Choose between \'BCE\', \'weighted_BCE\' and \'MCC_BCE\'.",    
     )
     parser.add_argument("-hd",
         "--dimensionHiddenLayers",
@@ -230,7 +237,20 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if not os.path.exists(args.outputDirectory):
+    if os.path.exists(args.outputDirectory):
+        overwrite = input(f"{args.outputDirectory} already exists. Append to existing data (a), overwrite directory (o) or cancel training (c)? [a/o/c] \n")
+        if overwrite == "c":
+            sys.exit()
+        elif overwrite == "o":
+            print("Overwriting directory...")
+            shutil.rmtree(args.outputDirectory)
+            os.makedirs(args.outputDirectory)
+        elif overwrite == "a":
+            print("Appending data...")
+        else:
+            logging.error("Training was terminated: incorrect command for dealing with existing output directory.")
+            sys.exit()
+    else:
         os.makedirs(args.outputDirectory)
 
     logging.basicConfig(filename= os.path.join(args.outputDirectory, 'logfile_train.log'), 
@@ -254,6 +274,7 @@ if __name__ == "__main__":
         run(
         device,
         dataset,
+        args.loss,
         args.dimensionHiddenLayers,
         args.dropout,
         args.epochs,
