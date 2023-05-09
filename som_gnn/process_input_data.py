@@ -186,12 +186,12 @@ def generateNodeFeatures(atom, mol, atm_ring_length):
         (list): one-hot encoded atom feature list
     """
     return (_getAllowedSet(atom.GetAtomicNum(), ELEM_LIST)
-            # +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARGE)
-            # +_getAllowedSet(str(atom.GetHybridization()), HYBRIDIZATION_TYPE)
-            # +_getAllowedSet(atm_ring_length, RING_SIZE)
-            # +list([float(atom.GetIsAromatic())])
-            # +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
-            # +_getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE)
+            +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARGE)
+            +_getAllowedSet(str(atom.GetHybridization()), HYBRIDIZATION_TYPE)
+            +_getAllowedSet(atm_ring_length, RING_SIZE)
+            +list([float(atom.GetIsAromatic())])
+            +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
+            +_getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE)
             # +list([float(generate_fraction_element(mol, "N"))])
             # +list([float(generate_fraction_element(mol, "O"))])
             # +list([float(generate_fraction_element(mol, "S"))])

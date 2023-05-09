@@ -110,17 +110,19 @@ ENV/
 
 # Data
 data/BI/
+data/combo/
 data/EBoMD2/
 data/metaQSAR/
 data/MetaTrans/
 data/test/
 
 # Output
-output/test/
 output/BI/
+output/combo/
 output/EBoMD2/
 output/metaQSAR/
 output/MetaTrans/
+output/test/
 output/zaretzki/FC1/bce/train/
 output/zaretzki/FC1/mcc_bce/train/
 output/zaretzki/FC1/weight_bce/train/
