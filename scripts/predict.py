@@ -18,6 +18,7 @@ from som_gnn.utils import (
 def run(
     device,
     dataset,
+    loss, 
     modelsDirectory, 
     numModels, 
     outputDirectory, 
@@ -53,7 +54,7 @@ def run(
         loader = DataLoader(dataset, batch_size=best_models['Batch Size'][i], shuffle=True)
 
         # Apply model to data
-        _, y_pred, mol_id, atom_id, y_true = model.test(loader, device)
+        _, y_pred, mol_id, atom_id, y_true = model.test(loader, loss, device)
 
         for index, molid_atomid_tuple in enumerate(zip(mol_id, atom_id)):
             y_preds.setdefault(molid_atomid_tuple,[]).append(y_pred[:, 0][index])
@@ -84,6 +85,12 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="The directory where the input data is stored.",    
+    )
+    parser.add_argument("-l",
+        "--loss",
+        type=str,
+        required=True,
+        help="The loss function. Choose between \'BCE\', \'weighted_BCE\' and \'MCC_BCE\'.",    
     )
     parser.add_argument("-m",
         "--modelsDirectory",
@@ -145,6 +152,7 @@ if __name__ == "__main__":
         run(
         device, 
         dataset, 
+        args.loss, 
         args.modelsDirectory, 
         args.numModels, 
         args.outputDirectory, 

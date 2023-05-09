@@ -1,4 +1,6 @@
+import logging
 import numpy as np
+import sys
 import torch
 from torch.nn import Sequential, Linear, BatchNorm1d, Dropout, LeakyReLU
 from torch_geometric.nn import GINEConv, global_add_pool
@@ -60,20 +62,28 @@ class GIN(torch.nn.Module):
         return torch.sigmoid(h)
 
 
-    def train(self, loader, lr, wd, device):
+    def train(self, loader, loss, lr, wd, device):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=wd)
-        loss_function = torch.nn.BCELoss(reduction="sum")
-        #loss_function = weighted_BCE_Loss()
-        #loss_function = MCC_BCE_Loss()
+        if loss == "BCE":
+            loss_function = torch.nn.BCELoss(reduction="sum")
+        elif loss == "weighted_BCE":
+            loss_function = weighted_BCE_Loss()
+        elif loss == "MCC_BCE":
+            loss_function = MCC_BCE_Loss()
+        else:
+            logging.error("Training was terminated: incorrect loss function.")
+            sys.exit()
         running_loss = 0
         num_samples = 0
         for data in loader:
             data = data.to(device)
             optimizer.zero_grad()
             outputs = self(data.x, data.edge_index, data.edge_attr, data.batch)
-            batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float))
-            #class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
-            #batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float), class_weights)
+            if loss == "weighted_BCE":
+                class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
+                batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float), class_weights)
+            else:
+                batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float))
             running_loss += batch_loss * len(data.batch)
             num_samples += len(data.batch)
             batch_loss.backward()
@@ -82,10 +92,16 @@ class GIN(torch.nn.Module):
 
 
     @torch.no_grad()
-    def test(self, loader, device):
-        loss_function = torch.nn.BCELoss(reduction="sum")
-        #loss_function = weighted_BCE_Loss()
-        #loss_function = MCC_BCE_Loss()
+    def test(self, loader, loss, device):
+        if loss == "BCE":
+            loss_function = torch.nn.BCELoss(reduction="sum")
+        elif loss == "weighted_BCE":
+            loss_function = weighted_BCE_Loss()
+        elif loss == "MCC_BCE":
+            loss_function = MCC_BCE_Loss()
+        else:
+            logging.error("Training was terminated: incorrect loss function.")
+            sys.exit()
         running_loss = 0
         num_samples = 0
         y_preds = []
@@ -95,9 +111,11 @@ class GIN(torch.nn.Module):
         for data in loader:
             data = data.to(device)
             outputs = self(data.x, data.edge_index, data.edge_attr, data.batch)
-            batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float))
-            #class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
-            #batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float), class_weights)
+            if loss == "weighted_BCE":
+                class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(data.y.cpu()), y=np.array(data.y.cpu()))
+                batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float), class_weights)
+            else:
+                batch_loss = loss_function(outputs[:, 0].to(float), data.y.to(float))
             running_loss += batch_loss * len(data.batch)
             num_samples += len(data.batch)
             y_preds.append(outputs)

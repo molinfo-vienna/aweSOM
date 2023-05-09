@@ -1,8 +1,10 @@
 import json
+import logging
 import networkx as nx
 import numpy as np
 import os
 from rdkit.Chem import rdchem, rdMolDescriptors
+import sys
 
 ELEM_LIST =[5, 6, 7, 8, 9, 14, 15, 16, 17, 34, 35, 53,"OTHER"]
 HYBRIDIZATION_TYPE = ["SP", 
@@ -175,7 +177,7 @@ def generateBondFeatures(bond):
                 +list([float(bond.GetIsAromatic())])
             )
 
-def generateNodeFeatures(atom, mol, atm_ring_length):
+def generateNodeFeatures(atom, mol, atm_ring_length, featuresCombination):
     """
     Generates the node features for each atom
     Args:
@@ -185,26 +187,55 @@ def generateNodeFeatures(atom, mol, atm_ring_length):
     Returns:
         (list): one-hot encoded atom feature list
     """
-    return (_getAllowedSet(atom.GetAtomicNum(), ELEM_LIST)
-            +_getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARGE)
-            +_getAllowedSet(str(atom.GetHybridization()), HYBRIDIZATION_TYPE)
-            +_getAllowedSet(atm_ring_length, RING_SIZE)
-            +list([float(atom.GetIsAromatic())])
-            +_getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE)
-            +_getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE)
-            # +list([float(generate_fraction_element(mol, "N"))])
-            # +list([float(generate_fraction_element(mol, "O"))])
-            # +list([float(generate_fraction_element(mol, "S"))])
-            # +list([float(generate_fraction_halogens(mol))])
-            # +list([float(generate_fraction_rotatable_bonds(mol))])
-            # +list([float(generate_fraction_HBA(mol))])
-            # +list([float(generate_fraction_HBD(mol))])
-            # +list([float(generate_fraction_aromatics(mol))])
-            # +_getAllowedSet(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
-            )
+    features = {"atom_type": _getAllowedSet(atom.GetAtomicNum(), ELEM_LIST),
+                "formal_charge": _getAllowedSet(atom.GetFormalCharge(), FORMAL_CHARGE), 
+                "hybridization_state": _getAllowedSet(str(atom.GetHybridization()), HYBRIDIZATION_TYPE), 
+                "ring_size": _getAllowedSet(atm_ring_length, RING_SIZE), 
+                "aromaticity": list([float(atom.GetIsAromatic())]), 
+                "degree": _getAllowedSet(atom.GetTotalDegree(), TOTAL_DEGREE), 
+                "valence": _getAllowedSet(atom.GetTotalValence(), TOTAL_VALENCE), 
+                "molecular": (list([float(generate_fraction_element(mol, "N"))])
+                                +list([float(generate_fraction_element(mol, "O"))])
+                                +list([float(generate_fraction_element(mol, "S"))])
+                                +list([float(generate_fraction_halogens(mol))])
+                                +list([float(generate_fraction_rotatable_bonds(mol))])
+                                +list([float(generate_fraction_HBA(mol))])
+                                +list([float(generate_fraction_HBD(mol))])
+                                +list([float(generate_fraction_aromatics(mol))])
+                                +_getAllowedSet(rdMolDescriptors.CalcNumRings(mol), RING_COUNT))
+    }
+
+    if featuresCombination == "FC1":
+        return features["atom_type"]
+    elif featuresCombination == "FC2":
+        return (features["atom_type"]
+                +features["formal_charge"]
+                +features["hybridization_state"]
+                +features["ring_size"]
+                +features["aromaticity"])
+    elif featuresCombination == "FC3":
+        return (features["atom_type"]
+                +features["formal_charge"]
+                +features["hybridization_state"]
+                +features["ring_size"]
+                +features["aromaticity"]
+                +features["degree"]
+                +features["valence"])
+    elif featuresCombination == "FC4":
+        return (features["atom_type"]
+                +features["formal_charge"]
+                +features["hybridization_state"]
+                +features["ring_size"]
+                +features["aromaticity"]
+                +features["degree"]
+                +features["valence"]
+                +features["molecular"])
+    else:
+        logging.error("Preprocessing was terminated: incorrect featurization scheme.")
+        sys.exit()
 
 
-def mol_to_nx(mol_id, mol, soms):
+def mol_to_nx(mol_id, mol, soms, featuresCombination):
     """
     Takes as input an RDKit mol object and return its corresponding NetworkX Graph
     Args:
@@ -231,7 +262,7 @@ def mol_to_nx(mol_id, mol, soms):
                     atm_ring_length = len(ring)
         G.add_node(
             atom_idx, # node identifier
-            node_features=generateNodeFeatures(atom, mol, atm_ring_length),
+            node_features=generateNodeFeatures(atom, mol, atm_ring_length, featuresCombination),
             is_som=(atom_idx in soms), # label
             # the next two elements are later used to assign the
             # predicted labels but are of course not used as features!
@@ -249,11 +280,12 @@ def mol_to_nx(mol_id, mol, soms):
     return G
 
 
-def generate_preprocessed_data(df):
+def generate_preprocessed_data(df, featuresCombination):
     """
     Generates the necessary preprocessed data from the input data.
     Args:
         df (pandas dataframe): input data
+        featuresCombination (str): the desired featurization scheme
     Returns:
         G (NetworkX Graph): a molecular graph describing the entire input data
                             (individual molecules are processed as subgraphs of 
@@ -267,7 +299,7 @@ def generate_preprocessed_data(df):
     """
 
     # Generate networkx graphs from mols
-    df["G"] = df.apply(lambda x: mol_to_nx(x.ID, x.ROMol, x.soms), axis=1)
+    df["G"] = df.apply(lambda x: mol_to_nx(x.ID, x.ROMol, x.soms, featuresCombination), axis=1)
     G = nx.disjoint_union_all(df["G"].to_list())
 
     # Compute list of mol ids

@@ -30,6 +30,7 @@ from som_gnn.utils import (
 def run(
     device, 
     test_data, 
+    loss, 
     modelsDirectory, 
     numModels, 
     outputDirectory, 
@@ -82,7 +83,7 @@ def run(
 
             # Load saved model and apply it to the test data current test data subset
             model.load_state_dict(torch.load(os.path.join(best_models['Results Folder'][j], "model.pt")))
-            _, y_pred, mol_id, atom_id, y_true = model.test(data_loader, device)
+            _, y_pred, mol_id, atom_id, y_true = model.test(data_loader, loss, device)
 
             # Compute best decision threshold for current model and
             # append it to opt_thresholds list
@@ -158,6 +159,12 @@ if __name__ == "__main__":
         required=True,
         help="The directory where the training and test data is stored.",    
     )
+    parser.add_argument("-l",
+        "--loss",
+        type=str,
+        required=True,
+        help="The loss function. Choose between \'BCE\', \'weighted_BCE\' and \'MCC_BCE\'.",    
+    )
     parser.add_argument("-m",
         "--modelsDirectory",
         type=str,
@@ -216,11 +223,12 @@ if __name__ == "__main__":
 
     try:
         run(
-        device,
+        device, 
         test_data, 
+        args.loss, 
         args.modelsDirectory, 
         args.numModels, 
-        args.outputDirectory,
+        args.outputDirectory, 
         )
     except Exception as e:
         logging.error("Testing was terminated:", e)
