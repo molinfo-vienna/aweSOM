@@ -29,15 +29,17 @@ A Graph Neural Network (GNN) for the prediction of Sites of Metabolism (SoMs).
 
 To load new data for model training/testing and/or prediction purposes run the following:
 
-```python scripts/preprocess.py -f FILE.sdf -d DIRECTORY -s SPLIT -v VERBOSE```
+```python scripts/preprocess.py -f FILE.sdf -d DIRECTORY -s SPLIT -fc FEATURES_COMBINATION -v VERBOSE```
 
 ```FILE``` is the name of the data file. Only ```.sdf``` files are currently supported.
 
-```DIRECTORY``` is the directory under which the data file is stored.
+```DIRECTORY``` is the directory under which the unprocessed data is stored.
 
 ```SPLIT``` indicates the split ratio of training and test data. E.g. 20 means that 20% of the data will be stored as test data (recommended for training/testing purposes). We recommend setting ```SPLIT``` to 100 for predicting purposes, i.e. if you simply wish to apply the already trained model to your data.
 
 ```VERBOSE``` should be set to the desired verbosity level, e.g. ```INFO```.
+
+```FEATURES_COMBINATION``` refers to the preferred featurization scheme, e.g., ```FC1```. A list of options is provided in ```fc.txt```.
 
 The output of the preprocessing steps will be written in the ```DIRECTORY/preprocessed/train/``` and ```DIRECTORY/preprocessed/test/``` folders. These folders will be automatically created when executing ```preprocess.py```.
 
@@ -45,31 +47,35 @@ The output of the preprocessing steps will be written in the ```DIRECTORY/prepro
 
 To train a model with a specific set of hyperparameters run:
 
-```python scripts/train -d DATA_DIRECTORY -hd DIMENSION_HIDDEN_LAYERS -do DROPOUT -e EPOCHS -lr LEARNING_RATE -wd WEIGHT_DECAY -bs BATCH_SIZE -p PATIENCE -dt DELTA -o OUTPUT_DIRECTORY -v VERBOSE```
+```python scripts/train -d DATA_DIRECTORY -lf LOSS_FUNCTION -hd DIMENSION_HIDDEN_LAYERS -do DROPOUT -e EPOCHS -lr LEARNING_RATE -wd WEIGHT_DECAY -bs BATCH_SIZE -p PATIENCE -dt DELTA -o OUTPUT_DIRECTORY -hps HYPER_PARAMETER_SEARCH -v VERBOSE```
+
+```BCE```, ```weighted_BCE```, and ```MCC_BCE``` are supported ```LOSS_FUNCTION```.
+
+Set ```-hps``` to ```True``` when performing hyperparameter search via shell script. When ```True```, the prompt asking whether to append, overwrite or cancel if the output folder already exists is deactivated and the results are automatically appended.
 
 For example:
 
-```python scripts/train.py -d data/preprocessed/train -hd 32 -do 0.2 -e 1000 -lr 0.001 -wd 0.001 -bs 16 -p 20 -dt 0 -o output/train -v INFO```
+```python scripts/train.py -d data/preprocessed/train -lf BCE -hd 32 -do 0.2 -e 1000 -lr 0.001 -wd 0.001 -bs 16 -p 20 -dt 0 -o output/train -hps False -v INFO```
 
 #### Model Testing
 
 To test the performance of an ensemble classifier consisting of the *n* best trained models run:
 
-```python scripts/test -d DATA_DIRECTORY -m MODELS_DIRECTORY -n NUMBER_MODELS -o OUTPUT_DIRECTORY -v VERBOSE```
+```python scripts/test -d DATA_DIRECTORY -lf LOSS_FUNCTION -m MODELS_DIRECTORY -n NUMBER_MODELS -o OUTPUT_DIRECTORY -v VERBOSE```
 
 For example:
 
-```python scripts/test.py -d data/preprocessed/test -m output/train -n 10 -o output/test -v INFO```
+```python scripts/test.py -d data/preprocessed/test -lf BCE -m output/train -n 10 -o output/test -v INFO```
 
 #### Predicting SoMs
 
 To predict the Sites of Metabolism of one or multiple molecules with an ensemble classifier consisting of the *n* best trained models run:
 
-```python scripts/predict -d DATA_DIRECTORY -m MODELS_DIRECTORY -n NUMBER_MODELS -o OUTPUT_DIRECTORY -v VERBOSE```
+```python scripts/predict -d DATA_DIRECTORY -lf LOSS_FUNCTION -m MODELS_DIRECTORY -n NUMBER_MODELS -o OUTPUT_DIRECTORY -v VERBOSE```
 
 For example:
 
-```python scripts/predict.py -d data/preprocessed/test -m output/train -n 10 -o output/predict -v INFO```
+```python scripts/predict.py -d data/preprocessed/test -lf BCE -m output/train -n 10 -o output/predict -v INFO```
 
 ### License
 

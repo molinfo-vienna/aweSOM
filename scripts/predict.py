@@ -61,6 +61,7 @@ def run(
             y_trues[molid_atomid_tuple] = y_true[index]
         
         opt_thresholds.append(best_models['Optimal Threshold'][i])
+        #opt_thresholds.append(0.5)
     
     logging.info("Saving results...")
     save_predict(
@@ -86,7 +87,7 @@ if __name__ == "__main__":
         required=True,
         help="The directory where the input data is stored.",    
     )
-    parser.add_argument("-l",
+    parser.add_argument("-lf",
         "--loss",
         type=str,
         required=True,
