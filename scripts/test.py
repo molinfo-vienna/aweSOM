@@ -88,6 +88,7 @@ def run(
             # Compute best decision threshold for current model and
             # append it to opt_thresholds list
             opt_threshold = plot_roc_curve(y_true, y_pred, False)
+            #opt_threshold = 0.5
 
             for j, element in enumerate(zip(mol_id, atom_id)):
                 y_preds.setdefault(element,[]).append(y_pred[:, 0][j])
@@ -159,7 +160,7 @@ if __name__ == "__main__":
         required=True,
         help="The directory where the training and test data is stored.",    
     )
-    parser.add_argument("-l",
+    parser.add_argument("-lf",
         "--loss",
         type=str,
         required=True,

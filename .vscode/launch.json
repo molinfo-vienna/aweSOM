@@ -1,8 +1,7 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
+    "debugOptions": ["RedirectOutput", "PyDebug", "ShowReturnValue", "WaitOnAbnormalExit", "WaitOnNormalExit", "Timeout=300"],
+    "redirectOutput": true,
     "configurations": [
         {
             "name": "Python: Current File",
@@ -19,8 +18,9 @@
             "program": "scripts/preprocess.py",
             "args": [
                 "-f", "data.sdf", 
-                "-d", "data/EBoMD2", 
-                "-s", "100", 
+                "-d", "data/MetaTrans", 
+                "-s", "10", 
+                "-fc", "FC3", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",
@@ -32,16 +32,40 @@
             "request": "launch",
             "program": "scripts/train.py",
             "args": [
-                "-d", "data/zaretzki_min/preprocessed/train", 
-                "-hd", "32", 
+                "-d", "data/MetaTrans/preprocessed/train", 
+                "-lf", "BCE",
+                "-hd", "256", 
                 "-do", "0.1", 
                 "-e", "1000", 
                 "-lr", "0.01", 
-                "-wd", "0.01", 
-                "-bs", "16",
+                "-wd", "0.001", 
+                "-bs", "64", 
                 "-p", "20", 
                 "-dt", "0", 
-                "-o", "output/zaretzki/debug/train", 
+                "-o", "output/MetaTrans/exp/train", 
+                "-hps", "False", 
+                "-v", "DEBUG"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug FineTune",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/finetune.py",
+            "args": [
+                "-d", "data/metaQSAR/preprocessed/train", 
+                "-lf", "BCE", 
+                "-m", "output/MetaTrans/bce/train", 
+                "-e", "1000", 
+                "-lr", "0.0001", 
+                "-wd", "0.001", 
+                "-bs", "32", 
+                "-p", "20", 
+                "-dt", "0", 
+                "-o", "output/metaQSAR/bce/finetune", 
+                "-hps", "True", 
                 "-v", "DEBUG"
             ],
             "console": "integratedTerminal",
@@ -53,10 +77,11 @@
             "request": "launch",
             "program": "scripts/test.py",
             "args": [
-                "-d", "data/zaretzki/FC4/preprocessed/test", 
-                "-m", "output/zaretzki/FC4/bce/train", 
+                "-d", "data/metaQSAR/preprocessed/test", 
+                "-lf", "BCE", 
+                "-m", "output/metaQSAR/bce/train", 
                 "-n", "5", 
-                "-o", "output/zaretzki/FC4/bce/test/5", 
+                "-o", "output/metaQSAR/bce/test/5", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",
@@ -68,10 +93,11 @@
             "request": "launch",
             "program": "scripts/predict.py",
             "args": [
-                "-d", "data/zaretzki/FC3/preprocessed/test", 
-                "-m", "output/zaretzki/FC3/mcc_bce/train", 
-                "-n", "15", 
-                "-o", "output/zaretzki/FC3/mcc_bce/predict/15", 
+                "-d", "data/metaQSAR/preprocessed/test", 
+                "-lf", "BCE", 
+                "-m", "output/MetaTrans/bce/train", 
+                "-n", "5", 
+                "-o", "output/metaQSAR/bce/predict_from_MetaTrans/5", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",

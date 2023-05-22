@@ -163,7 +163,7 @@ if __name__ == "__main__":
         required=True,
         help="The directory where the input data is stored.",    
     )
-    parser.add_argument("-l",
+    parser.add_argument("-lf",
         "--loss",
         type=str,
         required=True,
@@ -227,6 +227,16 @@ if __name__ == "__main__":
         required=True,
         help="The directory where the output is written."   
     )
+    parser.add_argument("-hps",
+        "--hyperParameterSearch",
+        type=str,
+        required=False, 
+        default="False",
+        help="Set to True when performing hyperparameter search via shell script. \
+                When True, the prompt asking whether to append, overwrite or cancel \
+                if the output folder already exists is deactivated and the results are \
+                automatically appended."
+    )
     parser.add_argument("-v",
         "--verbose",
         dest="verbosityLevel", 
@@ -237,21 +247,25 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if os.path.exists(args.outputDirectory):
-        overwrite = input(f"{args.outputDirectory} already exists. Append to existing data (a), overwrite directory (o) or cancel training (c)? [a/o/c] \n")
-        if overwrite == "c":
-            sys.exit()
-        elif overwrite == "o":
-            print("Overwriting directory...")
-            shutil.rmtree(args.outputDirectory)
-            os.makedirs(args.outputDirectory)
-        elif overwrite == "a":
-            print("Appending data...")
+    if args.hyperParameterSearch == "False":
+        if os.path.exists(args.outputDirectory):
+            overwrite = input(f"{args.outputDirectory} already exists. Append to existing data (a), overwrite directory (o) or cancel training (c)? [a/o/c] \n")
+            if overwrite == "c":
+                sys.exit()
+            elif overwrite == "o":
+                print("Overwriting directory...")
+                shutil.rmtree(args.outputDirectory)
+                os.makedirs(args.outputDirectory)
+            elif overwrite == "a":
+                print("Appending data...")
+            else:
+                logging.error("Training was terminated: incorrect command for dealing with existing output directory.")
+                sys.exit()
         else:
-            logging.error("Training was terminated: incorrect command for dealing with existing output directory.")
-            sys.exit()
+            os.makedirs(args.outputDirectory)
     else:
-        os.makedirs(args.outputDirectory)
+        if not os.path.exists(args.outputDirectory):
+            os.makedirs(args.outputDirectory)
 
     logging.basicConfig(filename= os.path.join(args.outputDirectory, 'logfile_train.log'), 
                     level=getattr(logging, args.verbosityLevel), 
