@@ -84,9 +84,8 @@ class MCC_BCE_Loss(torch.nn.Module):
         tn = torch.sum((1 - predictions) * (1 - targets))
         fp = torch.sum((1 - targets) * predictions)
         fn = torch.sum(targets * (1 - predictions))
-        MCC = (tp * tn - fp * fn) / (
-            torch.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
-        )
+        MCC = (tp * tn - fp * fn) / (torch.sqrt(tp + fp) * torch.sqrt(tp + fn) * torch.sqrt(tn + fp) * torch.sqrt(tn + fn))
+        
         MCC_loss = 1 - MCC
         BCE_loss = F.binary_cross_entropy(predictions, targets, reduction="sum")
         return MCC_loss + BCE_loss
