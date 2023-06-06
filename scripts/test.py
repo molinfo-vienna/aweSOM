@@ -16,9 +16,8 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import KFold
 from torch_geometric.loader import DataLoader
-from tqdm import tqdm
 
-from som_gnn.graph_neural_nets import GIN
+from som_gnn.graph_neural_nets import GAT, GATv2, GIN, MF
 from som_gnn.pyg_dataset_creator import SOM
 from som_gnn.utils import (
     plot_roc_curve, 
@@ -30,6 +29,7 @@ from som_gnn.utils import (
 def run(
     device, 
     test_data, 
+    what_model, 
     loss, 
     modelsDirectory, 
     numModels, 
@@ -68,21 +68,48 @@ def run(
     
         # Build voting classifier based on the models stored in models
         # and store their predictions
-        for j in range(len(best_models['Results Folder'])):
+        for j in range(len(best_models['ResultsFolder'])):
 
             # Initialize model
-            model = GIN(
-                in_dim=test_data.num_features,
-                hdim=best_models['Dimension of Hidden Layers'][j],
-                edge_dim=test_data.num_edge_features,
+            if what_model == "GAT":
+                model = GAT(
+                in_dim=test_data.num_features, 
+                hdim=best_models['DimensionHiddenLayers'][j],
+                edge_dim=test_data.num_edge_features, 
+                heads=best_models['NumAttentionHeads'][j],
+                negative_slope=best_models['NegativeSlope'][j],
                 dropout=best_models['Dropout'][j],
             ).to(device)
+            if what_model == "GATv2":
+                model = GATv2(
+                in_dim=test_data.num_features, 
+                hdim=best_models['DimensionHiddenLayers'][j],
+                edge_dim=test_data.num_edge_features, 
+                heads=best_models['NumAttentionHeads'][j],
+                negative_slope=best_models['NegativeSlope'][j],
+                dropout=best_models['Dropout'][j],
+            ).to(device)
+            elif what_model == "GIN":
+                model = GIN(
+                    in_dim=test_data.num_features,
+                    hdim=best_models['DimensionHiddenLayers'][j],
+                    edge_dim=test_data.num_edge_features,
+                    dropout=best_models['Dropout'][j],
+                ).to(device)
+            elif what_model == "MF":
+                model = MF(
+                in_dim=test_data.num_features, 
+                hdim=best_models['DimensionHiddenLayers'][j],
+                max_degree=best_models['MaxDegree'][j],
+            ).to(device)
+            else:
+                raise NotImplementedError(f"Invalid model: {what_model}")
 
             # Load data
-            data_loader = DataLoader(sub_test_data, batch_size=best_models['Batch Size'][j])
+            data_loader = DataLoader(sub_test_data, batch_size=best_models['BatchSize'][j])
 
             # Load saved model and apply it to the test data current test data subset
-            model.load_state_dict(torch.load(os.path.join(best_models['Results Folder'][j], "model.pt")))
+            model.load_state_dict(torch.load(os.path.join(best_models['ResultsFolder'][j], "model.pt")))
             _, y_pred, mol_id, atom_id, y_true = model.test(data_loader, loss, device)
 
             # Compute best decision threshold for current model and
@@ -160,13 +187,19 @@ if __name__ == "__main__":
         required=True,
         help="The directory where the training and test data is stored.",    
     )
+    parser.add_argument("-m",
+        "--model",
+        type=str,
+        required=True,
+        help="The chosen model. Choose between \'GAT\', \'GIN\' and \'MF\'.",    
+    )
     parser.add_argument("-lf",
         "--loss",
         type=str,
         required=True,
         help="The loss function. Choose between \'BCE\', \'weighted_BCE\' and \'MCC_BCE\'.",    
     )
-    parser.add_argument("-m",
+    parser.add_argument("-md",
         "--modelsDirectory",
         type=str,
         required=True,
@@ -226,6 +259,7 @@ if __name__ == "__main__":
         run(
         device, 
         test_data, 
+        args.model, 
         args.loss, 
         args.modelsDirectory, 
         args.numModels, 
