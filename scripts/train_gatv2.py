@@ -10,7 +10,7 @@ from sklearn.model_selection import KFold
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 
-from som_gnn.graph_neural_nets import GIN
+from som_gnn.graph_neural_nets import GATv2
 from som_gnn.pyg_dataset_creator import SOM
 from som_gnn.utils import (
     EarlyStopping,
@@ -25,6 +25,8 @@ def run(
         dataset, 
         loss, 
         hdim, 
+        mha, 
+        ns, 
         dropout, 
         epochs, 
         lr, 
@@ -34,6 +36,15 @@ def run(
         delta, 
         output_directory
     ):
+
+    hyperparams = [hdim,mha,ns,dropout,lr,wd,bs]
+    hyperparams_var_name = ["DimensionHiddenLayers",
+                            "NumAttentionHeads",
+                            "NegativeSlope",
+                            "Dropout",
+                            "LearningRate",
+                            "WeightDecay",
+                            "BatchSize"]
 
     logging.info("Start training...")
 
@@ -46,28 +57,28 @@ def run(
 
     for fold_num, (train_index, val_index) in enumerate(kf.split(dataset)):
 
-        # Create results directory 
+        # Create results directory
+        hyperparams_dir = ""
+        for param in hyperparams:
+            if type(param) == float:
+                hyperparams_dir = hyperparams_dir + "_" + "{:.0e}".format(param)
+            else:
+                hyperparams_dir = hyperparams_dir + "_" + str(param)
         output_subdirectory = os.path.join(
             output_directory,
-            str(hdim)
-            + "_"
-            + "{:.0e}".format(dropout)
-            + "_"
-            + "{:.0e}".format(lr)
-            + "_"
-            + "{:.0e}".format(wd)
-            + "_"
-            + str(bs)
+            hyperparams_dir
             + "_"
             + str(fold_num)
         )
         os.mkdir(os.path.join(os.getcwd(), output_subdirectory))
 
         # Initialize model
-        model = GIN(
+        model = GATv2(
             in_dim=dataset.num_features, 
             hdim=hdim, 
             edge_dim=dataset.num_edge_features, 
+            heads=mha,
+            negative_slope=ns,
             dropout=dropout, 
         ).to(device)
 
@@ -122,30 +133,24 @@ def run(
             output_subdirectory,
             fold_num,
             "results.csv",
-            hdim,
-            dropout,
-            lr,
-            wd,
-            bs,
             final_num_epochs,
             val_loss.item(),
             y_pred[:, 0],
             y_true,
             mol_id,
             atom_id,
+            hyperparams,
+            hyperparams_var_name,
         )
 
     save_average(
         output_directory,
         "results_average.csv",
-        hdim,
-        dropout,
-        lr,
-        wd,
-        bs,
         y_preds,
         y_trues,
         mol_ids,
+        hyperparams,
+        hyperparams_var_name,
     )
 
     logging.info("Training sucessful!")
@@ -174,6 +179,18 @@ if __name__ == "__main__":
         type=int,
         required=True,
         help="The size of the hidden layers.",
+    )
+    parser.add_argument("-mha",
+        "--multiHeadAttentions",
+        type=int,
+        required=True,
+        help="The number of multi-head-attentions.",
+    )
+    parser.add_argument("-ns",
+        "--negativeSlope",
+        type=float,
+        required=True,
+        help="LeakyReLU angle of the negative slope.",
     )
     parser.add_argument("-do",
         "--dropout",
@@ -290,6 +307,8 @@ if __name__ == "__main__":
         dataset,
         args.loss,
         args.dimensionHiddenLayers,
+        args.multiHeadAttentions,
+        args.negativeSlope,
         args.dropout,
         args.epochs,
         args.learningRate,
