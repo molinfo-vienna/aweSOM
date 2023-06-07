@@ -1,27 +1,27 @@
-SOM-GNN
+aweSOM
 ==============================
 [//]: # (Badges)
 [![GitHub Actions Build Status](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/som_gnn/workflows/CI/badge.svg)](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/som_gnn/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main)
 
 
-A Graph Neural Network (GNN) for the prediction of Sites of Metabolism (SoMs).
+A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (SoMs) in small oragnic molecules.
 
 ### Installation
 
 1. Clone the repository and cd into the repository root:
 
-```git clone https://github.com/molinfo-vienna/som_gnn.git```
+```git clone https://github.com/molinfo-vienna/aweSOM.git```
 
-```cd som_gnn```
+```cd aweSOM```
 
 2. Create a conda environment with the required dependencies:
 
-```conda env create -f som-gnn-env.yml```
+```conda env create -f awesom-env.yml```
 
 3. Activate the environment:
 
-```conda activate som-gnn-env```
+```conda activate awesom-env```
 
 ### Usage
 
