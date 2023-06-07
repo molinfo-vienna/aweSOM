@@ -5,7 +5,7 @@ aweSOM
 [![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main)
 
 
-A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (SoMs) in small oragnic molecules.
+A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (SoMs) in small organic molecules.
 
 ### Installation
 
