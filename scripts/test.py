@@ -17,9 +17,9 @@ from sklearn.metrics import (
 from sklearn.model_selection import KFold
 from torch_geometric.loader import DataLoader
 
-from som_gnn.graph_neural_nets import GAT, GATv2, GIN, MF
-from som_gnn.pyg_dataset_creator import SOM
-from som_gnn.utils import (
+from awesom.graph_neural_nets import GAT, GATv2, GIN, MF, TF
+from awesom.pyg_dataset_creator import SOM
+from awesom.utils import (
     plot_roc_curve, 
     save_test,
     seed_everything, 
@@ -102,6 +102,14 @@ def run(
                 hdim=best_models['DimensionHiddenLayers'][j],
                 max_degree=best_models['MaxDegree'][j],
             ).to(device)
+            elif what_model == "TF":
+                model = TF(
+                    in_dim=test_data.num_features, 
+                    hdim=best_models['DimensionHiddenLayers'][j],
+                    edge_dim=test_data.num_edge_features, 
+                    heads=best_models['NumAttentionHeads'][j],
+                    dropout=best_models['Dropout'][j],
+                ).to(device)
             else:
                 raise NotImplementedError(f"Invalid model: {what_model}")
 

@@ -6,8 +6,8 @@ import os
 import random
 import torch
 import torch.nn.functional as F
+
 from collections import Counter
-from itertools import groupby
 from sklearn.metrics import (
     auc,
     average_precision_score,

@@ -3,9 +3,10 @@ import logging
 import networkx as nx
 from networkx.readwrite import json_graph
 import numpy as np
-import os
 import torch
 from torch_geometric.data import InMemoryDataset, Data
+
+__all__ = ["SOM"]
 
 
 class SOM(InMemoryDataset):

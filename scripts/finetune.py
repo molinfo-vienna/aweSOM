@@ -11,9 +11,9 @@ from sklearn.model_selection import KFold
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 
-from som_gnn.graph_neural_nets import GIN
-from som_gnn.pyg_dataset_creator import SOM
-from som_gnn.utils import (
+from awesom.graph_neural_nets import GIN
+from awesom.pyg_dataset_creator import SOM
+from awesom.utils import (
     EarlyStopping,
     plot_losses, 
     save_individual, 
