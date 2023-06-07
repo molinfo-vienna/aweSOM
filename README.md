@@ -1,27 +1,27 @@
-SOM-GNN
+aweSOM
 ==============================
 [//]: # (Badges)
 [![GitHub Actions Build Status](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/som_gnn/workflows/CI/badge.svg)](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/som_gnn/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main)
 
 
-A Graph Neural Network (GNN) for the prediction of Sites of Metabolism (SoMs).
+A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (SoMs) in small organic molecules.
 
 ### Installation
 
 1. Clone the repository and cd into the repository root:
 
-```git clone https://github.com/molinfo-vienna/som_gnn.git```
+```git clone https://github.com/molinfo-vienna/aweSOM.git```
 
-```cd som_gnn```
+```cd aweSOM```
 
 2. Create a conda environment with the required dependencies:
 
-```conda env create -f som-gnn-env.yml```
+```conda env create -f awesom-env.yml```
 
 3. Activate the environment:
 
-```conda activate som-gnn-env```
+```conda activate awesom-env```
 
 ### Usage
 
@@ -47,35 +47,38 @@ The output of the preprocessing steps will be written in the ```DIRECTORY/prepro
 
 To train a model with a specific set of hyperparameters run:
 
-```python scripts/train -d DATA_DIRECTORY -lf LOSS_FUNCTION -hd DIMENSION_HIDDEN_LAYERS -do DROPOUT -e EPOCHS -lr LEARNING_RATE -wd WEIGHT_DECAY -bs BATCH_SIZE -p PATIENCE -dt DELTA -o OUTPUT_DIRECTORY -hps HYPER_PARAMETER_SEARCH -v VERBOSE```
+```python scripts/train_*.py -d DATA_DIRECTORY -lf LOSS_FUNCTION [HYPERPARAMETERS] -bs BATCH_SIZE -p PATIENCE -dt DELTA -o OUTPUT_DIRECTORY -hps HYPER_PARAMETER_SEARCH -v VERBOSE```
 
-```BCE```, ```weighted_BCE```, and ```MCC_BCE``` are supported ```LOSS_FUNCTION```.
+Be carefull that the set of hyperparameters can be different accross models (GIN, GAT, TransformerConv etc.). Please refer to the docs.
+
+For example when training a GIN model with a specific set of hyperparameters DIMENSION_HIDDEN_LAYERS, DROPOUT, EPOCHS, LEARNING_RATE and WEIGHT_DECAY:
+
+```python scripts/train_gin.py -d data -lf BCE -hd 64 -do 0.2 -e 1000 -lr 0.001 -wd 0.0001 -bs 64 -p 20 -dt 0 -o output/gin/bce -hps False -v VERBOSE```
+
+Supported loss functions inlcude ```BCE```, ```weighted_BCE```, ```MCC_BCE``` and ```focal```.
 
 Set ```-hps``` to ```True``` when performing hyperparameter search via shell script. When ```True```, the prompt asking whether to append, overwrite or cancel if the output folder already exists is deactivated and the results are automatically appended.
 
-For example:
-
-```python scripts/train.py -d data/preprocessed/train -lf BCE -hd 32 -do 0.2 -e 1000 -lr 0.001 -wd 0.001 -bs 16 -p 20 -dt 0 -o output/train -hps False -v INFO```
 
 #### Model Testing
 
 To test the performance of an ensemble classifier consisting of the *n* best trained models run:
 
-```python scripts/test -d DATA_DIRECTORY -lf LOSS_FUNCTION -m MODELS_DIRECTORY -n NUMBER_MODELS -o OUTPUT_DIRECTORY -v VERBOSE```
+```python scripts/test.py -d DATA_DIRECTORY -m MODEL -lf LOSS_FUNCTION -md MODELS_DIRECTORY -n NUMBER_MODELS -o OUTPUT_DIRECTORY -v VERBOSE```
 
 For example:
 
-```python scripts/test.py -d data/preprocessed/test -lf BCE -m output/train -n 10 -o output/test -v INFO```
+```python scripts/test.py -d data/preprocessed/test -m GIN -lf BCE -md output/train -n 10 -o output/test -v INFO```
 
 #### Predicting SoMs
 
 To predict the Sites of Metabolism of one or multiple molecules with an ensemble classifier consisting of the *n* best trained models run:
 
-```python scripts/predict -d DATA_DIRECTORY -lf LOSS_FUNCTION -m MODELS_DIRECTORY -n NUMBER_MODELS -o OUTPUT_DIRECTORY -v VERBOSE```
+```python scripts/predict.py -d DATA_DIRECTORY -m MODEL -lf LOSS_FUNCTION -md MODELS_DIRECTORY -n NUMBER_MODELS -o OUTPUT_DIRECTORY -v VERBOSE```
 
 For example:
 
-```python scripts/predict.py -d data/preprocessed/test -lf BCE -m output/train -n 10 -o output/predict -v INFO```
+```python scripts/predict.py -d data/preprocessed/test -m GIN -lf BCE -md output/train -n 10 -o output/predict -v INFO```
 
 ### License
 

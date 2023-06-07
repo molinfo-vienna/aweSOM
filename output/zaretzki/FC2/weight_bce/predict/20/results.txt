@@ -1,1 +1,0 @@
-{"MCC": 0.41441846935070903, "Precision": 0.31901840490797545, "Recall": 0.8666666666666667, "Top1": 0.6323529411764706, "Top2": 0.75, "Optimal Threshold Average": 0.51, "Optimal Threshold Standard Deviation": 0.07}

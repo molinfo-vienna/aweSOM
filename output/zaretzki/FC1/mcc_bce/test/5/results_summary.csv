@@ -1,4 +1,4 @@
-metric,averaged value,standard deviation
+metric,avg,stdev
 mcc,0.49,0.03
 precision,0.39,0.04
 recall,0.89,0.04
