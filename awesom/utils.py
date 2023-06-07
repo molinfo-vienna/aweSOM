@@ -6,17 +6,18 @@ import os
 import random
 import torch
 import torch.nn.functional as F
-from collections import Counter
 
+from collections import Counter
 from sklearn.metrics import (
     auc,
+    average_precision_score,
     matthews_corrcoef,
     precision_score,
     recall_score,
     roc_auc_score,
     roc_curve,
 )
-
+from statistics import mean
 
 #################### Neural network related utility functions ####################
     
@@ -89,6 +90,69 @@ class MCC_BCE_Loss(torch.nn.Module):
         MCC_loss = 1 - MCC
         BCE_loss = F.binary_cross_entropy(predictions, targets, reduction="sum")
         return MCC_loss + BCE_loss
+    
+    
+class FocalLoss(torch.nn.Module):
+    """
+    Implementation of FocalLoss for imbalanced datasets with binary labels.
+    """
+
+    def __init__(self, alpha:float=0.9, gamma:float=2.0, reduction:str='mean',):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, input:torch.Tensor, target:torch.Tensor) -> torch.Tensor:
+        """Function that computes Binary Focal loss.
+        .. math::
+            \text{FL}(p_t) = -\alpha_t (1 - p_t)^{\gamma} \, \text{log}(p_t)
+        where:
+        - :math:p_t is the model's estimated probability for each class.
+        Args:
+            input: input data tensor of arbitrary shape.
+            target: the target tensor with shape matching input.
+            alpha: Weighting factor for the rare class :math:\alpha \in [0, 1].
+            gamma: Focusing parameter :math:\gamma >= 0.
+            reduction: Specifies the reduction to apply to the
+            output: ``'none'`` | ``'mean'`` | ``'sum'``. ``'none'``: no reduction
+            will be applied, ``'mean'``: the sum of the output will be divided by
+            the number of elements in the output, ``'sum'``: the output will be
+            summed.
+            eps: Deprecated: scalar for numerically stability when dividing. This is no longer used.
+            pos_weight: a weight of positive examples.
+            It’s possible to trade off recall and precision by adding weights to positive examples.
+            Must be a vector with length equal to the number of classes.
+        Returns:
+            the computed loss.
+        Examples:
+            >>> kwargs = {"alpha": 0.25, "gamma": 2.0, "reduction": 'mean'}
+            >>> logits = torch.tensor([[[6.325]],[[5.26]],[[87.49]]])
+            >>> labels = torch.tensor([[[1.]],[[1.]],[[0.]]])
+            >>> binary_focal_loss_with_logits(logits, labels, **kwargs)
+            tensor(21.8725)
+        """
+
+        probs_pos = input.sigmoid()
+        probs_neg = (-input).sigmoid()
+
+        log_probs_pos = torch.nn.functional.logsigmoid(input)
+        log_probs_neg = torch.nn.functional.logsigmoid(-input)
+
+        loss_tmp = (
+            -self.alpha * probs_neg.pow(self.gamma) * target * log_probs_pos
+            - (1 - self.alpha) * probs_pos.pow(self.gamma) * (1.0 - target) * log_probs_neg
+        )
+
+        if self.reduction == 'none':
+            loss = loss_tmp
+        elif self.reduction == 'mean':
+            loss = torch.mean(loss_tmp)
+        elif self.reduction == 'sum':
+            loss = torch.sum(loss_tmp)
+        else:
+            raise NotImplementedError(f"Invalid reduction mode: {self.reduction}")
+        return loss
 
 
 #################### General utility functions ####################
@@ -164,42 +228,42 @@ def save_individual(
     output_subdirectory,
     fold_num,
     results_file_name,
-    hdim,
-    dropout,
-    lr,
-    wd,
-    bs,
     final_num_epochs,
     val_loss,
     y_pred,
     y_true,
     mol_id,
     atom_id,
+    hyperparams,
+    hyperparams_var_name,
 ):
 
-    # Compute top1 accuracy
-    pred_top1 = []
-    for id in np.unique(mol_id):
-        mask = id == mol_id
-        idx = np.argpartition(y_pred[mask], -1)[-1:]
-        if y_true[mask][idx[0]]:
-            pred_top1.append(1)
-        else:
-            pred_top1.append(0)
-    top1 = np.sum(pred_top1) / len(np.unique(mol_id))
+    # # Compute top1 accuracy
+    # pred_top1 = []
+    # for id in np.unique(mol_id):
+    #     mask = id == mol_id
+    #     idx = np.argpartition(y_pred[mask], -1)[-1:]
+    #     if y_true[mask][idx[0]]:
+    #         pred_top1.append(1)
+    #     else:
+    #         pred_top1.append(0)
+    # top1 = np.sum(pred_top1) / len(np.unique(mol_id))
 
-    # Compute top2 accuracy
-    pred_top2 = []
-    for id in np.unique(mol_id):
-        mask = id == mol_id
-        idx = np.argpartition(y_pred[mask], -2)[-2:]
-        if y_true[mask][idx[0]] or y_true[mask][idx[1]]:
-            pred_top2.append(1)
-        else:
-            pred_top2.append(0)
-    top2 = np.sum(pred_top2) / len(np.unique(mol_id))
+    # # Compute top2 accuracy
+    # pred_top2 = []
+    # for id in np.unique(mol_id):
+    #     mask = id == mol_id
+    #     idx = np.argpartition(y_pred[mask], -2)[-2:]
+    #     if y_true[mask][idx[0]] or y_true[mask][idx[1]]:
+    #         pred_top2.append(1)
+    #     else:
+    #         pred_top2.append(0)
+    # top2 = np.sum(pred_top2) / len(np.unique(mol_id))
 
-    # Compute ROC-AUC score, get best threshold
+    # Compute PR-AUC
+    pr_auc = average_precision_score(y_true, y_pred)
+
+    # Compute ROC-AUC, get best threshold
     roc_auc = roc_auc_score(y_true, y_pred)
     fpr, tpr, thresholds = roc_curve(y_true, y_pred)
     best_threshold = thresholds[np.argmax(tpr - fpr)]
@@ -215,7 +279,7 @@ def save_individual(
     # Save molecular identifiers (mol_id), true labels (y_true), and predicted labels (y_pred) to a csv file:
     rows = zip(mol_id, atom_id, y_true, y_pred, y_pred_bin)
     with open(
-        os.path.join(output_subdirectory, "predictions" + str(fold_num) + ".csv"),
+        os.path.join(output_subdirectory, "predictions.csv"),
         "w",
         encoding="UTF8",
         newline="",
@@ -231,27 +295,40 @@ def save_individual(
             )
         )
         writer.writerows(rows)
-    f.close()
 
-    data = [
-        str(output_subdirectory),
-        hdim,
-        dropout,
-        lr,
-        wd,
-        bs,
-        fold_num,
-        final_num_epochs,
-        val_loss,
-        round(best_threshold, 3),
-        round(mcc, 3),
-        round(top1, 3),
-        round(top2, 3),
-        round(precision, 3),
-        round(recall, 3),
-        round(roc_auc, 3),
-    ]
+    data = [str(output_subdirectory)]
+    data.extend([hp for hp in hyperparams])
+    data.extend([
+                fold_num,
+                final_num_epochs,
+                round(val_loss, 3),
+                round(best_threshold, 3),
+                round(mcc, 3),
+                round(pr_auc, 3),
+                # round(top1, 3),
+                # round(top2, 3),
+                round(precision, 3),
+                round(recall, 3),
+                round(roc_auc, 3),
+                ]
+               )
 
+    header = ["ResultsFolder"]
+    header.extend(hyperparams_var_name)
+    header.extend([
+                    "Fold",
+                    "Epochs",
+                    "ValLoss",
+                    "OptThreshold",
+                    "MCC",
+                    "PRAUC",
+                    # "Top1",
+                    # "Top2",
+                    "Precision",
+                    "Recall",
+                    "ROCAUC",
+                ])
+    
     if os.path.isfile(os.path.join(output_directory, results_file_name)) == False:
         with open(
             os.path.join(output_directory, results_file_name),
@@ -260,26 +337,7 @@ def save_individual(
             newline="",
         ) as f:
             writer = csv.writer(f)
-            writer.writerow(
-                [
-                    "Results Folder",
-                    "Dimension of Hidden Layers",
-                    "Dropout",
-                    "Learning Rate",
-                    "Weight Decay",
-                    "Batch Size",
-                    "Fold",
-                    "Epochs",
-                    "Validation Loss",
-                    "Optimal Threshold",
-                    "MCC",
-                    "Top1 Accuracy",
-                    "Top2 Accuracy",
-                    "Precision",
-                    "Recall",
-                    "ROC AUC Score",
-                ]
-            )
+            writer.writerow(header)
     with open(
         os.path.join(output_directory, results_file_name),
         "a",
@@ -293,18 +351,16 @@ def save_individual(
 def save_average(
     output_directory,
     results_file_name,
-    hdim,
-    dropout,
-    lr,
-    wd,
-    bs,
     y_preds,
     y_trues,
     mol_ids,
+    hyperparams,
+    hyperparams_var_name,
 ):
 
-    top1_list = []
-    top2_list = []
+    # top1_list = []
+    # top2_list = []
+    pr_auc_list = []
     roc_auc_list = []
     best_threshold_list = []
     mcc_list = []
@@ -313,31 +369,35 @@ def save_average(
 
     for key in y_preds:
 
-        # Compute top1 accuracy
-        pred_top1 = []
-        for id in np.unique(mol_ids[key]):
-            mask = id == mol_ids[key]
-            idx = np.argpartition(y_preds[key][mask], -1)[-1:]
-            if y_trues[key][mask][idx[0]]:
-                pred_top1.append(1)
-            else:
-                pred_top1.append(0)
-        top1 = np.sum(pred_top1) / len(np.unique(mol_ids[key]))
-        top1_list.append(top1)
+        # # Compute top1 accuracy
+        # pred_top1 = []
+        # for id in np.unique(mol_ids[key]):
+        #     mask = id == mol_ids[key]
+        #     idx = np.argpartition(y_preds[key][mask], -1)[-1:]
+        #     if y_trues[key][mask][idx[0]]:
+        #         pred_top1.append(1)
+        #     else:
+        #         pred_top1.append(0)
+        # top1 = np.sum(pred_top1) / len(np.unique(mol_ids[key]))
+        # top1_list.append(top1)
 
-        # Compute top2 accuracy
-        pred_top2 = []
-        for id in np.unique(mol_ids[key]):
-            mask = id == mol_ids[key]
-            idx = np.argpartition(y_preds[key][mask], -2)[-2:]
-            if y_trues[key][mask][idx[0]] or y_trues[key][mask][idx[1]]:
-                pred_top2.append(1)
-            else:
-                pred_top2.append(0)
-        top2 = np.sum(pred_top2) / len(np.unique(mol_ids[key]))
-        top2_list.append(top2)
+        # # Compute top2 accuracy
+        # pred_top2 = []
+        # for id in np.unique(mol_ids[key]):
+        #     mask = id == mol_ids[key]
+        #     idx = np.argpartition(y_preds[key][mask], -2)[-2:]
+        #     if y_trues[key][mask][idx[0]] or y_trues[key][mask][idx[1]]:
+        #         pred_top2.append(1)
+        #     else:
+        #         pred_top2.append(0)
+        # top2 = np.sum(pred_top2) / len(np.unique(mol_ids[key]))
+        # top2_list.append(top2)
 
-        # Compute and plot ROC-AUC score and ROC-curve, get best threshold
+        # Compute PR-AUC
+        pr_auc = average_precision_score(y_trues[key], y_preds[key])
+        pr_auc_list.append(pr_auc)
+
+        # Compute ROC-AUC and get best threshold via ROC curve
         roc_auc = roc_auc_score(y_trues[key], y_preds[key])
         roc_auc_list.append(roc_auc)
         fpr, tpr, thresholds = roc_curve(y_trues[key], y_preds[key])
@@ -355,28 +415,38 @@ def save_average(
         recall = recall_score(y_trues[key], y_preds[key])
         recall_list.append(recall)
 
-    top1_mean = average(top1_list)
-    top2_mean = average(top2_list)
+    # top1_mean = average(top1_list)
+    # top2_mean = average(top2_list)
+    pr_auc_mean = average(pr_auc_list)
     roc_auc_mean = average(roc_auc_list)
     best_threshold_mean = average(best_threshold_list)
     mcc_mean = average(mcc_list)
     precision_mean = average(precision_list)
     recall_mean = average(recall_list)
 
-    data = [
-        hdim,
-        dropout,
-        lr,
-        wd,
-        bs,
-        round(best_threshold_mean, 3),
-        round(mcc_mean, 3),
-        round(top1_mean, 3),
-        round(top2_mean, 3),
-        round(precision_mean, 3),
-        round(recall_mean, 3),
-        round(roc_auc_mean, 3),
-    ]
+    data = [hp for hp in hyperparams]
+    data.extend([
+                    round(best_threshold_mean, 3),
+                    round(mcc_mean, 3),
+                    round(pr_auc_mean, 3),
+                    # round(top1_mean, 3),
+                    # round(top2_mean, 3),
+                    round(precision_mean, 3),
+                    round(recall_mean, 3),
+                    round(roc_auc_mean, 3),
+                ])
+    
+    header = hyperparams_var_name
+    header.extend([
+                    "OptThreshold",
+                    "MCC",
+                    "PRAUC",
+                    # "Top1",
+                    # "Top2",
+                    "Precision",
+                    "Recall",
+                    "ROCAUC",
+                ])
 
     if os.path.isfile(os.path.join(output_directory, results_file_name)) == False:
         with open(
@@ -386,22 +456,7 @@ def save_average(
             newline="",
         ) as f:
             writer = csv.writer(f)
-            writer.writerow(
-                [
-                    "Dimension of Hidden Layers",
-                    "Dropout",
-                    "Learning Rate",
-                    "Weight Decay",
-                    "Batch Size",
-                    "Optimal Threshold",
-                    "MCC",
-                    "Top1 Accuracy",
-                    "Top2 Accuracy",
-                    "Precision",
-                    "Recall",
-                    "ROC AUC Score",
-                ]
-            )
+            writer.writerow(header)
     with open(
         os.path.join(output_directory, results_file_name),
         "a",
@@ -419,19 +474,13 @@ def save_predict(
     opt_thresholds,
 ):
     # Compute binary labels (y_preds_bin) from SoM probabilities (y_preds)
-    y_preds_bin = {}
-    for threshold in opt_thresholds:
-        for key in y_preds:
-            for y_pred in y_preds[key]:
-                y_preds_bin.setdefault(key,[]).append(int(y_pred > threshold))
+    y_preds_bin = {key: [int(y_pred > threshold) for y_pred in preds] for key, preds in y_preds.items() for threshold in opt_thresholds}
 
     # Let the models in the ensemble classifier vote for the final binary label
-    y_preds_voted = {}
-    for key in y_preds_bin:
-        y_preds_voted[key] = Counter(y_preds_bin[key]).most_common()[0][0]
+    y_preds_voted = {key: Counter(preds).most_common(1)[0][0] for key, preds in y_preds_bin.items()}
 
     # Average SoM probability outputs
-    y_preds_avg = [sum(preds_list)/len(preds_list) for preds_list in y_preds.values()]
+    y_preds_avg = [mean(preds) for preds in y_preds.values()]
 
     # Average optimal thresholds
     opt_thresholds_avg = np.round(np.average(opt_thresholds), 2)
@@ -439,35 +488,35 @@ def save_predict(
     opt_thresholds_std = np.round(np.std(opt_thresholds), 2)
 
     # Compute top1 and top2 accuracies
-    mol_ids = np.unique([a for a,b in y_trues.keys()])
-    pred_top1 = []
-    pred_top2 = []
-    for mol_id in mol_ids: 
-        mask = [a == mol_id for a,b in y_trues.keys()]
-        idx = np.argpartition([y_preds_avg[i] for i, x in enumerate(mask) if x], -1)[-1:]
-        if [list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[0]]:
-            pred_top1.append(1)
-        else:
-            pred_top1.append(0)
-        idx = np.argpartition([y_preds_avg[i] for i, x in enumerate(mask) if x], -2)[-2:]
-        if ([list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[0]] or 
-            [list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[1]]):
-            pred_top2.append(1)
-        else:
-            pred_top2.append(0)
-    top1 = np.sum(pred_top1) / len(mol_ids)
-    top2 = np.sum(pred_top2) / len(mol_ids)
+    # mol_ids = np.unique([a for a,b in y_trues.keys()])
+    # pred_top1 = []
+    # pred_top2 = []
+    # for mol_id in mol_ids: 
+    #     mask = [a == mol_id for a,b in y_trues.keys()]
+    #     idx = np.argpartition([y_preds_avg[i] for i, x in enumerate(mask) if x], -1)[-1:]
+    #     if [list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[0]]:
+    #         pred_top1.append(1)
+    #     else:
+    #         pred_top1.append(0)
+    #     idx = np.argpartition([y_preds_avg[i] for i, x in enumerate(mask) if x], -2)[-2:]
+    #     if ([list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[0]] or 
+    #         [list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[1]]):
+    #         pred_top2.append(1)
+    #     else:
+    #         pred_top2.append(0)
+    # top1 = np.sum(pred_top1) / len(mol_ids)
+    # top2 = np.sum(pred_top2) / len(mol_ids)
 
     results = {}
     y_true=list(y_trues.values())
     y_pred=list(y_preds_voted.values())
-    results["MCC"] = matthews_corrcoef(y_true, y_pred)
-    results["Precision"] = precision_score(y_true, y_pred)
-    results["Recall"] = recall_score(y_true, y_pred)
-    results["Top1"] = top1
-    results["Top2"] = top2
-    results["Optimal Threshold Average"] = opt_thresholds_avg
-    results["Optimal Threshold Standard Deviation"] = opt_thresholds_std
+    results["mcc"] = round(matthews_corrcoef(y_true, y_pred),2)
+    results["precision"] = round(precision_score(y_true, y_pred),2)
+    results["recall"] = round(recall_score(y_true, y_pred),2)
+    # results["top1"] = round(top1,2)
+    # results["top2"] = round(top2,2)
+    results["optThresholdAvg"] = round(opt_thresholds_avg,2)
+    results["optThresholdStdev"] = round(opt_thresholds_std,2)
 
     with open(
         os.path.join(outdir, "results.txt"),
@@ -503,7 +552,6 @@ def save_predict(
             )
         )
         writer.writerows(rows)
-    f.close()
 
 
 def save_test(
@@ -539,7 +587,6 @@ def save_test(
             )
         )
         writer.writerows(rows)
-    f.close()
 
     row_metrics = [
         np.round(np.average(mccs), 2), 
@@ -572,9 +619,8 @@ def save_test(
         writer.writerow(
             (
             "metric", 
-            "averaged value", 
-            "standard deviation", 
+            "avg", 
+            "stdev", 
             )
         )
         writer.writerows(zip(metric_names, row_metrics, row_std))
-    f.close()

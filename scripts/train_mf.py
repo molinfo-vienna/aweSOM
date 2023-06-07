@@ -10,9 +10,9 @@ from sklearn.model_selection import KFold
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 
-from som_gnn.graph_neural_nets import GIN
-from som_gnn.pyg_dataset_creator import SOM
-from som_gnn.utils import (
+from awesom.graph_neural_nets import MF
+from awesom.pyg_dataset_creator import SOM
+from awesom.utils import (
     EarlyStopping,
     plot_losses,
     save_individual,
@@ -25,7 +25,7 @@ def run(
         dataset, 
         loss, 
         hdim, 
-        dropout, 
+        max_degree,
         epochs, 
         lr, 
         wd, 
@@ -34,6 +34,13 @@ def run(
         delta, 
         output_directory
     ):
+
+    hyperparams = [hdim,max_degree,lr,wd,bs]
+    hyperparams_var_name = ["DimensionHiddenLayers",
+                            "MaxDegree",
+                            "LearningRate",
+                            "WeightDecay",
+                            "BatchSize"]
 
     logging.info("Start training...")
 
@@ -46,29 +53,26 @@ def run(
 
     for fold_num, (train_index, val_index) in enumerate(kf.split(dataset)):
 
-        # Create results directory 
+        # Create results directory
+        hyperparams_dir = ""
+        for param in hyperparams:
+            if type(param) == float:
+                hyperparams_dir = hyperparams_dir + "_" + "{:.0e}".format(param)
+            else:
+                hyperparams_dir = hyperparams_dir + "_" + str(param)
         output_subdirectory = os.path.join(
             output_directory,
-            str(hdim)
-            + "_"
-            + "{:.0e}".format(dropout)
-            + "_"
-            + "{:.0e}".format(lr)
-            + "_"
-            + "{:.0e}".format(wd)
-            + "_"
-            + str(bs)
+            hyperparams_dir
             + "_"
             + str(fold_num)
         )
         os.mkdir(os.path.join(os.getcwd(), output_subdirectory))
 
         # Initialize model
-        model = GIN(
+        model = MF(
             in_dim=dataset.num_features, 
             hdim=hdim, 
-            edge_dim=dataset.num_edge_features, 
-            dropout=dropout, 
+            max_degree=max_degree, 
         ).to(device)
 
         # Split training and validation data for the current fold
@@ -122,30 +126,24 @@ def run(
             output_subdirectory,
             fold_num,
             "results.csv",
-            hdim,
-            dropout,
-            lr,
-            wd,
-            bs,
             final_num_epochs,
             val_loss.item(),
             y_pred[:, 0],
             y_true,
             mol_id,
             atom_id,
+            hyperparams,
+            hyperparams_var_name,
         )
 
     save_average(
         output_directory,
         "results_average.csv",
-        hdim,
-        dropout,
-        lr,
-        wd,
-        bs,
         y_preds,
         y_trues,
         mol_ids,
+        hyperparams,
+        hyperparams_var_name,
     )
 
     logging.info("Training sucessful!")
@@ -175,11 +173,11 @@ if __name__ == "__main__":
         required=True,
         help="The size of the hidden layers.",
     )
-    parser.add_argument("-do",
-        "--dropout",
-        type=float,
+    parser.add_argument("-md",
+        "--maxDegree",
+        type=int,
         required=True,
-        help="Dropout probability.",
+        help="The maximum node degree to consider when updating weights.",
     )
     parser.add_argument("-e",
         "--epochs",
@@ -290,7 +288,7 @@ if __name__ == "__main__":
         dataset,
         args.loss,
         args.dimensionHiddenLayers,
-        args.dropout,
+        args.maxDegree,
         args.epochs,
         args.learningRate,
         args.weightDecay,

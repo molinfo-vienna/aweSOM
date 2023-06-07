@@ -1,1 +1,0 @@
-import som_gnn

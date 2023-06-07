@@ -339,40 +339,6 @@ def generate_preprocessed_data(df, featuresCombination, num_workers=4):
     return G, mol_ids, atom_ids, labels, node_features
 
 
-# def generate_preprocessed_data(df, featuresCombination):
-#     """
-#     Generates the necessary preprocessed data from the input data.
-#     Args:
-#         df (pandas dataframe): input data
-#         featuresCombination (str): the desired featurization scheme
-#     Returns:
-#         G (NetworkX Graph): a molecular graph describing the entire input data
-#                             (individual molecules are processed as subgraphs of 
-#                             one big graph object)
-#         mol_ids (numpy array): an array with the molecular ID of each node in G
-#                                 (i.e. the molecule, to which each atom belongs to)
-#         atom_ids (numpy array): an array with the atom ID of each node in G
-#         labels (numpy array): an array with the SoM labels (0/1) of each node in G
-#         node_features (numpy array): a 2D array of dimension (number of nodes, 
-#                         number of node features)
-#     """
-
-#     # Generate networkx graphs from mols
-#     df["G"] = df.apply(lambda x: mol_to_nx(x.ID, x.ROMol, x.soms, featuresCombination), axis=1)
-#     G = nx.disjoint_union_all(df["G"].to_list())
-
-#     # Compute list of mol ids
-#     mol_ids = np.array([G.nodes[i]["mol_id"] for i in range(len(G.nodes))])
-#     # Compute list of atom ids
-#     atom_ids = np.array([G.nodes[i]["atom_id"] for i in range(len(G.nodes))])
-#     # Compute list of labels
-#     labels = np.array([int(G.nodes[i]["is_som"]) for i in range(len(G.nodes))])
-#     # Compute node features matrix
-#     node_features = compute_node_features_matrix(G)
-
-#     return G, mol_ids, atom_ids, labels, node_features
-
-
 def save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, dir):
     with open(os.path.join(dir, "graph.json"), "w") as f:
         f.write(json.dumps(nx.readwrite.json_graph.node_link_data(G)))

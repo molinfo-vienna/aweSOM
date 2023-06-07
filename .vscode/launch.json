@@ -18,8 +18,8 @@
             "program": "scripts/preprocess.py",
             "args": [
                 "-f", "data.sdf", 
-                "-d", "data/MetaTrans", 
-                "-s", "10", 
+                "-d", "data/BB", 
+                "-s", "0", 
                 "-fc", "FC3", 
                 "-v", "INFO"
             ],
@@ -27,24 +27,96 @@
             "justMyCode": true
         },
         {
-            "name": "Debug Train",
+            "name": "Debug Train GIN",
             "type": "python",
             "request": "launch",
-            "program": "scripts/train.py",
+            "program": "scripts/train_gin.py",
             "args": [
-                "-d", "data/MetaTrans/preprocessed/train", 
-                "-lf", "BCE",
-                "-hd", "256", 
+                "-d", "data/metaQSAR/preprocessed/train", 
+                "-lf", "focal",
+                "-hd", "64", 
                 "-do", "0.1", 
+                "-e", "1000", 
+                "-lr", "0.00001", 
+                "-wd", "0.00001", 
+                "-bs", "32", 
+                "-p", "20", 
+                "-dt", "0", 
+                "-o", "output/metaQSAR/gin/focal/train", 
+                "-hps", "False", 
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train GAT",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train_gat.py",
+            "args": [
+                "-d", "data/metaQSAR/preprocessed/train", 
+                "-lf", "BCE",
+                "-hd", "32", 
+                "-mha", "1",
+                "-ns", "0.2",
+                "-do", "0.1", 
+                "-e", "1000", 
+                "-lr", "0.0001", 
+                "-wd", "0.00001", 
+                "-bs", "64", 
+                "-p", "20", 
+                "-dt", "0", 
+                "-o", "output/metaQSAR/gat_test/bce/train", 
+                "-hps", "False", 
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train MF",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train_mf.py",
+            "args": [
+                "-d", "data/metaQSAR/preprocessed/train", 
+                "-lf", "BCE",
+                "-hd", "16", 
+                "-md", "10",
                 "-e", "1000", 
                 "-lr", "0.01", 
                 "-wd", "0.001", 
                 "-bs", "64", 
                 "-p", "20", 
                 "-dt", "0", 
-                "-o", "output/MetaTrans/exp/train", 
+                "-o", "output/metaQSAR/mf/bce/train", 
                 "-hps", "False", 
-                "-v", "DEBUG"
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train TF",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train_tf.py",
+            "args": [
+                "-d", "data/metaQSAR/preprocessed/train", 
+                "-lf", "BCE",
+                "-hd", "32", 
+                "-mha", "5",
+                "-do", "0.1", 
+                "-e", "1000", 
+                "-lr", "0.0001", 
+                "-wd", "0.00001", 
+                "-bs", "64", 
+                "-p", "20", 
+                "-dt", "0", 
+                "-o", "output/metaQSAR/tf/bce/train", 
+                "-hps", "False", 
+                "-v", "INFO"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
@@ -66,7 +138,7 @@
                 "-dt", "0", 
                 "-o", "output/metaQSAR/bce/finetune", 
                 "-hps", "True", 
-                "-v", "DEBUG"
+                "-v", "INFO"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
@@ -78,10 +150,11 @@
             "program": "scripts/test.py",
             "args": [
                 "-d", "data/metaQSAR/preprocessed/test", 
+                "-m", "TF",
                 "-lf", "BCE", 
-                "-m", "output/metaQSAR/bce/train", 
+                "-md", "output/metaQSAR/tf/bce/train", 
                 "-n", "5", 
-                "-o", "output/metaQSAR/bce/test/5", 
+                "-o", "output/metaQSAR/tf/bce/test/5", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",
@@ -94,10 +167,11 @@
             "program": "scripts/predict.py",
             "args": [
                 "-d", "data/metaQSAR/preprocessed/test", 
-                "-lf", "BCE", 
-                "-m", "output/MetaTrans/bce/train", 
+                "-m", "GATv2", 
+                "-lf", "focal", 
+                "-md", "output/metaQSAR/gatv2/focal/train", 
                 "-n", "5", 
-                "-o", "output/metaQSAR/bce/predict_from_MetaTrans/5", 
+                "-o", "output/metaQSAR/gatv2/focal/predict/5", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",

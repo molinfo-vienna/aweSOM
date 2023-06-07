@@ -1,13 +1,13 @@
 import argparse
 import logging
 import os
-import pandas as pd
 import shutil
 import sys
 import torch
 
 from operator import itemgetter
 from sklearn.model_selection import KFold
+from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 
@@ -15,9 +15,9 @@ from awesom.graph_neural_nets import GIN
 from awesom.pyg_dataset_creator import SOM
 from awesom.utils import (
     EarlyStopping,
-    plot_losses, 
-    save_individual, 
-    save_average, 
+    plot_losses,
+    save_individual,
+    save_average,
     seed_everything
 )
 
@@ -25,7 +25,8 @@ def run(
         device, 
         dataset, 
         loss, 
-        modelsDirectory, 
+        hdim, 
+        dropout, 
         epochs, 
         lr, 
         wd, 
@@ -35,16 +36,15 @@ def run(
         output_directory
     ):
 
+    hyperparams = [hdim,dropout,lr,wd,bs]
+    hyperparams_var_name = ["DimensionHiddenLayers",
+                            "Dropout",
+                            "LearningRate",
+                            "WeightDecay",
+                            "BatchSize"]
+
     logging.info("Start training...")
 
-    # Load info about all trained models (hyperparameters, performances, directories)
-    models_df = pd.read_csv(os.path.join(modelsDirectory, "results.csv"))
-    # Sort models according to MCC
-    models_df_ranked = models_df.sort_values(by=['MCC'], ascending=False)
-    # Save metadata of the best model
-    model_info = models_df_ranked.head(1).reset_index().to_dict()
-
-    # Start fine-tuning procedure...
     n_splits = 10
     kf = KFold(n_splits=n_splits, shuffle=False)
 
@@ -54,31 +54,28 @@ def run(
 
     for fold_num, (train_index, val_index) in enumerate(kf.split(dataset)):
 
-        # Create results directory 
+        # Create results directory
+        hyperparams_dir = ""
+        for param in hyperparams:
+            if type(param) == float:
+                hyperparams_dir = hyperparams_dir + "_" + "{:.0e}".format(param)
+            else:
+                hyperparams_dir = hyperparams_dir + "_" + str(param)
         output_subdirectory = os.path.join(
             output_directory,
-            str(model_info['Dimension of Hidden Layers'][0])
-            + "_"
-            + "{:.0e}".format(model_info['Dropout'][0])
-            + "_"
-            + "{:.0e}".format(lr)
-            + "_"
-            + "{:.0e}".format(wd)
-            + "_"
-            + str(bs)
+            hyperparams_dir
             + "_"
             + str(fold_num)
         )
         os.mkdir(os.path.join(os.getcwd(), output_subdirectory))
 
-        # Initialize and load the pretrained model
+        # Initialize model
         model = GIN(
-            in_dim=dataset.num_features,
-            hdim=model_info['Dimension of Hidden Layers'][0],
-            edge_dim=dataset.num_edge_features,
-            dropout=model_info['Dropout'][0],
+            in_dim=dataset.num_features, 
+            hdim=hdim, 
+            edge_dim=dataset.num_edge_features, 
+            dropout=dropout, 
         ).to(device)
-        model.load_state_dict(torch.load(os.path.join(model_info['Results Folder'][0], "model.pt")))
 
         # Split training and validation data for the current fold
         train_data = itemgetter(*train_index)(dataset)
@@ -92,8 +89,8 @@ def run(
 
         """ ---------- Train Model ---------- """
 
+        # tbwriter = SummaryWriter(log_dir=output_subdirectory)
         early_stopper = EarlyStopping(patience=patience, delta=delta, verbose=False)
-
         train_losses = []
         val_losses = []
         print('-' * 20)
@@ -105,6 +102,8 @@ def run(
             train_losses.append(train_loss.item())
             val_loss, _, _, _, _ = model.test(val_loader, loss, device)
             val_losses.append(val_loss.item())
+            # tbwriter.add_scalars("loss", {"train":train_loss.item(),
+            #                             "val":val_loss.item()}, epoch)
             early_stopper(val_loss)
             if early_stopper.early_stop:
                 break
@@ -127,34 +126,28 @@ def run(
         mol_ids[fold_num] = mol_id
 
         save_individual(
-            output_directory, 
-            output_subdirectory, 
-            fold_num, 
-            "results.csv", 
-            model_info['Dimension of Hidden Layers'][0], 
-            model_info['Dropout'][0], 
-            lr, 
-            wd, 
-            bs, 
-            final_num_epochs, 
-            val_loss.item(), 
-            y_pred[:, 0], 
-            y_true, 
-            mol_id, 
-            atom_id, 
+            output_directory,
+            output_subdirectory,
+            fold_num,
+            "results.csv",
+            final_num_epochs,
+            val_loss.item(),
+            y_pred[:, 0],
+            y_true,
+            mol_id,
+            atom_id,
+            hyperparams,
+            hyperparams_var_name,
         )
 
     save_average(
-        output_directory, 
-        "results_average.csv", 
-        model_info['Dimension of Hidden Layers'][0], 
-        model_info['Dropout'][0], 
-        lr, 
-        wd, 
-        bs, 
+        output_directory,
+        "results_average.csv",
         y_preds,
         y_trues,
         mol_ids,
+        hyperparams,
+        hyperparams_var_name,
     )
 
     logging.info("Training sucessful!")
@@ -178,36 +171,41 @@ if __name__ == "__main__":
         required=True,
         help="The loss function. Choose between \'BCE\', \'weighted_BCE\' and \'MCC_BCE\'.",    
     )
-    parser.add_argument("-m",
-        "--modelsDirectory",
-        type=str,
+    parser.add_argument("-hd",
+        "--dimensionHiddenLayers",
+        type=int,
         required=True,
-        help="The directory where the trained models and the csv file containing \
-            the trained models' hyperparameters and performance is stored.",
+        help="The size of the hidden layers.",
+    )
+    parser.add_argument("-do",
+        "--dropout",
+        type=float,
+        required=True,
+        help="Dropout probability.",
     )
     parser.add_argument("-e",
         "--epochs",
         type=int,
         required=True,
-        help="The maximum number of training epochs."
+        help="The maximum number of training epochs.",
     )
     parser.add_argument("-lr",
         "--learningRate",
         type=float,
         required=True,
-        help="Learning rate of the optimizer."
+        help="Learning rate of the optimizer.",
     )
     parser.add_argument("-wd",
         "--weightDecay",
         type=float,
         required=True,
-        help="Weight decay of the optimizer."
+        help="Weight decay of the optimizer.",
     )
     parser.add_argument("-bs",
         "--batchSize", 
         type=int,
         required=True,
-        help="Batch size."
+        help="Batch size.",
     )
     parser.add_argument("-p",
         "--patience",
@@ -215,7 +213,7 @@ if __name__ == "__main__":
         required=True,
         default=5,
         help="Early stopping: number of epochs with no improvement of the \
-                validation or test loss after which training will be stopped."
+                        validation or test loss after which training will be stopped.",
     )
     parser.add_argument("-dt",
         "--delta",
@@ -223,13 +221,13 @@ if __name__ == "__main__":
         required=True,
         default=5,
         help="Early stopping: minimum change in the monitored quantity to qualify as an improvement, \
-                i.e. an absolute change of less than delta will count as no improvement."
+                        i.e. an absolute change of less than delta will count as no improvement.",  
     )
     parser.add_argument("-o",
         "--outputDirectory",
         type=str,
         required=True,
-        help="The directory where the output is written."
+        help="The directory where the output is written."   
     )
     parser.add_argument("-hps",
         "--hyperParameterSearch",
@@ -290,17 +288,18 @@ if __name__ == "__main__":
 
     try:
         run(
-        device, 
-        dataset, 
-        args.loss, 
-        args.modelsDirectory, 
-        args.epochs, 
-        args.learningRate, 
-        args.weightDecay, 
-        args.batchSize, 
-        args.patience, 
-        args.delta, 
-        args.outputDirectory, 
+        device,
+        dataset,
+        args.loss,
+        args.dimensionHiddenLayers,
+        args.dropout,
+        args.epochs,
+        args.learningRate,
+        args.weightDecay,
+        args.batchSize,
+        args.patience,
+        args.delta,
+        args.outputDirectory,
         )
     except Exception as e:
         logging.error("Training was terminated:", e)
