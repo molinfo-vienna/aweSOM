@@ -150,11 +150,11 @@
             "program": "scripts/test.py",
             "args": [
                 "-d", "data/metaQSAR/preprocessed/test", 
-                "-m", "MF",
+                "-m", "TF",
                 "-lf", "BCE", 
-                "-md", "output/metaQSAR/mf/bce/train", 
+                "-md", "output/metaQSAR/tf/bce/train", 
                 "-n", "5", 
-                "-o", "output/metaQSAR/mf/bce/test/5", 
+                "-o", "output/metaQSAR/tf/bce/test/5", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",
@@ -168,10 +168,10 @@
             "args": [
                 "-d", "data/metaQSAR/preprocessed/test", 
                 "-m", "GATv2", 
-                "-lf", "BCE", 
-                "-md", "output/metaQSAR/gatv2/bce/train", 
+                "-lf", "focal", 
+                "-md", "output/metaQSAR/gatv2/focal/train", 
                 "-n", "5", 
-                "-o", "output/metaQSAR/gatv2/bce/predict/5", 
+                "-o", "output/metaQSAR/gatv2/focal/predict/5", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",

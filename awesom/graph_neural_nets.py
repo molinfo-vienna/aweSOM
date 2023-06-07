@@ -3,7 +3,10 @@ import torch
 from torch.nn import Sequential, Linear, BatchNorm1d, Dropout, LeakyReLU
 from torch_geometric.nn import GATConv, GATv2Conv, GINEConv, MFConv, TransformerConv, global_add_pool
 from sklearn.utils.class_weight import compute_class_weight
-from som_gnn.utils import MCC_BCE_Loss, weighted_BCE_Loss, FocalLoss
+
+from awesom.utils import MCC_BCE_Loss, weighted_BCE_Loss, FocalLoss
+
+__all__ = ["GAT", "Gatv2", "GIN", "GINNoPool", "MF", "TF"]
 
 
 class GAT(torch.nn.Module):

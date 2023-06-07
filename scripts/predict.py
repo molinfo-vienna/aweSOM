@@ -8,9 +8,9 @@ import torch
 
 from torch_geometric.loader import DataLoader
 
-from som_gnn.graph_neural_nets import GAT, GATv2, GIN, GINNoPool, MF
-from som_gnn.pyg_dataset_creator import SOM
-from som_gnn.utils import (
+from awesom.graph_neural_nets import GAT, GATv2, GIN, GINNoPool, MF, TF
+from awesom.pyg_dataset_creator import SOM
+from awesom.utils import (
     save_predict,
     seed_everything
 )
@@ -79,6 +79,14 @@ def run(
             hdim=best_models['DimensionHiddenLayers'][i],
             max_degree=best_models['MaxDegree'][i],
         ).to(device)
+        elif what_model == "TF":
+            model = TF(
+                in_dim=dataset.num_features, 
+                hdim=best_models['DimensionHiddenLayers'][i],
+                edge_dim=dataset.num_edge_features, 
+                heads=best_models['NumAttentionHeads'][i],
+                dropout=best_models['Dropout'][i],
+            ).to(device)
         else:
             raise NotImplementedError(f"Invalid model: {what_model}")
 
