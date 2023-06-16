@@ -1,1 +1,0 @@
-{"mcc": 0.56, "precision": 0.64, "recall": 0.59, "optThresholdAvg": 0.22, "optThresholdStdev": 0.08}

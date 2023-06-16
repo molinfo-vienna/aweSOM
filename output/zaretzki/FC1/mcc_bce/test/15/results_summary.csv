@@ -1,6 +1,0 @@
-metric,avg,stdev
-mcc,0.51,0.03
-precision,0.41,0.05
-recall,0.89,0.04
-top1,0.69,0.1
-top2,0.87,0.05
