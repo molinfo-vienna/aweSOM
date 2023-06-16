@@ -109,25 +109,17 @@ ENV/
 */_version.py
 
 # Data
-data/3A4/
-data/BB/
-data/BI/
-data/combo/
-data/metaQSAR/
-data/MetaTrans/
-data/misc/
+data/
 
 # Output
-output/3A4/
-output/BB/
-output/BI/
-output/combo/
-output/metaQSAR/
-output/MetaTrans/
-output/misc/
-output/zaretzki/
+output/
+
+# Optuna
+optuna/
+
+# Old stuff
+old/
 
 # Other
 *.json
 *.sh
-scripts/train_gatv2_optuna.py

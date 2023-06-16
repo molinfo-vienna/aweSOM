@@ -179,13 +179,12 @@ def generate_bond_features(bond):
               ]
            )
 
-def generate_node_features(atom, atm_ring_length, featuresCombination, molecular_features):
+def generate_node_features(atom, atm_ring_length, molecular_features):
     """
     Generates the node features for each atom
     Args:
         atom (RDKit Atom): atom for the features calculation
         atm_ring_length (int)
-        featuresCombination (str): the desiter featurizing scheme
         molecular_features (list of floats): a precomputed list of
             molecular features for the mol to which to function is
             applied to
@@ -201,38 +200,16 @@ def generate_node_features(atom, atm_ring_length, featuresCombination, molecular
                 "valence": _get_allowed_set(atom.GetTotalValence(), TOTAL_VALENCE), 
                 "molecular": molecular_features
     }
-
-    if featuresCombination == "FC1":
-        return features["atom_type"]
-    elif featuresCombination == "FC2":
-        return (features["atom_type"]
-                +features["formal_charge"]
-                +features["hybridization_state"]
-                +features["ring_size"]
-                +features["aromaticity"])
-    elif featuresCombination == "FC3":
-        return (features["atom_type"]
-                +features["formal_charge"]
-                +features["hybridization_state"]
-                +features["ring_size"]
-                +features["aromaticity"]
-                +features["degree"]
-                +features["valence"])
-    elif featuresCombination == "FC4":
-        return (features["atom_type"]
-                +features["formal_charge"]
-                +features["hybridization_state"]
-                +features["ring_size"]
-                +features["aromaticity"]
-                +features["degree"]
-                +features["valence"]
-                +features["molecular"])
-    else:
-        logging.error("Preprocessing was terminated: incorrect featurization scheme.")
-        sys.exit()
+    return (features["atom_type"]
+            +features["formal_charge"]
+            +features["hybridization_state"]
+            +features["ring_size"]
+            +features["aromaticity"]
+            +features["degree"]
+            +features["valence"])
 
 
-def mol_to_nx(mol_id, mol, soms, featuresCombination):
+def mol_to_nx(mol_id, mol, soms):
     """
     This function takes an RDKit Mol object as input and returns its corresponding 
     NetworkX graph with node and edge attributes.
@@ -242,7 +219,6 @@ def mol_to_nx(mol_id, mol, soms, featuresCombination):
         soms (list): a list of the indices of atoms that are SoMs (This is 
                     of course only relevant for training data. If there is no info
                     about which atom is a SoM, then the list is simply empty.)
-        featuresCombination (str): the desired featurizing scheme
     Returns:
         NetworkX Graph with node and edge attributes
     """
@@ -272,7 +248,7 @@ def mol_to_nx(mol_id, mol, soms, featuresCombination):
                              ] + _get_allowed_set(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
         G.add_node(
             atom_idx, # node identifier
-            node_features=generate_node_features(atom, atm_ring_length, featuresCombination, molecular_features),
+            node_features=generate_node_features(atom, atm_ring_length, molecular_features),
             is_som=(atom_idx in soms), # label
             # the next two elements are later used to assign the
             # predicted labels but are of course not used as features!
@@ -290,12 +266,12 @@ def mol_to_nx(mol_id, mol, soms, featuresCombination):
     return G
 
 
-def generate_preprocessed_data_chunk(df_chunk, featuresCombination):
+def generate_preprocessed_data_chunk(df_chunk):
     """
     Generates preprocessed data from a chunk of the input data.
     """
     # Generate networkx graphs from mols
-    df_chunk["G"] = df_chunk.apply(lambda x: mol_to_nx(x.ID, x.ROMol, x.soms, featuresCombination), axis=1)
+    df_chunk["G"] = df_chunk.apply(lambda x: mol_to_nx(x.ID, x.ROMol, x.soms), axis=1)
     G = nx.disjoint_union_all(df_chunk["G"].to_list())
     # Compute list of mol ids
     mol_ids = np.array([G.nodes[i]["mol_id"] for i in range(len(G.nodes))])
@@ -309,13 +285,12 @@ def generate_preprocessed_data_chunk(df_chunk, featuresCombination):
     return G, mol_ids, atom_ids, labels, node_features
 
 
-def generate_preprocessed_data(df, featuresCombination, num_workers=4):
+def generate_preprocessed_data(df, num_workers):
     """
     Generates the necessary preprocessed data from the input data using multiple workers.
     Args:
         df (pandas dataframe): input data
-        featuresCombination (str): the desired featurization scheme
-        num_workers (int): number of worker processes to use
+        numWorkers (int): number of worker processes to use
     Returns:
         G (NetworkX Graph): a molecular graph describing the entire input data
                             (individual molecules are processed as subgraphs of 
@@ -329,7 +304,7 @@ def generate_preprocessed_data(df, featuresCombination, num_workers=4):
     """
     chunks = np.array_split(df, num_workers)
     with Pool(num_workers) as p:
-        results = p.starmap(generate_preprocessed_data_chunk, [(chunk, featuresCombination) for chunk in chunks])
+        results = p.map(generate_preprocessed_data_chunk, chunks)
     G = nx.disjoint_union_all([result[0] for result in results])
     mol_ids = np.concatenate([result[1] for result in results])
     atom_ids = np.concatenate([result[2] for result in results])

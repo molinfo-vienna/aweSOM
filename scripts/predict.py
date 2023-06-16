@@ -8,109 +8,60 @@ import torch
 
 from torch_geometric.loader import DataLoader
 
-from awesom.graph_neural_nets import GAT, GATv2, GIN, GINNoPool, MF, TF
 from awesom.pyg_dataset_creator import SOM
-from awesom.utils import (
-    save_predict,
-    seed_everything
-)
+from awesom.utils import seed_everything, save_predict
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+BATCHSIZE = 64
 
 def run(
-    device,
     dataset,
-    what_model,
-    loss, 
     modelsDirectory, 
-    numModels, 
     outputDirectory, 
 ):
 
     print("Start predicting...")
     logging.info("Start predicting...")
 
-    y_preds = {}
-    y_trues = {}
+    targets = {}
+    predictions = {}
     opt_thresholds = []
-    # Load info about trained models (hyperparameters, performances, directories)
-    models_df = pd.read_csv(os.path.join(modelsDirectory, "results.csv"))
-    # Sort models according to MCC
-    models_df_ranked = models_df.sort_values(by=['MCC'], ascending=False)
-    # Save metadata of the n best models to dict
-    best_models = models_df_ranked.head(numModels).reset_index().to_dict()
-    
-    for i in range(len(best_models['ResultsFolder'])):
 
-        # Initialize model
-        if what_model == "GAT":
-            model = GAT(
-            in_dim=dataset.num_features, 
-            hdim=best_models['DimensionHiddenLayers'][i],
-            edge_dim=dataset.num_edge_features, 
-            heads=best_models['NumAttentionHeads'][i],
-            negative_slope=best_models['NegativeSlope'][i],
-            dropout=best_models['Dropout'][i],
-        ).to(device)
-        if what_model == "GATv2":
-            model = GATv2(
-            in_dim=dataset.num_features, 
-            hdim=best_models['DimensionHiddenLayers'][i],
-            edge_dim=dataset.num_edge_features, 
-            heads=best_models['NumAttentionHeads'][i],
-            negative_slope=best_models['NegativeSlope'][i],
-            dropout=best_models['Dropout'][i],
-        ).to(device)
-        elif what_model == "GIN":
-            model = GIN(
-                in_dim=dataset.num_features,
-                hdim=best_models['DimensionHiddenLayers'][i],
-                edge_dim=dataset.num_edge_features,
-                dropout=best_models['Dropout'][i],
-            ).to(device)
-        elif what_model == "GINNoPool":
-            model = GINNoPool(
-                in_dim=dataset.num_features,
-                hdim=best_models['DimensionHiddenLayers'][i],
-                edge_dim=dataset.num_edge_features,
-                dropout=best_models['Dropout'][i],
-            ).to(device)
-        elif what_model == "MF":
-            model = MF(
-            in_dim=dataset.num_features, 
-            hdim=best_models['DimensionHiddenLayers'][i],
-            max_degree=best_models['MaxDegree'][i],
-        ).to(device)
-        elif what_model == "TF":
-            model = TF(
-                in_dim=dataset.num_features, 
-                hdim=best_models['DimensionHiddenLayers'][i],
-                edge_dim=dataset.num_edge_features, 
-                heads=best_models['NumAttentionHeads'][i],
-                dropout=best_models['Dropout'][i],
-            ).to(device)
-        else:
-            raise NotImplementedError(f"Invalid model: {what_model}")
+    # Load data
+    loader = DataLoader(dataset, batch_size=BATCHSIZE, shuffle=True)
+
+    tmp = pd.read_csv(os.path.join(modelsDirectory, "results_individual.csv"))
+    
+    for i in range(len(tmp)):
 
         # Load saved model
-        model.load_state_dict(torch.load(os.path.join(best_models['ResultsFolder'][i], "model.pt")))
+        model = torch.load(os.path.join(os.path.join(modelsDirectory, str(i+1)), "model.pt"))
 
-        # Load data
-        loader = DataLoader(dataset, batch_size=best_models['BatchSize'][i], shuffle=True)
+        y_preds = []
+        y_trues = []
+        mol_ids = []
+        atom_ids = []
 
-        # Apply model to data
-        _, y_pred, mol_id, atom_id, y_true = model.test(loader, loss, device)
+        model.eval()
+        for data in loader:
+            data = data.to(DEVICE)
+            output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+            y_preds.extend(output[:,0].tolist())
+            y_trues.extend(data.y.tolist())
+            mol_ids.extend(data.mol_id.tolist())
+            atom_ids.extend(data.atom_id.tolist())
 
-        for index, molid_atomid_tuple in enumerate(zip(mol_id, atom_id)):
-            y_preds.setdefault(molid_atomid_tuple,[]).append(y_pred[:, 0][index])
-            y_trues[molid_atomid_tuple] = y_true[index]
+        for index, molid_atomid_tuple in enumerate(zip(mol_ids, atom_ids)):
+            predictions.setdefault(molid_atomid_tuple,[]).append(y_preds[index])
+            targets[molid_atomid_tuple] = y_trues[index]
         
-        opt_thresholds.append(best_models['OptThreshold'][i])
-        #opt_thresholds.append(0.5)
+        opt_thresholds.append(tmp['opt_threshold'][i])
     
     logging.info("Saving results...")
     save_predict(
-        outputDirectory, 
-        y_preds,
-        y_trues,
+        outputDirectory,
+        targets,
+        predictions,
         opt_thresholds,
     )
     
@@ -124,43 +75,24 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser("Predicting SoMs...")
 
-    parser.add_argument("-d",
-        "--dir",
+    parser.add_argument("-i",
+        "--inputDirectory",
         type=str,
         required=True,
         help="The directory where the input data is stored.",    
-    )
-    parser.add_argument("-m",
-        "--model",
-        type=str,
-        required=True,
-        help="The chosen model. Choose between \'GAT\', \'GIN\' and \'MF\'.",    
-    )
-    parser.add_argument("-lf",
-        "--loss",
-        type=str,
-        required=True,
-        help="The loss function. Choose between \'BCE\', \'weighted_BCE\' and \'MCC_BCE\'.",    
-    )
-    parser.add_argument("-md",
-        "--modelsDirectory",
-        type=str,
-        required=True,
-        help="The directory where the trained models and the csv file containing \
-            the trained models' hyperparameters and performance is stored.",
-    )
-    parser.add_argument("-n",
-        "--numModels",
-        type=int,
-        required=True,
-        help="The number of models to use for the ensemble classifier. \
-            E.g. 10 will get the 10 best models from all models stored in the modelsDirectory.",
     )
     parser.add_argument("-o",
         "--outputDirectory",
         type=str,
         required=True,
         help="The directory where the output will be written."   
+    )
+    parser.add_argument("-m",
+        "--modelsDirectory",
+        type=str,
+        required=True,
+        help="The directory where the trained models and the csv file containing \
+            the trained models' hyperparameters and performance is stored.",
     )
     parser.add_argument("-v",
         "--verbose",
@@ -185,11 +117,9 @@ if __name__ == "__main__":
                     level=getattr(logging, args.verbosityLevel), 
                     format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     # Create/Load Custom PyTorch Geometric Dataset
     logging.info("Loading data")
-    dataset = SOM(root=args.dir)
+    dataset = SOM(root=args.inputDirectory)
     logging.info("Data successfully loaded!")
 
     # Print dataset info
@@ -200,12 +130,8 @@ if __name__ == "__main__":
 
     try:
         run(
-        device, 
         dataset, 
-        args.model,
-        args.loss, 
         args.modelsDirectory, 
-        args.numModels, 
         args.outputDirectory, 
         )
     except Exception as e:
