@@ -383,7 +383,7 @@ if __name__ == "__main__":
         )
         test_loader = DataLoader(
             test_data,
-            batch_size=args.args.batchSize,
+            batch_size=args.batchSize,
             shuffle=True,
         )
 
