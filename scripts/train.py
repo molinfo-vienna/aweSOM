@@ -140,8 +140,11 @@ def objective(trial, train_loader, val_loader):
             preds = np.array(list(itertools.chain(*preds)))
 
             # Get best threshold
-            fpr, tpr, thresholds = roc_curve(targets, preds)
-            opt_threshold = thresholds[np.argmax(tpr - fpr)]
+            if args.loss == "weighted_BCE":
+                opt_threshold = 0.5
+            else:
+                fpr, tpr, thresholds = roc_curve(targets, preds)
+                opt_threshold = thresholds[np.argmax(tpr - fpr)]
             # Compute binary predictions from probability predictions with best threshold
             preds_binary = preds > opt_threshold
             # Compute evaluation metric
@@ -347,17 +350,42 @@ if __name__ == "__main__":
 
         logging.info("Retraining model with best hyperparameters ...")
         print("Retraining model with best hyperparameters ...")
-
-        # Generate the model
-        model = GATv2(in_channels=dataset.num_features, 
+    
+        if args.model == "GATv2":
+            model = GATv2(in_channels=dataset.num_features, 
+                        out_channels=best_trial.params["out_channels"], 
+                        edge_dim=dataset.num_edge_features, 
+                        heads=best_trial.params["heads"], 
+                        negative_slope=best_trial.params["negative_slope"], 
+                        dropout=best_trial.params["dropout"], 
+                        n_conv_layers=best_trial.params["n_conv_layers"],
+                        n_classifier_layers=best_trial.params["n_classify_layers"],
+                        size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
+        elif args.model == "GIN":
+            model = GIN(in_channels=dataset.num_features,  
+                        out_channels=best_trial.params["out_channels"], 
+                        edge_dim=dataset.num_edge_features, 
+                        dropout=best_trial.params["dropout"], 
+                        n_conv_layers=best_trial.params["n_conv_layers"],
+                        n_classifier_layers=best_trial.params["n_classify_layers"],
+                        size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
+        elif args.model == "MF":
+            model = MF(in_channels=dataset.num_features,  
+                    out_channels=best_trial.params["out_channels"], 
+                    max_degree=best_trial.params["max_degree"], 
+                    n_conv_layers=best_trial.params["n_conv_layers"],
+                    n_classifier_layers=best_trial.params["n_classify_layers"],
+                    size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
+        elif args.model == "TF":
+            model = TF(in_channels=dataset.num_features,  
                     out_channels=best_trial.params["out_channels"], 
                     edge_dim=dataset.num_edge_features, 
                     heads=best_trial.params["heads"], 
-                    negative_slope=best_trial.params["negative_slope"], 
                     dropout=best_trial.params["dropout"], 
                     n_conv_layers=best_trial.params["n_conv_layers"],
                     n_classifier_layers=best_trial.params["n_classify_layers"],
                     size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
+        else: raise NotImplementedError(f"Invalid model: {args.model}")
 
         # Generate the optimizer
         optimizer = torch.optim.Adam(model.parameters(), lr=best_trial.params["lr"])
@@ -485,8 +513,11 @@ if __name__ == "__main__":
         ## with predictions on test set
         auc_pr = average_precision_score(targets, preds)
         # Get best threshold
-        fpr, tpr, thresholds = roc_curve(targets, preds)
-        opt_threshold = thresholds[np.argmax(tpr - fpr)]
+        if args.loss == "weighted_BCE":
+            opt_threshold = 0.5
+        else:
+            fpr, tpr, thresholds = roc_curve(targets, preds)
+            opt_threshold = thresholds[np.argmax(tpr - fpr)]
         # Compute binary predictions from probability predictions with best threshold
         preds_binary = preds > opt_threshold
         # Compute metrics that require binary predictions
