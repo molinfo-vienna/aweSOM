@@ -19,9 +19,8 @@ def run(dir, file, numberWorkers, predict):
     Args:
         dir (string):       the directory where the input data is stored
         file (string):      the name of the data file (with file name extension)
-        datType (str):      the encoding of the input data (sdf, smiles or inchi)
-        predict (bool):     is the data for prediction purposes?
         numberWorker (int): the number of worker for parallelization
+        predict (bool):     is the data for prediction purposes?
     """
 
     if os.path.exists(os.path.join(dir, "preprocessed")):
