@@ -109,7 +109,12 @@ ENV/
 */_version.py
 
 # Data
-data/
+data/accelrys/
+data/capsaicin/
+data/combo/
+data/metaQSAR/
+data/nitrosopropylamine/
+data/propanol/
 
 # Output
 output/
