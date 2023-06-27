@@ -334,8 +334,9 @@ if __name__ == "__main__":
         logging.info("Searching for optimal hyperparameters...")
         study.optimize(objective_cv, n_trials=args.nTrials)
 
-        print("Best trial:")
         best_trial = study.best_trial
+
+        print("Best trial:")
         print("  Value: ", best_trial.value)
         logging.info(f"Best MCC for {fold_idx_ext+1}/{args.numExternalCVFolds}: {study.best_trial.value}")
         logging.info(f"Best hyperparameters fold {fold_idx_ext+1}/{args.numExternalCVFolds}:")
@@ -343,6 +344,11 @@ if __name__ == "__main__":
         for key, value in best_trial.params.items():
             print(f"    {key} {value}")
             logging.info(f"    {key} {value}")
+
+        with open(os.path.join(args.outputDirectory, str(fold_idx_ext+1) + "/info.txt"), "w") as f:
+            f.write(f"model {args.model}\n")
+            for key, value in best_trial.params.items():
+                f.write(f"{key} {value}\n")
 
         #####################################################################
         # retrain model with best hyperparameters and test model on test data
@@ -532,7 +538,7 @@ if __name__ == "__main__":
         auc_pr_list.append(auc_pr)
 
         # Save model
-        torch.save(model, os.path.join(args.outputDirectory, str(fold_idx_ext+1) + "/model.pt"))
+        torch.save(model.state_dict(), os.path.join(args.outputDirectory, str(fold_idx_ext+1) + "/model.pt"))
 
         # Save individual fold results
         with open(
