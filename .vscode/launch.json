@@ -11,78 +11,29 @@
             "console": "integratedTerminal",
             "justMyCode": true
         },
-        // {
-        //     "name": "Debug Preprocess",
-        //     "type": "python",
-        //     "request": "launch",
-        //     "program": "scripts/preprocess.py",
-        //     "args": [
-        //         "-f", "data.sdf", 
-        //         "-d", "data/misc/capsaicin", 
-        //         "-s", "100", 
-        //         "-fc", "FC3", 
-        //         "-nw", "1",
-        //         "-v", "INFO"
-        //     ],
-        //     "console": "integratedTerminal",
-        //     "justMyCode": true
-        // },
-        // {
-        //     "name": "Debug Test",
-        //     "type": "python",
-        //     "request": "launch",
-        //     "program": "scripts/test.py",
-        //     "args": [
-        //         "-d", "data/metaQSAR/preprocessed/test", 
-        //         "-m", "TF",
-        //         "-lf", "BCE", 
-        //         "-md", "output/metaQSAR/tf/bce/train", 
-        //         "-n", "5", 
-        //         "-o", "output/metaQSAR/tf/bce/test/5", 
-        //         "-v", "INFO"
-        //     ],
-        //     "console": "integratedTerminal",
-        //     "justMyCode": true
-        // },
-        // {
-        //     "name": "Debug Predict",
-        //     "type": "python",
-        //     "request": "launch",
-        //     "program": "scripts/predict.py",
-        //     "args": [
-        //         "-d", "data/misc/capsaicin/preprocessed/test", 
-        //         "-m", "GIN", 
-        //         "-lf", "MCC_BCE", 
-        //         "-md", "output/zaretzki/FC3/mcc_bce/train", 
-        //         "-n", "15", 
-        //         "-o", "output/misc/predict_capsaicin", 
-        //         "-v", "INFO"
-        //     ],
-        //     "console": "integratedTerminal",
-        //     "justMyCode": true
-        // },
         {
             "name": "Debug Preprocess",
             "type": "python",
             "request": "launch",
             "program": "scripts/preprocess.py",
             "args": [
-                "-f", "data.sdf", 
-                "-d", "data/metaQSAR", 
-                "-w", "8",
+                "-d", "data/nitrosopropylamine", 
+                "-f", "data.sdf",
+                "-w", "1",
+                "-p", "True",
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
         },
         {
-            "name": "Debug Train",
+            "name": "Debug Train GATv2",
             "type": "python",
             "request": "launch",
             "program": "scripts/train.py",
             "args": [
-                "-i", "data/zaretzki/preprocessed", 
-                "-o", "output/zaretzki/gatv2/bce", 
+                "-i", "data/combo/preprocessed", 
+                "-o", "output/combo/gatv2/bce", 
                 "-m", "GATv2",
                 "-l", "BCE",
                 "-b", "64",
@@ -116,14 +67,14 @@
             "justMyCode": true
         },
         {
-            "name": "Debug Train GAT metaQSAR",
+            "name": "Debug Train MF",
             "type": "python",
             "request": "launch",
             "program": "scripts/train.py",
             "args": [
-                "-i", "data/metaQSAR/preprocessed", 
-                "-o", "output/metaQSAR/gatv2/bce", 
-                "-m", "GATv2",
+                "-i", "data/zaretzki/preprocessed", 
+                "-o", "output/zaretzki/mf/bce", 
+                "-m", "MF",
                 "-l", "BCE",
                 "-b", "64",
                 "-e", "500",
@@ -136,14 +87,14 @@
             "justMyCode": true
         },
         {
-            "name": "Debug Train GIN metaQSAR",
+            "name": "Debug Train TF",
             "type": "python",
             "request": "launch",
             "program": "scripts/train.py",
             "args": [
-                "-i", "data/metaQSAR/preprocessed", 
-                "-o", "output/metaQSAR/gin/bce", 
-                "-m", "GIN",
+                "-i", "data/zaretzki/preprocessed", 
+                "-o", "output/zaretzki/tf/bce", 
+                "-m", "TF",
                 "-l", "BCE",
                 "-b", "64",
                 "-e", "500",
@@ -161,8 +112,8 @@
             "request": "launch",
             "program": "scripts/predict.py",
             "args": [
-                "-i", "data/capsaicin/preprocessed", 
-                "-o", "output/predict/capsaicin", 
+                "-i", "data/metaQSAR/preprocessed", 
+                "-o", "output/predict/metaQSAR/zaretzki/gatv2/bce", 
                 "-m", "output/zaretzki/gatv2/bce", 
                 "-v", "INFO"
             ],

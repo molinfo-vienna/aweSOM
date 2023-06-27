@@ -35,7 +35,7 @@ def run(
     for i in range(len(tmp)):
 
         # Load saved model
-        model = torch.load(os.path.join(os.path.join(modelsDirectory, str(i+1)), "model.pt"))
+        model = torch.load(os.path.join(os.path.join(modelsDirectory, str(i+1)), "model.pt"), map_location=DEVICE)
 
         y_preds = []
         y_trues = []
