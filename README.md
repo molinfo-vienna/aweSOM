@@ -23,67 +23,72 @@ A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (So
 
 ```conda activate awesom-env```
 
+4. Install awesom package with ```pip install -e .```
+
 ### Usage
 
 #### Dataset Generation
 
 To load new data for model training/testing and/or prediction purposes run the following:
 
-```python scripts/preprocess.py -f FILE.sdf -d DIRECTORY -s SPLIT -fc FEATURES_COMBINATION -v VERBOSE```
+```python scripts/preprocess.py -d DIRECTORY -f FILE.sdf -w NUMBER_WORKERS -p PREDICT -v VERBOSE```
 
-```FILE``` is the name of the data file. Only ```.sdf``` files are currently supported.
+```DIRECTORY``` is the directory where the unprocessed data is stored.
 
-```DIRECTORY``` is the directory under which the unprocessed data is stored.
+```FILE``` is the name of the data file. Only ```.sdf``` and ```.smiles``` files are currently supported.
 
-```SPLIT``` indicates the split ratio of training and test data. E.g. 20 means that 20% of the data will be stored as test data (recommended for training/testing purposes). We recommend setting ```SPLIT``` to 100 for predicting purposes, i.e. if you simply wish to apply the already trained model to your data.
+```WORKERS``` is the desired number of parallel workers. Please do not set this number higher than the number of molecules in the data file.
+
+```PREDICT``` (True/False) indicates whether the preprocessed data will be used for training or predicting purposes.
 
 ```VERBOSE``` should be set to the desired verbosity level, e.g. ```INFO```.
 
-```FEATURES_COMBINATION``` refers to the preferred featurization scheme, e.g., ```FC1```. A list of options is provided in ```fc.txt```.
-
-The output of the preprocessing steps will be written in the ```DIRECTORY/preprocessed/train/``` and ```DIRECTORY/preprocessed/test/``` folders. These folders will be automatically created when executing ```preprocess.py```.
+The output of the preprocessing steps will be written to ```DIRECTORY/preprocessed/```.
 
 #### Model Training
 
-To train a model with a specific set of hyperparameters run:
+Running the following will take preprocessed training data and run internal/external cross validation to determine the optimal hyperparameters with Optuna. The best model per external cross-validation fold will be saved in the corresponding subdirectory (model.pt), along with a text file (info.txt) holding the best hyperparameters and a plot of the validation and training losses during the final training phase (loss.png). Trained models can then be used to make predictions on preprocessed data.
 
-```python scripts/train_*.py -d DATA_DIRECTORY -lf LOSS_FUNCTION [HYPERPARAMETERS] -bs BATCH_SIZE -p PATIENCE -dt DELTA -o OUTPUT_DIRECTORY -hps HYPER_PARAMETER_SEARCH -v VERBOSE```
+```python scripts/train.py -i INPUT_DIRECTORY -o OUTPUT_DIRECTORY -m MODEL_TYPE -l LOSS_FUNCTION -b BATCH_SIZE -e EPOCHS -nt NUMBER_TRIALS -nif NUMBER_INTERNAL_FOLDS -nef NUMBER_EXTERNAL_FOLDS -v VERBOSE```
 
-Be carefull that the set of hyperparameters can be different accross models (GIN, GAT, TransformerConv etc.). Please refer to the docs.
+```INPUT_DIRECTORY``` is the directory where the preprocessed training data is stored.
 
-For example when training a GIN model with a specific set of hyperparameters DIMENSION_HIDDEN_LAYERS, DROPOUT, EPOCHS, LEARNING_RATE and WEIGHT_DECAY:
+```OUTPUT_DIRECTORY``` is the directory where the trained models and their metadata will be stored.
 
-```python scripts/train_gin.py -d data -lf BCE -hd 64 -do 0.2 -e 1000 -lr 0.001 -wd 0.0001 -bs 64 -p 20 -dt 0 -o output/gin/bce -hps False -v VERBOSE```
+Supported ```MODEL_TYPE``` include ```GIN```, ```GATv2```, ```MF``` and ```TF```.
 
-Supported loss functions inlcude ```BCE```, ```weighted_BCE```, ```MCC_BCE``` and ```focal```.
+GIN refers to PyTorch Geometric's GINEConv: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html#torch_geometric.nn.conv.GINEConv
 
-Set ```-hps``` to ```True``` when performing hyperparameter search via shell script. When ```True```, the prompt asking whether to append, overwrite or cancel if the output folder already exists is deactivated and the results are automatically appended.
+GATv2 refers to PyTorch Geometric's GATv2Conv: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html#torch_geometric.nn.conv.GATv2Conv
 
+MF refers to PyTorch Geometric's MFConv: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv
 
-#### Model Testing
+TF refers to PyTorch Geometric's TransformerConv: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.TransformerConv.html#torch_geometric.nn.conv.TransformerConv
 
-To test the performance of an ensemble classifier consisting of the *n* best trained models run:
+Supported ```LOSS_FUNCTION``` inlcude ```BCE```, ```weighted_BCE```, ```MCC_BCE``` and ```focal```.
 
-```python scripts/test.py -d DATA_DIRECTORY -m MODEL -lf LOSS_FUNCTION -md MODELS_DIRECTORY -n NUMBER_MODELS -o OUTPUT_DIRECTORY -v VERBOSE```
+```NUMBER_TRIALS``` is the desired number of Optuna trials. Recommended setting: 100.
 
-For example:
+```NUMBER_INTERNAL_FOLDS``` is the desired number of folds for the internal cross-validation. Recommended setting: 5.
 
-```python scripts/test.py -d data/preprocessed/test -m GIN -lf BCE -md output/train -n 10 -o output/test -v INFO```
+```NUMBER_EXTERNAL_FOLDS``` is the desired number of folds for the external cross-validation. Recommended setting: 5.
+
+```VERBOSE``` should be set to the desired verbosity level, e.g. ```INFO```.
+
+Example:
+
+```python scripts/train.py -i data/zaretzki -o data/zaretzki/gatv2/bce -m GATv2 -l BCE -b 64 -e 500 -nt 100 -nif 5 -nef 5 -v INFO```
 
 #### Predicting SoMs
 
-To predict the Sites of Metabolism of one or multiple molecules with an ensemble classifier consisting of the *n* best trained models run:
+To predict the Sites of Metabolism of one or multiple molecules run:
 
-```python scripts/predict.py -d DATA_DIRECTORY -m MODEL -lf LOSS_FUNCTION -md MODELS_DIRECTORY -n NUMBER_MODELS -o OUTPUT_DIRECTORY -v VERBOSE```
+```python scripts/predict.py -i INPUT_DIRECTORY o OUTPUT_DIRECTORY -m MODELs_DIRECTORY -v VERBOSE```
 
-For example:
+Example:
 
-```python scripts/predict.py -d data/preprocessed/test -m GIN -lf BCE -md output/train -n 10 -o output/predict -v INFO```
+```python scripts/predict.py -i data/capsaicin/preprocessed -o output/capsaicin/zaretzki/gatv2/bce -m models/zaretzki/gatv2/bce -v INFO```
 
 ### License
 
 This project is licensed under the MIT license.
-
-### Copyright
-
-Copyright (c) 2023, Roxane Jacob
