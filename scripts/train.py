@@ -341,8 +341,8 @@ if __name__ == "__main__":
         logging.info(f"Best hyperparameters fold {fold_idx_ext+1}/{args.numExternalCVFolds}:")
         print("  Params: ")
         for key, value in best_trial.params.items():
-            print(f"    {key}: {value}")
-            logging.info(f"    {key}: {value}")
+            print(f"    {key} {value}")
+            logging.info(f"    {key} {value}")
 
         #####################################################################
         # retrain model with best hyperparameters and test model on test data

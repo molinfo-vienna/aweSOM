@@ -8,6 +8,7 @@ import torch
 
 from torch_geometric.loader import DataLoader
 
+from awesom.graph_neural_nets import GATv2, GIN, MF, TF
 from awesom.pyg_dataset_creator import SOM
 from awesom.utils import seed_everything, save_predict
 
@@ -34,8 +35,54 @@ def run(
     
     for i in range(len(tmp)):
 
-        # Load saved model
-        model = torch.load(os.path.join(os.path.join(modelsDirectory, str(i+1)), "model.pt"), map_location=DEVICE)
+        # Read metadata
+        info = {}
+        with open(os.path.join(os.path.join(modelsDirectory, str(i+1)), "info.txt")) as f:
+            for line in f:
+                (key, val) = line.split()
+                if key == "model":
+                    info[key] = val
+                else:
+                    info[key] = float(val)
+
+        # Initialize model
+        if info["model"] == "GATv2":
+            model = GATv2(in_channels=dataset.num_features, 
+                          out_channels=int(info["out_channels"]), 
+                          edge_dim=dataset.num_edge_features, 
+                          heads=int(info["heads"]), 
+                          negative_slope=info["negative_slope"], 
+                          dropout=info["dropout"], 
+                          n_conv_layers=int(info["n_conv_layers"]),
+                          n_classifier_layers=int(info["n_classify_layers"]),
+                          size_classify_layers=int(info["size_classify_layers"])).to(DEVICE)
+        elif info["model"] == "GIN":
+            model = GIN(in_channels=dataset.num_features,  
+                        out_channels=int(info["out_channels"]), 
+                        edge_dim=dataset.num_edge_features, 
+                        dropout=info["dropout"], 
+                        n_conv_layers=int(info["n_conv_layers"]),
+                        n_classifier_layers=int(info["n_classify_layers"]),
+                        size_classify_layers=int(info["size_classify_layers"])).to(DEVICE)
+        elif info["model"] == "MF":
+            model = MF(in_channels=dataset.num_features,  
+                       out_channels=int(info["out_channels"]), 
+                       max_degree=int(info["max_degree"]), 
+                       n_conv_layers=int(info["n_conv_layers"]),
+                       n_classifier_layers=int(info["n_classify_layers"]),
+                       size_classify_layers=int(info["size_classify_layers"])).to(DEVICE)
+        elif info["model"] == "TF":
+            model = TF(in_channels=dataset.num_features,  
+                       out_channels=int(info["out_channels"]), 
+                       edge_dim=dataset.num_edge_features, 
+                       heads=int(info["heads"]), 
+                       dropout=info["dropout"], 
+                       n_conv_layers=int(info["n_conv_layers"]),
+                       n_classifier_layers=int(info["n_classify_layers"]),
+                       size_classify_layers=int(info["size_classify_layers"])).to(DEVICE)
+
+        # Load saved state dictionary
+        model.load_state_dict(torch.load(os.path.join(os.path.join(modelsDirectory, str(i+1)), "model.pt"), map_location=DEVICE))
 
         y_preds = []
         y_trues = []
