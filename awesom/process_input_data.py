@@ -8,6 +8,9 @@ import sys
 from multiprocessing import Pool
 from rdkit.Chem import rdMolDescriptors
 
+import CDPL.Chem as Chem
+import CDPL.MolProp as MolProp
+
 ELEM_LIST =[5, 6, 7, 8, 9, 14, 15, 16, 17, 34, 35, 53,"OTHER"]
 HYBRIDIZATION_TYPE = ["SP", 
                       "SP2", 
@@ -33,6 +36,66 @@ BOND_TYPE = ["UNSPECIFIED",
              "TRIPLE",
              "OTHER",
              ]
+
+def load_mol_input(dir: str, canonical_SMILES: bool) -> list(Chem.BasicMolecle):
+    """
+    loads the dataset based on either SDF or SMILES format.
+    Args:
+        dir (str): dir to file (incl filename)
+        canonical_SMILES (boolean): Generate canonical SMILES
+    Returns:
+        list (CDPKit Mol)
+        list (SMILES)
+    """
+    reader = _get_reader_by_file_extention(dir)
+
+    smiles = list()
+    mols = list()
+    try:
+        while True:
+            mol = Chem.BasicMolecule()
+
+            if not reader.read(mol):
+                break
+            
+            Chem.calcImplicitHydrogenCounts(mol, False)  # calculate implicit hydrogen counts and set corresponding property for all atoms
+            Chem.perceiveHybridizationStates(mol, False) # perceive atom hybridization states and set corresponding property for all atoms
+            Chem.perceiveSSSR(mol, False)                # perceive smallest set of smallest rings and store as Chem.MolecularGraph property
+            Chem.setRingFlags(mol, False)                # perceive cycles and set corresponding atom and bond properties
+            Chem.setAromaticityFlags(mol, False)         # perceive aromaticity and set corresponding atom and bond properties
+            Chem.makeHydrogenDeplete(mol)                # remove explicit hydrogens
+
+            smile = Chem.generateSMILES(mol, canonical_SMILES)       # True -> canonical SMILES
+            smiles.append(smile)
+
+    except Exception as e: # handle exception raised in case of severe read errors
+        sys.exit('Error: reading molecule failed: ' + str(e))
+
+    return mols,smiles
+
+
+
+def _get_reader_by_file_extention(dir: str) -> Chem.MoleculeReader:
+    """
+    PRIVATE METHOD
+    Get input handler for the format specified by the input file's extension
+    Args:
+        dir (str): dir to file including name
+    Returns:
+        object (CDPKit MoleculeReader)
+    """
+    name_and_ext = os.path.splitext(dir)
+
+    if name_and_ext[1] == '':
+        sys.exit('Error: could not determine molecule input file format (file extension missing)')
+
+    # get input handler for the format specified by the input file's extension
+    ipt_handler = Chem.MoleculeIOManager.getInputHandlerByFileExtension(name_and_ext[1][1:])
+
+    if not ipt_handler:
+        sys.exit('Error: unupported molecule input file format \'%s\'' % name_and_ext[1])
+    # create and return file reader instance
+    return ipt_handler.createReader(dir)
 
 
 def _get_allowed_set(x, allowable_set):
@@ -102,7 +165,7 @@ def generate_fraction_HBD(mol):
     return num_HBD / num_atoms
 
 
-def generate_fraction_element(mol, element):
+def generate_fraction_element(mol, element): #DONE
     """
     Computes the fraction of atoms corresponding to a specific element
     in the parsed molecule.
@@ -112,10 +175,10 @@ def generate_fraction_element(mol, element):
     Returns:
         int: the number of atoms corresponding to the parsed element
     """
-    return len([1 for a in mol.GetAtoms() if a.GetSymbol() == element]) / mol.GetNumAtoms()
+    return len([1 for a in mol.atoms() if Chem.getType(a) == element]) / mol.numAtoms()
 
 
-def generate_fraction_halogens(mol):
+def generate_fraction_halogens(mol): #DONE
     """
     Computes the fraction of halogens in the parsed molecule
     Args:
@@ -123,10 +186,10 @@ def generate_fraction_halogens(mol):
     Returns:
         int: the number of halogens
     """
-    return len([1 for a in mol.GetAtoms() if a.GetSymbol() in ["F", "Cl", "Br", "I"]]) / mol.GetNumAtoms()
+    return len([1 for a in mol.atoms() if Chem.getType(a) in ["F", "Cl", "Br", "I"]]) / mol.numAtoms()
 
 
-def generate_fraction_aromatics(mol):
+def generate_fraction_aromatics(mol): #DONE
     """
     Computes the fraction of aromatic atoms in the parsed molecule.
     Args:
@@ -134,8 +197,8 @@ def generate_fraction_aromatics(mol):
     Returns:
         float: the fraction of rotatable bond
     """
-    num_ar = len(mol.GetAromaticAtoms())
-    num_atoms = mol.GetNumAtoms()
+    num_ar = len(MolProp.getAromaticAtomCount(mol))
+    num_atoms = mol.numAtoms()
 
     if num_atoms == 0:
         return 0
@@ -225,16 +288,17 @@ def mol_to_nx(mol_id, mol, soms):
     G = nx.Graph()
 
     # Get ring info
-    rings = mol.GetRingInfo().AtomRings()
+    #rings = mol.GetRingInfo().AtomRings()
+    rings = Chem.getSSSR(mol)
 
     # Assign each atom its molecular and atomic features and make it a node of G
-    for atom_idx in range(mol.GetNumAtoms()):
+    for atom_idx in range(len(mol.atoms())):
         atom = mol.GetAtomWithIdx(atom_idx)
         atm_ring_length = 0
         if atom.IsInRing():
             for ring in rings:
                 if atom_idx in ring:
-                    atm_ring_length = len(ring)
+                    atm_ring_length = ring.numAtoms 
         # Compute molecular features here so that we don't do it again and again
         # for each atom in generate_node_features in case FC4 is called for.
         molecular_features = [float(generate_fraction_element(mol, "N")),
@@ -271,7 +335,7 @@ def generate_preprocessed_data_chunk(df_chunk):
     Generates preprocessed data from a chunk of the input data.
     """
     # Generate networkx graphs from mols
-    df_chunk["G"] = df_chunk.apply(lambda x: mol_to_nx(x.ID, x.ROMol, x.soms), axis=1)
+    df_chunk["G"] = df_chunk.apply(lambda x: mol_to_nx(x.ID, x.mol, x.soms), axis=1)
     G = nx.disjoint_union_all(df_chunk["G"].to_list())
     # Compute list of mol ids
     mol_ids = np.array([G.nodes[i]["mol_id"] for i in range(len(G.nodes))])

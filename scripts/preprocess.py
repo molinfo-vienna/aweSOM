@@ -6,10 +6,12 @@ import os
 import pandas as pd
 import shutil
 
+import CDPL.Chem as Chem
+
 from rdkit.Chem import PandasTools
 from torch_geometric import seed_everything
 
-from awesom.process_input_data import generate_preprocessed_data, save_preprocessed_data
+from awesom.process_input_data import generate_preprocessed_data, save_preprocessed_data, load_mol_input
 from awesom.utils import seed_everything
 
 def run(dir, file, numberWorkers, predict):
@@ -36,13 +38,20 @@ def run(dir, file, numberWorkers, predict):
 
     _, file_extension = os.path.splitext(file)
 
-    if file_extension == ".sdf":
-        df = PandasTools.LoadSDF(os.path.join(dir, file), removeHs=True)
-    elif file_extension == ".smiles":
-        df = pd.read_csv(os.path.join(dir, file), names=["smiles"]) 
-        PandasTools.AddMoleculeColumnToFrame(df, "smiles")
-    else: raise NotImplementedError(f"Invalid file extension: {file_extension}")
-    
+    ##### generate df
+    df = pd.DataFrame()
+    mol_list, smiles_list = load_mol_input(dir,True)
+    df['mol'] = mol_list
+    df['smiles'] = smiles_list
+
+    # replace 
+    # if file_extension == ".sdf":
+    #     df = PandasTools.LoadSDF(os.path.join(dir, file), removeHs=True)
+    # elif file_extension == ".smiles":
+    #     df = pd.read_csv(os.path.join(dir, file), names=["smiles"]) 
+    #     PandasTools.AddMoleculeColumnToFrame(df, "smiles")
+    # else: raise NotImplementedError(f"Invalid file extension: {file_extension}")
+        
     if predict:
         df["soms"] = "[0]"
 
@@ -63,54 +72,54 @@ if __name__ == "__main__":
     
     seed_everything(42)
     
-    parser = argparse.ArgumentParser("Preprocess the data.")
+    # parser = argparse.ArgumentParser("Preprocess the data.")
 
-    parser.add_argument("-d",
-        "--dir",
-        type=str,
-        required=True,
-        help="The directory where the input data is stored.",    
-    )
-    parser.add_argument("-f",
-        "--file",
-        type=str,
-        required=True,
-        help="The name of the input data file (with file name extension).\
-              The file can be either sdf or smiles. E.g., \"data.sdf\".",    
-    )
-    parser.add_argument("-w",
-        "--numberWorkers",
-        type=int,
-        required=True,
-        help="The number of parallel workers. Please note that -w should not \
-            be set to a number greater than the number of molecules in the data.",    
-    )
-    parser.add_argument("-p",
-        "--predict",
-        type=lambda x:bool(distutils.util.strtobool(x)),
-        required=True,
-        help="Set to False if the data serves as training data (known SoMs).\
-              Set to True if the purpose is to predict the SoMs.",    
-    )
-    parser.add_argument("-v",
-        "--verbose",
-        dest="verbosityLevel", 
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        default='INFO',
-        help="Set the verbosity level of the logger - default is on INFO."
-        )
+    # parser.add_argument("-d",
+    #     "--dir",
+    #     type=str,
+    #     required=True,
+    #     help="The directory where the input data is stored.",    
+    # )
+    # parser.add_argument("-f",
+    #     "--file",
+    #     type=str,
+    #     required=True,
+    #     help="The name of the input data file (with file name extension).\
+    #           The file can be either sdf or smiles. E.g., \"data.sdf\".",    
+    # )
+    # parser.add_argument("-w",
+    #     "--numberWorkers",
+    #     type=int,
+    #     required=True,
+    #     help="The number of parallel workers. Please note that -w should not \
+    #         be set to a number greater than the number of molecules in the data.",    
+    # )
+    # parser.add_argument("-p",
+    #     "--predict",
+    #     type=lambda x:bool(distutils.util.strtobool(x)),
+    #     required=True,
+    #     help="Set to False if the data serves as training data (known SoMs).\
+    #           Set to True if the purpose is to predict the SoMs.",    
+    # )
+    # parser.add_argument("-v",
+    #     "--verbose",
+    #     dest="verbosityLevel", 
+    #     choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+    #     default='INFO',
+    #     help="Set the verbosity level of the logger - default is on INFO."
+    #     )
 
-    args = parser.parse_args()
+    # args = parser.parse_args()
 
-    logging.basicConfig(filename= os.path.join(args.dir, 'logfile_preprocess.log'), 
-                    level=getattr(logging, args.verbosityLevel), 
-                    format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+    # logging.basicConfig(filename= os.path.join(args.dir, 'logfile_preprocess.log'), 
+    #                 level=getattr(logging, args.verbosityLevel), 
+    #                 format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 
-    try:
-        run(args.dir,
-            args.file, 
-            args.numberWorkers,
-            args.predict,
-            )
-    except Exception as e:
-        logging.error("The preprocess was terminated:", e)
+    # try:
+    #     run(args.dir,
+    #         args.file, 
+    #         args.numberWorkers,
+    #         args.predict,
+    #         )
+    # except Exception as e:
+    #     logging.error("The preprocess was terminated:", e)
