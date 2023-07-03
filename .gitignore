@@ -110,21 +110,21 @@ ENV/
 
 # Data
 data/accelrys/
-data/capsaicin/
 data/combo/
 data/metaQSAR/
 data/nitrosopropylamine/
-data/propanol/
+data/propanolol/
 
 # Output
 output/
 
-# Optuna
-optuna/
-
-# Old stuff
-old/
+# Models
+models/accelrys/
+models/combo/
+models/metaQSAR/
+models/zaretzki/
 
 # Other
 *.json
 *.sh
+*.db
