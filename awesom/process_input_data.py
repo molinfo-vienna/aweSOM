@@ -114,16 +114,16 @@ def _get_allowed_set(x, allowable_set):
     return list(map(lambda s: float(x == s), allowable_set))
 
 
-def generate_fraction_rotatable_bonds(mol):
+def generate_fraction_rotatable_bonds(mol): #DONE
     """
     Computes the fraction of rotatable bonds in the parsed molecule.
     Args:
-        mol (RDKit Mol): RDKit Mol object
+        mol (CDPKit Mol): CDPKit Mol object
     Returns:
         float: the fraction of rotatable bond
     """
-    num_rotatable_bonds = rdMolDescriptors.CalcNumRotatableBonds(mol)
-    num_bonds = mol.GetNumBonds()
+    num_rotatable_bonds = MolProp.getRotatableBondCount(mol)
+    num_bonds = mol.numAtoms()
 
     if num_bonds == 0:
         return 0
@@ -131,16 +131,16 @@ def generate_fraction_rotatable_bonds(mol):
     return num_rotatable_bonds / num_bonds
 
 
-def generate_fraction_HBA(mol):
+def generate_fraction_HBA(mol): #DONE
     """
     Computes the fraction of hydrogen bond acceptors in the parsed molecule.
     Args:
-        mol (RDKit Mol): RDKit Mol object
+        mol (CDPKit Mol): CDPKit Mol object
     Returns:
         float: the fraction of rotatable bond
     """
-    num_HBA = rdMolDescriptors.CalcNumHBA(mol)
-    num_atoms = mol.GetNumAtoms()
+    num_HBA = MolProp.getHBondAcceptorAtomCount(mol)
+    num_atoms = mol.numAtoms()
 
     if num_atoms == 0:
         return 0
@@ -148,16 +148,16 @@ def generate_fraction_HBA(mol):
     return num_HBA / num_atoms
 
 
-def generate_fraction_HBD(mol):
+def generate_fraction_HBD(mol): #DONE
     """
     Computes the fraction of hydrogen bond donors in the parsed molecule.
     Args:
-        mol (RDKit Mol): RDKit Mol object
+        mol (CDPKit Mol): CDPKit Mol object
     Returns:
         float: the fraction of rotatable bond
     """
-    num_HBD = rdMolDescriptors.CalcNumHBD(mol)
-    num_atoms = mol.GetNumAtoms()
+    num_HBD = MolProp.getHBondDonorAtomCount(mol)
+    num_atoms = mol.numAtoms()
 
     if num_atoms == 0:
         return 0
@@ -170,7 +170,7 @@ def generate_fraction_element(mol, element): #DONE
     Computes the fraction of atoms corresponding to a specific element
     in the parsed molecule.
     Args:
-        mol (RDKit Mol): RDKit Mol object
+        mol (CDPKit Mol): CDPKit Mol object
         element (string): the element to count
     Returns:
         int: the number of atoms corresponding to the parsed element
@@ -182,7 +182,7 @@ def generate_fraction_halogens(mol): #DONE
     """
     Computes the fraction of halogens in the parsed molecule
     Args:
-        mol (RDKit Mol): RDKit Mol object
+        mol (CDPKit Mol): CDPKit Mol object
     Returns:
         int: the number of halogens
     """
@@ -193,7 +193,7 @@ def generate_fraction_aromatics(mol): #DONE
     """
     Computes the fraction of aromatic atoms in the parsed molecule.
     Args:
-        mol (RDKit Mol): RDKit Mol object
+        mol (CDPKit Mol): CDPKit Mol object
     Returns:
         float: the fraction of rotatable bond
     """
@@ -206,7 +206,7 @@ def generate_fraction_aromatics(mol): #DONE
     return num_ar / num_atoms
 
 
-def compute_node_features_matrix(G):
+def compute_node_features_matrix(G): 
     """
     Takes as input a NetworkX Graph object (which already contains the
     features for each individual nodes) and extracts/returns its 
@@ -226,41 +226,43 @@ def compute_node_features_matrix(G):
     return node_features
 
 
-def generate_bond_features(bond):
+def generate_bond_features(bond,mol): #DONE
     """
     Generates the edge features for each bond
     Args:
-        bond (RDKit Bond): bond for the features calculation
+        bond (CDPKit Bond): bond for the features calculation
+        mol (CDPKit Molecule): The molecule the bonds are part of
     Returns:
         (list): one-hot encoded atom feature list
     """
-    return (_get_allowed_set(bond.GetBondTypeAsDouble(), BOND_TYPE)
-            + _get_allowed_set(bond.GetStereo(), BOND_STEREO)
-            + [float(bond.IsInRing()), 
-               float(bond.GetIsConjugated()), 
-               float(bond.GetIsAromatic())
+    return (_get_allowed_set(float(Chem.getOrder(bond)), BOND_TYPE) #TODO bond.GetBondTypeAsDouble() does not return BOND_TYPE!!!
+            + _get_allowed_set(Chem.calcBondStereoDescriptors(mol, False), BOND_STEREO)
+            + [float(Chem.getRingFlag(bond)), 
+               float(_is_conjugated(bond,mol)), 
+               float(Chem.getAromaticityFlag(bond))
               ]
            )
 
-def generate_node_features(atom, atm_ring_length, molecular_features):
+def generate_node_features(atom, atm_ring_length, molecular_features,mol): #DONE
     """
     Generates the node features for each atom
     Args:
-        atom (RDKit Atom): atom for the features calculation
+        atom (CDPKit Atom): atom for the features calculation
         atm_ring_length (int)
         molecular_features (list of floats): a precomputed list of
             molecular features for the mol to which to function is
             applied to
+        mol (CDPKit Molecule): molecule that is host of the atoms and used for the atom features calculations.
     Returns:
         (list): one-hot encoded atom feature list
     """
-    features = {"atom_type": _get_allowed_set(atom.GetAtomicNum(), ELEM_LIST),
-                "formal_charge": _get_allowed_set(atom.GetFormalCharge(), FORMAL_CHARGE), 
-                "hybridization_state": _get_allowed_set(str(atom.GetHybridization()), HYBRIDIZATION_TYPE), 
+    features = {"atom_type": _get_allowed_set(_get_atom_type(atom), ELEM_LIST),
+                "formal_charge": _get_allowed_set(_get_formal_charge(atom), FORMAL_CHARGE), 
+                "hybridization_state": _get_allowed_set(_get_hybridization_type(atom), HYBRIDIZATION_TYPE), 
                 "ring_size": _get_allowed_set(atm_ring_length, RING_SIZE), 
-                "aromaticity": list([float(atom.GetIsAromatic())]), 
-                "degree": _get_allowed_set(atom.GetTotalDegree(), TOTAL_DEGREE), 
-                "valence": _get_allowed_set(atom.GetTotalValence(), TOTAL_VALENCE), 
+                "aromaticity": list([float(Chem.getAromaticityFlag(atom))]), 
+                "degree": _get_allowed_set(_get_atom_degree(atom), TOTAL_DEGREE), 
+                "valence": _get_allowed_set(_get_atom_valence(atom,mol), TOTAL_VALENCE), 
                 "molecular": molecular_features
     }
     return (features["atom_type"]
@@ -272,13 +274,131 @@ def generate_node_features(atom, atm_ring_length, molecular_features):
             +features["valence"])
 
 
-def mol_to_nx(mol_id, mol, soms):
+def _get_hybridization_type(atom: Chem.Atom) -> int:
+    '''
+    PRIVATE method that takes an CDPKit atom as input and returns a str value
+    for the hybridization type of the atom as in HYBRIDIZATION_TYPE.
+    Args:
+        atom (CDPKit Atom): the atom to calculate the property
+    Returns:
+        form_chg (int): form_chg
+        form_chg (str): 'OTHER'
+    '''
+    hyb_state = Chem.getHybridizationState(atom)
+
+    if hyb_state == Chem.HybridizationState.SP1: 
+        hyb_state = 'SP'
+    elif hyb_state == Chem.HybridizationState.SP2:
+        hyb_state = 'SP2'
+    elif hyb_state == Chem.HybridizationState.SP3:
+        hyb_state = 'SP3'
+    else:
+        hyb_state = 'OTHER'
+    
+    return hyb_state
+
+def _get_atom_valence(atom: Chem.Atom, mol: Chem.BasicMolecule) -> int:
+    '''
+    PRIVATE method that takes an CDPKit atom as input and returns an int or str value ('OTHER')
+    for the valence of the atom.
+    A string value is returned when its another element than in the TOTAL_VALENCE.
+    Args:
+        atom (CDPKit Atom): the atom to calculate the property
+        mol (CDPKit Molecule): The molecule the atom is part of
+    Returns:
+        valence (int): degree
+        valence (str): 'OTHER'
+    '''
+    valence = MolProp.calcValence(atom, mol) # TS
+
+    if valence not in TOTAL_VALENCE:         # TS
+        valence = 'OTHER'
+    
+    return valence
+
+def _get_atom_degree(atom: Chem.Atom) -> int:
+    '''
+    PRIVATE method that takes an CDPKit atom as input and returns an int or str value ('OTHER')
+    for the total degree of the atom.
+    It includes hydrogens. MolProp.getHeavyBondCount(atom) reports degree without hydrogens.
+    A string value is returned when its another element than in the TOTAL_DEGREE.
+    Args:
+        atom (CDPKit Atom): the atom to calculate the property
+    Returns:
+        degree (int): degree
+        degree (str): 'OTHER'
+    '''
+    degree = MolProp.getBondCount(atom) # TS: degree including Hs! MolProp.getHeavyBondCount(atom) reports degree without Hs
+
+    if degree not in TOTAL_DEGREE:
+        degree = 'OTHER'
+    
+    return degree
+
+def _get_formal_charge(atom: Chem.Atom) -> int:
+    '''
+    PRIVATE method that takes an CDPKit atom as input and returns an int or str value ('OTHER')
+    for the formal charge of the atom. 
+    A string value is returned when its another element than in the FORMAL_CHARGE.
+    Args:
+        atom (CDPKit Atom): the atom to calculate the property
+    Returns:
+        form_chg (int): form_chg
+        form_chg (str): 'OTHER'
+    '''
+    form_chg = Chem.getFormalCharge(atom)
+
+    if form_chg not in FORMAL_CHARGE:
+        form_chg = 'OTHER'
+
+    return form_chg 
+
+def _get_atom_type(atom: Chem.Atom) -> int:
+    '''
+    PRIVATE method that takes an CDPKit atom as input and returns an int or str value ('OTHER')
+    for the atom type. 
+    A string value is returned when its another element than in the ELEM_LIST.
+    Args:
+        atom (CDPKit Atom): the atom to calculate the property
+    Returns:
+        atomic_no (int): atomic_no
+        atomic_no (str): 'OTHER'
+    '''
+    atomic_no = Chem.getType(atom)
+
+    if atomic_no not in ELEM_LIST:
+        atomic_no = 'OTHER'
+
+    return atomic_no 
+
+def _is_conjugated(bond: Chem.Bond, mol: Chem.BasicMolecule) -> bool:
+    '''
+    PRIVATE method that takes a Bond and returns a flag for conjugated bonds
+    Args:
+        bond (CDPKit Bond): the bond to calculate the property
+        mol (CDPKit Molecule): The molecule the bond is part of
+    Returns:
+        (Boolean): if conjugated (True) or not (False)
+    '''
+    elec_sys_list = Chem.perceivePiElectronSystems(mol)
+    is_conj = False                  
+        
+    for elec_sys in elec_sys_list:  
+        if elec_sys.numAtoms < 3:    
+            continue                 
+
+        if elec_sys.containsAtom(bond.getBegin()) and elec_sys.containsAtom(bond.getEnd()): 
+            is_conj = True
+            break
+    return is_conj
+
+def mol_to_nx(mol_id, mol, soms): #DONE
     """
-    This function takes an RDKit Mol object as input and returns its corresponding 
+    This function takes an CDPKit Mol object as input and returns its corresponding 
     NetworkX graph with node and edge attributes.
     Args:
         mol_id (int): the molecular ID of the parsed mol
-        mol (RDKit Mol): an RDKit Mol object
+        mol (CDPKit Mol): an CDPKit Mol object
         soms (list): a list of the indices of atoms that are SoMs (This is 
                     of course only relevant for training data. If there is no info
                     about which atom is a SoM, then the list is simply empty.)
@@ -312,7 +432,7 @@ def mol_to_nx(mol_id, mol, soms):
                              ] + _get_allowed_set(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
         G.add_node(
             atom_idx, # node identifier
-            node_features=generate_node_features(atom, atm_ring_length, molecular_features),
+            node_features=generate_node_features(atom, atm_ring_length, molecular_features,mol),
             is_som=(atom_idx in soms), # label
             # the next two elements are later used to assign the
             # predicted labels but are of course not used as features!
