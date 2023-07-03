@@ -21,7 +21,7 @@ from sklearn.utils.class_weight import compute_class_weight
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 
-from awesom.graph_neural_nets import GATv2, GIN, MF, TF
+from awesom.graph_neural_nets import GATv2, GIN, GINNA, GINPlus, GINE, GINENA, GINEPlus, MF, TF
 from awesom.pyg_dataset_creator import SOM
 from awesom.utils import (
     MCC_BCE_Loss, 
@@ -38,8 +38,8 @@ DELTA = 0
 
 def objective(trial, train_loader, val_loader):
 
-    n_conv_layers = trial.suggest_int("n_conv_layers", 1, 5)
     out_channels = trial.suggest_int("out_channels", 8, 256)
+    n_conv_layers = trial.suggest_int("n_conv_layers", 1, 5)
     n_classify_layers = trial.suggest_int("n_classify_layers", 1, 3)
     size_classify_layers = trial.suggest_int("size_classify_layers", 8, 256)
     
@@ -60,9 +60,55 @@ def objective(trial, train_loader, val_loader):
         dropout = trial.suggest_float("dropout", 0.1, 0.5)
         model = GIN(in_channels=dataset.num_features,  
                     out_channels=out_channels, 
+                    dropout=dropout, 
+                    n_conv_layers=n_conv_layers,
+                    n_classifier_layers=n_classify_layers,
+                    size_classify_layers=size_classify_layers).to(DEVICE)
+    elif args.model == "GINNA":
+        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        model = GINNA(in_channels=dataset.num_features,  
+                      out_channels=out_channels, 
+                      dropout=dropout, 
+                      n_conv_layers=n_conv_layers,
+                      n_classifier_layers=n_classify_layers,
+                      size_classify_layers=size_classify_layers).to(DEVICE)
+    elif args.model == "GIN+":
+        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        depth_conv_layers = trial.suggest_int("depth_conv_layers", 1, 5)
+        model = GINPlus(in_channels=dataset.num_features,  
+                        out_channels=out_channels, 
+                        dropout=dropout, 
+                        n_conv_layers=n_conv_layers,
+                        depth_conv_layers=depth_conv_layers,
+                        n_classifier_layers=n_classify_layers,
+                        size_classify_layers=size_classify_layers).to(DEVICE) 
+    elif args.model == "GINE":
+        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        model = GINE(in_channels=dataset.num_features,  
+                    out_channels=out_channels, 
                     edge_dim=dataset.num_edge_features, 
                     dropout=dropout, 
                     n_conv_layers=n_conv_layers,
+                    n_classifier_layers=n_classify_layers,
+                    size_classify_layers=size_classify_layers).to(DEVICE)
+    elif args.model == "GINENA":
+        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        model = GINENA(in_channels=dataset.num_features,  
+                    out_channels=out_channels, 
+                    edge_dim=dataset.num_edge_features, 
+                    dropout=dropout, 
+                    n_conv_layers=n_conv_layers,
+                    n_classifier_layers=n_classify_layers,
+                    size_classify_layers=size_classify_layers).to(DEVICE)       
+    elif args.model == "GINE+":
+        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        depth_conv_layers = trial.suggest_int("depth_conv_layers", 1, 5)
+        model = GINEPlus(in_channels=dataset.num_features,  
+                    out_channels=out_channels, 
+                    edge_dim=dataset.num_edge_features, 
+                    dropout=dropout, 
+                    n_conv_layers=n_conv_layers,
+                    depth_conv_layers=depth_conv_layers,
                     n_classifier_layers=n_classify_layers,
                     size_classify_layers=size_classify_layers).to(DEVICE)
     elif args.model == "MF":
@@ -98,7 +144,10 @@ def objective(trial, train_loader, val_loader):
         model.train()
         for data in train_loader:
             data = data.to(DEVICE)
-            output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+            if args.model in {"GIN", "GINNA", "GIN+"}:
+                output = model(data.x, data.edge_index, data.batch)
+            else:
+                output = model(data.x, data.edge_index, data.edge_attr, data.batch)
             if args.loss == "weighted_BCE":
                 class_weights = compute_class_weight(class_weight='balanced', 
                                                      classes=np.unique(data.y.cpu()), 
@@ -121,7 +170,10 @@ def objective(trial, train_loader, val_loader):
             preds = []
             for data in val_loader:
                 data = data.to(DEVICE)
-                output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+                if args.model in {"GIN", "GINNA", "GIN+"}:
+                    output = model(data.x, data.edge_index, data.batch)
+                else:
+                    output = model(data.x, data.edge_index, data.edge_attr, data.batch)
                 if args.loss == "weighted_BCE":
                     class_weights = compute_class_weight(class_weight='balanced', 
                                                          classes=np.unique(data.y.cpu()), 
@@ -370,9 +422,48 @@ if __name__ == "__main__":
         elif args.model == "GIN":
             model = GIN(in_channels=dataset.num_features,  
                         out_channels=best_trial.params["out_channels"], 
+                        dropout=best_trial.params["dropout"], 
+                        n_conv_layers=best_trial.params["n_conv_layers"],
+                        n_classifier_layers=best_trial.params["n_classify_layers"],
+                        size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
+        elif args.model == "GINNA":
+            model = GINNA(in_channels=dataset.num_features,  
+                          out_channels=best_trial.params["out_channels"], 
+                          dropout=best_trial.params["dropout"], 
+                          n_conv_layers=best_trial.params["n_conv_layers"],
+                          n_classifier_layers=best_trial.params["n_classify_layers"],
+                          size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
+        elif args.model == "GIN+":
+            model = GINPlus(in_channels=dataset.num_features,  
+                            out_channels=best_trial.params["out_channels"], 
+                            dropout=best_trial.params["dropout"], 
+                            n_conv_layers=best_trial.params["n_conv_layers"],
+                            depth_conv_layers=best_trial.params["depth_conv_layers"],
+                            n_classifier_layers=best_trial.params["n_classify_layers"],
+                            size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
+        elif args.model == "GINE":
+            model = GINE(in_channels=dataset.num_features,  
+                        out_channels=best_trial.params["out_channels"], 
                         edge_dim=dataset.num_edge_features, 
                         dropout=best_trial.params["dropout"], 
                         n_conv_layers=best_trial.params["n_conv_layers"],
+                        n_classifier_layers=best_trial.params["n_classify_layers"],
+                        size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
+        elif args.model == "GINENA":
+            model = GINENA(in_channels=dataset.num_features,  
+                        out_channels=best_trial.params["out_channels"], 
+                        edge_dim=dataset.num_edge_features, 
+                        dropout=best_trial.params["dropout"], 
+                        n_conv_layers=best_trial.params["n_conv_layers"],
+                        n_classifier_layers=best_trial.params["n_classify_layers"],
+                        size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE) 
+        elif args.model == "GINE+":
+            model = GINEPlus(in_channels=dataset.num_features,  
+                        out_channels=best_trial.params["out_channels"], 
+                        edge_dim=dataset.num_edge_features, 
+                        dropout=best_trial.params["dropout"], 
+                        n_conv_layers=best_trial.params["n_conv_layers"],
+                        depth_conv_layers=best_trial.params["depth_conv_layers"],
                         n_classifier_layers=best_trial.params["n_classify_layers"],
                         size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
         elif args.model == "MF":
@@ -434,7 +525,10 @@ if __name__ == "__main__":
             num_training_samples = 0
             for data in train_loader:
                 data = data.to(DEVICE)
-                output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+                if args.model in {"GIN", "GINNA", "GIN+"}:
+                    output = model(data.x, data.edge_index, data.batch)
+                else:
+                    output = model(data.x, data.edge_index, data.edge_attr, data.batch)
                 if args.loss == "weighted_BCE":
                     class_weights = compute_class_weight(class_weight='balanced', 
                                                         classes=np.unique(data.y.cpu()), 
@@ -459,7 +553,10 @@ if __name__ == "__main__":
                 num_validation_samples = 0
                 for data in val_loader:
                     data = data.to(DEVICE)
-                    output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+                    if args.model in {"GIN", "GINNA", "GIN+"}:
+                        output = model(data.x, data.edge_index, data.batch)
+                    else:
+                        output = model(data.x, data.edge_index, data.edge_attr, data.batch)
                     if args.loss == "weighted_BCE":
                         class_weights = compute_class_weight(class_weight='balanced', 
                                                             classes=np.unique(data.y.cpu()), 
@@ -509,7 +606,10 @@ if __name__ == "__main__":
             preds = []
             for data in test_loader:
                 data = data.to(DEVICE)
-                output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+                if args.model in {"GIN", "GINNA", "GIN+"}:
+                    output = model(data.x, data.edge_index, data.batch)
+                else:
+                    output = model(data.x, data.edge_index, data.edge_attr, data.batch)
                 targets.extend(data.y.tolist())
                 preds.extend(output.tolist())
             targets = np.array(targets)
