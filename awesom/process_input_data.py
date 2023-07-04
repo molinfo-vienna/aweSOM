@@ -1,5 +1,4 @@
 import json
-import logging
 import networkx as nx
 import numpy as np
 import os
@@ -37,7 +36,8 @@ BOND_TYPE = ["UNSPECIFIED",
              "OTHER",
              ]
 
-def load_mol_input(dir: str, canonical_SMILES: bool = True) -> list(Chem.BasicMolecle):
+
+def load_mol_input(dir: str, canonical_SMILES: bool = True):
     """
     loads the dataset based on either SDF or SMILES format.
     Args:
@@ -71,8 +71,7 @@ def load_mol_input(dir: str, canonical_SMILES: bool = True) -> list(Chem.BasicMo
     except Exception as e: # handle exception raised in case of severe read errors
         sys.exit('Error: reading molecule failed: ' + str(e))
 
-    return mols,smiles
-
+    return mols, smiles
 
 
 def _get_reader_by_file_extention(dir: str) -> Chem.MoleculeReader:
@@ -635,18 +634,19 @@ def mol_to_nx_RDKit(mol_id, mol, soms):
         )
     return G
 
-def generate_preprocessed_data_chunk(df_chunks):
+def generate_preprocessed_data_chunk(chunk, kit):
     """
     Generates preprocessed data from a chunk of the input data.
     """
-    # Generate networkx graphs from mols
-    df_chunk = df_chunks[0]
 
-    if df_chunks[1]:
-        df_chunk["G"] = df_chunk.apply(lambda x: mol_to_nx_RDKit(x.ID, x.mol, x.soms), axis=1)
-    else:
-        df_chunk["G"] = df_chunk.apply(lambda x: mol_to_nx(x.ID, x.mol, x.soms), axis=1)
-    G = nx.disjoint_union_all(df_chunk["G"].to_list())
+    # Generate networkx graphs from mols
+    if kit == "RDKit":
+        chunk["G"] = chunk.apply(lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms), axis=1)
+    elif kit == "CDPKit":
+        chunk["G"] = chunk.apply(lambda x: mol_to_nx(x.ID, x.ROMol, x.soms), axis=1)
+    else: raise NotImplementedError(f"Invalid kit: {kit}")
+    G = nx.disjoint_union_all(chunk["G"].to_list())
+
     # Compute list of mol ids
     mol_ids = np.array([G.nodes[i]["mol_id"] for i in range(len(G.nodes))])
     # Compute list of atom ids
@@ -659,12 +659,13 @@ def generate_preprocessed_data_chunk(df_chunks):
     return G, mol_ids, atom_ids, labels, node_features
 
 
-def generate_preprocessed_data(df, num_workers, RD):
+def generate_preprocessed_data(df, num_workers, kit):
     """
     Generates the necessary preprocessed data from the input data using multiple workers.
     Args:
         df (pandas dataframe): input data
-        numWorkers (int): number of worker processes to use
+        numWorkers (int):      number of worker processes to use
+        kit (string):          the desired toolkit (RDKit or CDPKit)
     Returns:
         G (NetworkX Graph): a molecular graph describing the entire input data
                             (individual molecules are processed as subgraphs of 
@@ -675,11 +676,11 @@ def generate_preprocessed_data(df, num_workers, RD):
         labels (numpy array): an array with the SoM labels (0/1) of each node in G
         node_features (numpy array): a 2D array of dimension (number of nodes, 
                         number of node features)
-        RD (bool): If the calculations should be done via RDKit or CDPKit (default)
     """
     chunks = np.array_split(df, num_workers)
+    kit_ = [kit for _ in range(num_workers)]
     with Pool(num_workers) as p:
-        results = p.map(generate_preprocessed_data_chunk, (chunks,RD)) #TODO
+        results = p.starmap(generate_preprocessed_data_chunk, zip(chunks, kit_))
     G = nx.disjoint_union_all([result[0] for result in results])
     mol_ids = np.concatenate([result[1] for result in results])
     atom_ids = np.concatenate([result[2] for result in results])

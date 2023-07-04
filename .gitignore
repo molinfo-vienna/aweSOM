@@ -109,17 +109,22 @@ ENV/
 */_version.py
 
 # Data
-data/
+data/accelrys/
+data/combo/
+data/metaQSAR/
+data/nitrosopropylamine/
+data/propanolol/
 
 # Output
 output/
 
-# Optuna
-optuna/
-
-# Old stuff
-old/
+# Models
+models/accelrys/
+models/combo/
+models/metaQSAR/
+models/zaretzki/
 
 # Other
 *.json
 *.sh
+*.db
