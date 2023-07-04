@@ -37,12 +37,12 @@ BOND_TYPE = ["UNSPECIFIED",
              "OTHER",
              ]
 
-def load_mol_input(dir: str, canonical_SMILES: bool) -> list(Chem.BasicMolecle):
+def load_mol_input(dir: str, canonical_SMILES: bool = True) -> list(Chem.BasicMolecle):
     """
     loads the dataset based on either SDF or SMILES format.
     Args:
         dir (str): dir to file (incl filename)
-        canonical_SMILES (boolean): Generate canonical SMILES
+        canonical_SMILES (boolean): Generate canonical SMILES - default True
     Returns:
         list (CDPKit Mol)
         list (SMILES)
@@ -439,9 +439,9 @@ def _get_atom_valence(atom: Chem.Atom, mol: Chem.BasicMolecule) -> int:
         valence (int): degree
         valence (str): 'OTHER'
     '''
-    valence = MolProp.calcValence(atom, mol) # TS
+    valence = MolProp.calcValence(atom, mol)
 
-    if valence not in TOTAL_VALENCE:         # TS
+    if valence not in TOTAL_VALENCE:
         valence = 'OTHER'
     
     return valence
@@ -458,7 +458,7 @@ def _get_atom_degree(atom: Chem.Atom) -> int:
         degree (int): degree
         degree (str): 'OTHER'
     '''
-    degree = MolProp.getBondCount(atom) # TS: degree including Hs! MolProp.getHeavyBondCount(atom) reports degree without Hs
+    degree = MolProp.getBondCount(atom)
 
     if degree not in TOTAL_DEGREE:
         degree = 'OTHER'
@@ -679,7 +679,7 @@ def generate_preprocessed_data(df, num_workers, RD):
     """
     chunks = np.array_split(df, num_workers)
     with Pool(num_workers) as p:
-        results = p.map(generate_preprocessed_data_chunk, (chunks,RD))
+        results = p.map(generate_preprocessed_data_chunk, (chunks,RD)) #TODO
     G = nx.disjoint_union_all([result[0] for result in results])
     mol_ids = np.concatenate([result[1] for result in results])
     atom_ids = np.concatenate([result[2] for result in results])

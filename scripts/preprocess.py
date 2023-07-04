@@ -14,7 +14,7 @@ from torch_geometric import seed_everything
 from awesom.process_input_data import generate_preprocessed_data, save_preprocessed_data, load_mol_input
 from awesom.utils import seed_everything
 
-def run(dir, file, numberWorkers, predict,RD=False):
+def run(dir, file, numberWorkers, predict, RD=False):
     """Computes and saves the necessary data (graph, features, labels, graph_ids)
     to create a PyTorch Geometric custom dataset from an SDF file containing molecules.
 
@@ -50,7 +50,7 @@ def run(dir, file, numberWorkers, predict,RD=False):
         else: raise NotImplementedError(f"Invalid file extension: {file_extension}")
     else:
         df = pd.DataFrame()
-        mol_list, smiles_list = load_mol_input(dir,True)
+        mol_list, smiles_list = load_mol_input(str(os.path.join(dir, file)),True)
         df['mol'] = mol_list
         df['smiles'] = smiles_list
         
