@@ -9,7 +9,7 @@ import shutil
 from rdkit.Chem import PandasTools
 from torch_geometric import seed_everything
 
-from awesom.process_input_data import generate_preprocessed_data, save_preprocessed_data, load_mol_input
+from awesom.process_input_data import generate_preprocessed_data,generate_preprocessed_data_RDKit,save_preprocessed_data, load_mol_input, get_file_length
 from awesom.utils import seed_everything
 
 def run(dir, file, kit, numberWorkers, trueSoms):
@@ -47,28 +47,33 @@ def run(dir, file, kit, numberWorkers, trueSoms):
             df = pd.read_csv(os.path.join(dir, file), names=["smiles"]) 
             PandasTools.AddMoleculeColumnToFrame(df, "smiles")
         else: raise NotImplementedError(f"Invalid file extension: {file_extension}")
+        if trueSoms == False:
+            df["soms"] = "[0]"
+
+        df["soms"] = df["soms"].map(ast.literal_eval)
+        df["ID"] = df.index
+        
+        print("Preprocessing... This can take a few minutes.")
+        logging.info("START preprocessing")
+
+        G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data_RDKit(df, numberWorkers, kit)
+        logging.info("Saving preprocessed test set...")
+        save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, os.path.join(dir, "preprocessed"))
+
+        print("Preprocessing sucessful!")
+        logging.info("END preprocessing")
     elif kit == "CDPKit":
-        df = pd.DataFrame()
-        mol_list, smiles_list = load_mol_input(str(os.path.join(dir, file)), True)
-        df['mol'] = mol_list
-        df['smiles'] = smiles_list
+
+        ### generate a function that reads the indices
+        file_length = get_file_length(str(os.path.join(dir, file)))
+        print("file_length",file_length)
+        ### generate a function that does the preprocessing
+        G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data(numberWorkers, file_length,os.path.join(dir, file),True)
+        logging.info("Saving preprocessed test set...")
+        save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, os.path.join(dir, "preprocessed"))
+
     else: raise NotImplementedError(f"Invalid kit: {kit}")
 
-    if trueSoms == False:
-        df["soms"] = "[0]"
-
-    df["soms"] = df["soms"].map(ast.literal_eval)
-    df["ID"] = df.index
-    
-    print("Preprocessing... This can take a few minutes.")
-    logging.info("START preprocessing")
-
-    G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data(df, numberWorkers, kit)
-    logging.info("Saving preprocessed test set...")
-    save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, os.path.join(dir, "preprocessed"))
-
-    print("Preprocessing sucessful!")
-    logging.info("END preprocessing")
     
 if __name__ == "__main__":
     
@@ -123,12 +128,12 @@ if __name__ == "__main__":
                     level=getattr(logging, args.verbosityLevel), 
                     format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 
-    try:
-        run(args.dir, 
-            args.file, 
-            args.kit, 
-            args.numberWorkers, 
-            args.trueSoms, 
-            )
-    except Exception as e:
-        logging.error("The preprocess was terminated:", e)
+    # try:
+    run(args.dir, 
+        args.file, 
+        args.kit, 
+        args.numberWorkers, 
+        args.trueSoms, 
+        )
+    # except Exception as e:
+    #     logging.error("The preprocess was terminated:", e)

@@ -2,7 +2,7 @@ import json
 import networkx as nx
 import numpy as np
 import os
-import sys
+import sys 
 
 from multiprocessing import Pool
 from rdkit.Chem import rdMolDescriptors
@@ -29,6 +29,13 @@ BOND_STEREO = ["STEREONONE",
                "STEREOTRANS",
                "OTHER",
                ]
+BOND_TYPE_INT = [0, 
+             1, 
+             2, 
+             3,
+             "OTHER",
+             ]
+
 BOND_TYPE = ["UNSPECIFIED", 
              "SINGLE", 
              "DOUBLE", 
@@ -36,42 +43,71 @@ BOND_TYPE = ["UNSPECIFIED",
              "OTHER",
              ]
 
+def get_file_length(dir: str) -> int:
+    """
+    loads the file based on either SDF or SMILES format and returns the length
+    Args:
+        dir (str): dir to file (incl filename)
+    Returns:
+        int: length of file
+    """
+    reader = _get_reader_by_file_extention(dir)
 
-def load_mol_input(dir: str, canonical_SMILES: bool = True):
+    return reader.getNumRecords()
+
+def load_mol_input(dir, indices):
     """
     loads the dataset based on either SDF or SMILES format.
     Args:
         dir (str): dir to file (incl filename)
-        canonical_SMILES (boolean): Generate canonical SMILES - default True
+        indices list(int): list of indices for the entry selection
     Returns:
         list (CDPKit Mol)
         list (SMILES)
     """
     reader = _get_reader_by_file_extention(dir)
-
-    smiles = list()
-    mols = list()
-    try:
-        while True:
+    graphs = list()
+    mol_ids = list()
+    atom_ids = list()
+    labels = list()
+    node_features = list()
+    # try: #TODO uncomment
+    while True:
+        for i in indices:
             mol = Chem.BasicMolecule()
+            if not reader.read(int(i), mol):
+                return graphs, mol_ids, atom_ids, labels, node_features
+            if not Chem.hasStructureData(mol):
+                #TODO add logger here
+                print('Error: no structure data available for molecule \'%s\'' % Chem.getName(mol))
 
-            if not reader.read(mol):
-                break
-            
+            struct_data = Chem.getStructureData(mol)
+            soms=list()
+            for entry in struct_data:                 # iterate of structure data entries consisting of a header line and the actual data
+                if 'som' in entry.header.lower():
+                    soms = [int(s) for s in entry.data.replace("[","").replace("]","").split(',')]
+
             Chem.calcImplicitHydrogenCounts(mol, False)  # calculate implicit hydrogen counts and set corresponding property for all atoms
             Chem.perceiveHybridizationStates(mol, False) # perceive atom hybridization states and set corresponding property for all atoms
             Chem.perceiveSSSR(mol, False)                # perceive smallest set of smallest rings and store as Chem.MolecularGraph property
             Chem.setRingFlags(mol, False)                # perceive cycles and set corresponding atom and bond properties
             Chem.setAromaticityFlags(mol, False)         # perceive aromaticity and set corresponding atom and bond properties
             Chem.makeHydrogenDeplete(mol)                # remove explicit hydrogens
+            Chem.perceiveComponents(mol, True)
+            G = mol_to_nx(i, mol, soms)
+            graphs.append(G)
+            # Compute list of mol ids
+            mol_ids.append(np.array([G.nodes[i]["mol_id"] for i in range(len(G.nodes))]))
+            # Compute list of atom ids
+            atom_ids.append(np.array([G.nodes[i]["atom_id"] for i in range(len(G.nodes))]))
+            # Compute list of labels
+            labels.append(np.array([int(G.nodes[i]["is_som"]) for i in range(len(G.nodes))]))
+            # Compute node features matrix
+            node_features.append(compute_node_features_matrix(G))
 
-            smile = Chem.generateSMILES(mol, canonical_SMILES)       # True -> canonical SMILES
-            smiles.append(smile)
-
-    except Exception as e: # handle exception raised in case of severe read errors
-        sys.exit('Error: reading molecule failed: ' + str(e))
-
-    return mols, smiles
+    # except Exception as e: # handle exception raised in case of severe read errors
+    #     sys.exit('Error: reading molecule failed: ' + str(e))
+    # return graphs, mol_ids, atom_ids, labels, node_features
 
 
 def _get_reader_by_file_extention(dir: str) -> Chem.MoleculeReader:
@@ -138,7 +174,7 @@ def generate_fraction_rotatable_bonds(mol):
         float: the fraction of rotatable bond
     """
     num_rotatable_bonds = MolProp.getRotatableBondCount(mol)
-    num_bonds = mol.numAtoms()
+    num_bonds = mol.getNumAtoms()
 
     if num_bonds == 0:
         return 0
@@ -170,7 +206,7 @@ def generate_fraction_HBA(mol):
         float: the fraction of rotatable bond
     """
     num_HBA = MolProp.getHBondAcceptorAtomCount(mol)
-    num_atoms = mol.numAtoms()
+    num_atoms = mol.getNumAtoms()
 
     if num_atoms == 0:
         return 0
@@ -203,7 +239,7 @@ def generate_fraction_HBD(mol):
         float: the fraction of rotatable bond
     """
     num_HBD = MolProp.getHBondDonorAtomCount(mol)
-    num_atoms = mol.numAtoms()
+    num_atoms = mol.getNumAtoms()
 
     if num_atoms == 0:
         return 0
@@ -233,7 +269,7 @@ def generate_fraction_element(mol, element):
     Returns:
         int: the number of atoms corresponding to the parsed element
     """
-    return len([1 for a in mol.atoms() if Chem.getType(a) == element]) / mol.numAtoms()
+    return len([1 for a in mol.atoms if Chem.getType(a) == element]) / mol.getNumAtoms()
 
 
 def generate_fraction_halogens(mol): 
@@ -244,7 +280,7 @@ def generate_fraction_halogens(mol):
     Returns:
         int: the number of halogens
     """
-    return len([1 for a in mol.atoms() if Chem.getType(a) in ["F", "Cl", "Br", "I"]]) / mol.numAtoms()
+    return len([1 for a in mol.atoms if Chem.getType(a) in [9, 17, 35, 53]]) / mol.getNumAtoms()
 
 def generate_fraction_halogens_RDKit(mol):
     """
@@ -265,8 +301,8 @@ def generate_fraction_aromatics(mol):
     Returns:
         float: the fraction of rotatable bond
     """
-    num_ar = len(MolProp.getAromaticAtomCount(mol))
-    num_atoms = mol.numAtoms()
+    num_ar = MolProp.getAromaticAtomCount(mol)
+    num_atoms = mol.getNumAtoms()
 
     if num_atoms == 0:
         return 0
@@ -319,10 +355,10 @@ def generate_bond_features(bond,mol):
     Returns:
         (list): one-hot encoded atom feature list
     """
-    return (_get_allowed_set(float(Chem.getOrder(bond)), BOND_TYPE) #TODO bond.GetBondTypeAsDouble() does not return BOND_TYPE!!!
-            + _get_allowed_set(Chem.calcBondStereoDescriptors(mol, False), BOND_STEREO)
+    return (_get_allowed_set(Chem.getOrder(bond), BOND_TYPE_INT)
+            + _get_allowed_set(Chem.calcBondStereoDescriptors(mol, False), BOND_STEREO) #TODO
             + [float(Chem.getRingFlag(bond)), 
-               float(_is_conjugated(bond,mol)), 
+               float(_is_conjugated(bond,mol)), #TODO
                float(Chem.getAromaticityFlag(bond))
               ]
            )
@@ -361,7 +397,7 @@ def generate_node_features(atom, atm_ring_length, molecular_features,mol):
                 "hybridization_state": _get_allowed_set(_get_hybridization_type(atom), HYBRIDIZATION_TYPE), 
                 "ring_size": _get_allowed_set(atm_ring_length, RING_SIZE), 
                 "aromaticity": list([float(Chem.getAromaticityFlag(atom))]), 
-                "degree": _get_allowed_set(_get_atom_degree(atom), TOTAL_DEGREE), 
+                "degree": _get_allowed_set(_get_atom_degree(atom,mol), TOTAL_DEGREE), 
                 "valence": _get_allowed_set(_get_atom_valence(atom,mol), TOTAL_VALENCE), 
                 "molecular": molecular_features
     }
@@ -414,7 +450,6 @@ def _get_hybridization_type(atom: Chem.Atom) -> int:
         form_chg (str): 'OTHER'
     '''
     hyb_state = Chem.getHybridizationState(atom)
-
     if hyb_state == Chem.HybridizationState.SP1: 
         hyb_state = 'SP'
     elif hyb_state == Chem.HybridizationState.SP2:
@@ -439,13 +474,12 @@ def _get_atom_valence(atom: Chem.Atom, mol: Chem.BasicMolecule) -> int:
         valence (str): 'OTHER'
     '''
     valence = MolProp.calcValence(atom, mol)
-
     if valence not in TOTAL_VALENCE:
         valence = 'OTHER'
     
     return valence
 
-def _get_atom_degree(atom: Chem.Atom) -> int:
+def _get_atom_degree(atom: Chem.Atom, mol: Chem.BasicMolecule) -> int:
     '''
     PRIVATE method that takes an CDPKit atom as input and returns an int or str value ('OTHER')
     for the total degree of the atom.
@@ -457,8 +491,7 @@ def _get_atom_degree(atom: Chem.Atom) -> int:
         degree (int): degree
         degree (str): 'OTHER'
     '''
-    degree = MolProp.getBondCount(atom)
-
+    degree = MolProp.getBondCount(atom, mol)
     if degree not in TOTAL_DEGREE:
         degree = 'OTHER'
     
@@ -511,9 +544,8 @@ def _is_conjugated(bond: Chem.Bond, mol: Chem.BasicMolecule) -> bool:
     '''
     elec_sys_list = Chem.perceivePiElectronSystems(mol)
     is_conj = False                  
-        
     for elec_sys in elec_sys_list:  
-        if elec_sys.numAtoms < 3:    
+        if elec_sys.getNumAtoms < 3:    
             continue                 
 
         if elec_sys.containsAtom(bond.getBegin()) and elec_sys.containsAtom(bond.getEnd()): 
@@ -535,30 +567,22 @@ def mol_to_nx(mol_id, mol, soms):
         NetworkX Graph with node and edge attributes
     """
     G = nx.Graph()
-
     # Get ring info
     #rings = mol.GetRingInfo().AtomRings()
-    rings = Chem.getSSSR(mol)
-
     # Assign each atom its molecular and atomic features and make it a node of G
-    for atom_idx in range(len(mol.atoms())):
-        atom = mol.GetAtomWithIdx(atom_idx)
+    for atom_idx in range(mol.getNumAtoms()): # TODO proper atom_idx for soms
+        atom = mol.getAtom(atom_idx)
         atm_ring_length = 0
-        if atom.IsInRing():
-            for ring in rings:
-                if atom_idx in ring:
-                    atm_ring_length = ring.numAtoms 
-        # Compute molecular features here so that we don't do it again and again
-        # for each atom in generate_node_features in case FC4 is called for.
-        molecular_features = [float(generate_fraction_element(mol, "N")),
-                              float(generate_fraction_element(mol, "O")),
-                              float(generate_fraction_element(mol, "S")),
+        atm_ring_length = Chem.getSizeOfSmallestContainingFragment(atom, Chem.getSSSR(mol))
+        molecular_features = [float(generate_fraction_element(mol, 7)),
+                              float(generate_fraction_element(mol, 8)),
+                              float(generate_fraction_element(mol, 16)),
                               float(generate_fraction_halogens(mol)),
                               float(generate_fraction_rotatable_bonds(mol)),
                               float(generate_fraction_HBA(mol)),
                               float(generate_fraction_HBD(mol)),
                               float(generate_fraction_aromatics(mol))
-                             ] + _get_allowed_set(rdMolDescriptors.CalcNumRings(mol), RING_COUNT)
+                             ] + _get_allowed_set(len(Chem.getSSSR(mol)), RING_COUNT)
         G.add_node(
             atom_idx, # node identifier
             node_features=generate_node_features(atom, atm_ring_length, molecular_features,mol),
@@ -568,13 +592,13 @@ def mol_to_nx(mol_id, mol, soms):
             mol_id=int(mol_id),
             atom_id=int(atom_idx),
         )
-    for bond in mol.GetBonds():
+    for bond in mol.getBonds():
         G.add_edge(
             # the next two elements are only used to identify bonds,
             # they are not used a features.
-            bond.GetBeginAtomIdx(),
-            bond.GetEndAtomIdx(),
-            bond_features = generate_bond_features(bond)
+            mol.getAtomIndex(bond.getBegin()),
+            mol.getAtomIndex(bond.getEnd()),
+            bond_features = generate_bond_features(bond,mol)
         )
     return G
 
@@ -598,7 +622,7 @@ def mol_to_nx_RDKit(mol_id, mol, soms):
 
     # Assign each atom its molecular and atomic features and make it a node of G
     for atom_idx in range(mol.GetNumAtoms()):
-        atom = mol.GetAtomWithIdx(atom_idx)
+        atom = mol.getAtom(atom_idx)
         atm_ring_length = 0
         if atom.IsInRing():
             for ring in rings:
@@ -634,19 +658,12 @@ def mol_to_nx_RDKit(mol_id, mol, soms):
         )
     return G
 
-def generate_preprocessed_data_chunk(chunk, kit):
+def generate_preprocessed_data_chunk_RDKit(chunk, kit): #TODO remove RDKit
     """
     Generates preprocessed data from a chunk of the input data.
     """
-
-    # Generate networkx graphs from mols
-    if kit == "RDKit":
-        chunk["G"] = chunk.apply(lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms), axis=1)
-    elif kit == "CDPKit":
-        chunk["G"] = chunk.apply(lambda x: mol_to_nx(x.ID, x.ROMol, x.soms), axis=1)
-    else: raise NotImplementedError(f"Invalid kit: {kit}")
+    chunk["G"] = chunk.apply(lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms), axis=1)
     G = nx.disjoint_union_all(chunk["G"].to_list())
-
     # Compute list of mol ids
     mol_ids = np.array([G.nodes[i]["mol_id"] for i in range(len(G.nodes))])
     # Compute list of atom ids
@@ -659,7 +676,44 @@ def generate_preprocessed_data_chunk(chunk, kit):
     return G, mol_ids, atom_ids, labels, node_features
 
 
-def generate_preprocessed_data(df, num_workers, kit):
+def generate_preprocessed_data(num_workers, file_length, dir: str, canonical_SMILES: bool = True):
+    """
+    Generates the necessary preprocessed data from the input data using multiple workers.
+    Args:
+        numWorkers (int):      number of worker processes to use
+        file_length (int):     length of the instances in the file
+        dir (str): dir to file (incl filename)
+        canonical_SMILES (boolean): Generate canonical SMILES - default True
+    Returns:
+        G (NetworkX Graph): a molecular graph describing the entire input data
+                            (individual molecules are processed as subgraphs of 
+                            one big graph object)
+        mol_ids (numpy array): an array with the molecular ID of each node in G
+                                (i.e. the molecule, to which each atom belongs to)
+        atom_ids (numpy array): an array with the atom ID of each node in G
+        labels (numpy array): an array with the SoM labels (0/1) of each node in G
+        node_features (numpy array): a 2D array of dimension (number of nodes, 
+                        number of node features)
+    """
+    # chunks = np.array_split(df, num_workers)
+    # kit_ = [kit for _ in range(num_workers)]
+    # with Pool(num_workers) as p:
+    #     results = p.starmap(generate_preprocessed_data_chunk_RDKit, zip(chunks, kit_))
+
+    chunks = np.array_split(range(file_length), num_workers)
+    dirs = [dir for _ in range(num_workers)]
+
+    with Pool(num_workers) as p:
+        results = p.starmap(load_mol_input, zip(dirs,chunks))
+    G = nx.disjoint_union_all([result[0] for result in results])
+    mol_ids = np.concatenate([result[1] for result in results])
+    atom_ids = np.concatenate([result[2] for result in results])
+    labels = np.concatenate([result[3] for result in results])
+    node_features = np.concatenate([result[4] for result in results], axis=0)
+
+    return G, mol_ids, atom_ids, labels, node_features
+
+def generate_preprocessed_data_RDKit(df, num_workers, kit): #TODO remove kit
     """
     Generates the necessary preprocessed data from the input data using multiple workers.
     Args:
@@ -680,7 +734,7 @@ def generate_preprocessed_data(df, num_workers, kit):
     chunks = np.array_split(df, num_workers)
     kit_ = [kit for _ in range(num_workers)]
     with Pool(num_workers) as p:
-        results = p.starmap(generate_preprocessed_data_chunk, zip(chunks, kit_))
+        results = p.starmap(generate_preprocessed_data_chunk_RDKit, zip(chunks, kit_))
     G = nx.disjoint_union_all([result[0] for result in results])
     mol_ids = np.concatenate([result[1] for result in results])
     atom_ids = np.concatenate([result[2] for result in results])
