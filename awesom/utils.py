@@ -12,6 +12,7 @@ from sklearn.metrics import (
     matthews_corrcoef,
     precision_score,
     recall_score,
+    roc_auc_score,
 )
 from statistics import mean
 
@@ -210,24 +211,24 @@ def save_predict(
     opt_thresholds_std = np.round(np.std(opt_thresholds), 2)
 
     # Compute top1 and top2 accuracies
-    # mol_ids = np.unique([a for a,b in y_trues.keys()])
-    # pred_top1 = []
-    # pred_top2 = []
-    # for mol_id in mol_ids: 
-    #     mask = [a == mol_id for a,b in y_trues.keys()]
-    #     idx = np.argpartition([y_preds_avg[i] for i, x in enumerate(mask) if x], -1)[-1:]
-    #     if [list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[0]]:
-    #         pred_top1.append(1)
-    #     else:
-    #         pred_top1.append(0)
-    #     idx = np.argpartition([y_preds_avg[i] for i, x in enumerate(mask) if x], -2)[-2:]
-    #     if ([list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[0]] or 
-    #         [list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[1]]):
-    #         pred_top2.append(1)
-    #     else:
-    #         pred_top2.append(0)
-    # top1 = np.sum(pred_top1) / len(mol_ids)
-    # top2 = np.sum(pred_top2) / len(mol_ids)
+    mol_ids = np.unique([a for a,_ in y_trues.keys()])
+    pred_top1 = []
+    pred_top2 = []
+    for mol_id in mol_ids: 
+        mask = [a == mol_id for a,b in y_trues.keys()]
+        idx = np.argpartition([y_preds_avg[i] for i, x in enumerate(mask) if x], -1)[-1:]
+        if [list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[0]]:
+            pred_top1.append(1)
+        else:
+            pred_top1.append(0)
+        idx = np.argpartition([y_preds_avg[i] for i, x in enumerate(mask) if x], -2)[-2:]
+        if ([list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[0]] or 
+            [list(y_trues.values())[i] for i, x in enumerate(mask) if x][idx[1]]):
+            pred_top2.append(1)
+        else:
+            pred_top2.append(0)
+    top1 = np.sum(pred_top1) / len(mol_ids)
+    top2 = np.sum(pred_top2) / len(mol_ids)
 
     results = {}
     y_true=list(y_trues.values())
@@ -235,10 +236,10 @@ def save_predict(
     results["mcc"] = round(matthews_corrcoef(y_true, y_pred),2)
     results["precision"] = round(precision_score(y_true, y_pred),2)
     results["recall"] = round(recall_score(y_true, y_pred),2)
-    # results["top1"] = round(top1,2)
-    # results["top2"] = round(top2,2)
+    results["ROCAUC"] = round(roc_auc_score(y_true, y_preds_avg),2)
+    results["top1"] = round(top1,2)
+    results["top2"] = round(top2,2)
     results["optThresholdAvg"] = round(opt_thresholds_avg,2)
-    results["optThresholdStdev"] = round(opt_thresholds_std,2)
 
     with open(
         os.path.join(outdir, "results.txt"),
