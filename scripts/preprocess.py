@@ -43,7 +43,7 @@ def run(dir, file, numberWorkers, predict):
     else: raise NotImplementedError(f"Invalid file extension: {file_extension}")
     
     if predict:
-        df["soms"] = "[0]"
+        df["soms"] = "[]"
 
     df["soms"] = df["soms"].map(ast.literal_eval)
     df["ID"] = df.index

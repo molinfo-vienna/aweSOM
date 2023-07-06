@@ -207,8 +207,6 @@ def save_predict(
 
     # Average optimal thresholds
     opt_thresholds_avg = np.round(np.average(opt_thresholds), 2)
-    # Compute standard deviation in optimal thresholds
-    opt_thresholds_std = np.round(np.std(opt_thresholds), 2)
 
     # Compute top1 and top2 accuracies
     mol_ids = np.unique([a for a,_ in y_trues.keys()])
@@ -236,7 +234,8 @@ def save_predict(
     results["mcc"] = round(matthews_corrcoef(y_true, y_pred),2)
     results["precision"] = round(precision_score(y_true, y_pred),2)
     results["recall"] = round(recall_score(y_true, y_pred),2)
-    results["ROCAUC"] = round(roc_auc_score(y_true, y_preds_avg),2)
+    if len(np.unique(np.array(y_true))) > 1:
+        results["ROCAUC"] = round(roc_auc_score(y_true, y_preds_avg),2)
     results["top1"] = round(top1,2)
     results["top2"] = round(top2,2)
     results["optThresholdAvg"] = round(opt_thresholds_avg,2)
