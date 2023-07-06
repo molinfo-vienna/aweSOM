@@ -59,7 +59,6 @@ def run(
         elif info["model"] == "GIN":
             model = GIN(in_channels=dataset.num_features,  
                         out_channels=int(info["out_channels"]), 
-                        edge_dim=dataset.num_edge_features, 
                         dropout=info["dropout"], 
                         n_conv_layers=int(info["n_conv_layers"]),
                         n_classifier_layers=int(info["n_classify_layers"]),
@@ -67,7 +66,6 @@ def run(
         elif info["model"] == "GINNA":
             model = GINNA(in_channels=dataset.num_features,  
                           out_channels=int(info["out_channels"]), 
-                          edge_dim=dataset.num_edge_features, 
                           dropout=info["dropout"], 
                           n_conv_layers=int(info["n_conv_layers"]),
                           n_classifier_layers=int(info["n_classify_layers"]),
@@ -75,7 +73,6 @@ def run(
         elif info["model"] == "GIN+":
             model = GINPlus(in_channels=dataset.num_features,  
                             out_channels=int(info["out_channels"]), 
-                            edge_dim=dataset.num_edge_features, 
                             dropout=info["dropout"], 
                             n_conv_layers=int(info["n_conv_layers"]),
                             depth_conv_layers=int(info["depth_conv_layers"]),
@@ -134,7 +131,10 @@ def run(
         model.eval()
         for data in loader:
             data = data.to(DEVICE)
-            output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+            if info["model"] in {"GIN", "GINNA", "GIN+"}:
+                output = model(data.x, data.edge_index, data.batch)
+            else:
+                output = model(data.x, data.edge_index, data.edge_attr, data.batch)
             y_preds.extend(output[:,0].tolist())
             y_trues.extend(data.y.tolist())
             mol_ids.extend(data.mol_id.tolist())
