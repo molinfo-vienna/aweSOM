@@ -27,8 +27,7 @@ BOND_STEREO = ["STEREONONE",
                "STEREOTRANS",
                "OTHER",
                ]
-BOND_TYPE = ["UNSPECIFIED", 
-             "SINGLE", 
+BOND_TYPE = ["SINGLE", 
              "DOUBLE", 
              "TRIPLE",
              "OTHER",
@@ -171,7 +170,7 @@ def generate_bond_features(bond):
     Returns:
         (list): one-hot encoded atom feature list
     """
-    return (_get_allowed_set(bond.GetBondTypeAsDouble(), BOND_TYPE)
+    return (_get_allowed_set(bond.GetBondType(), BOND_TYPE)
             + _get_allowed_set(bond.GetStereo(), BOND_STEREO)
             + [float(bond.IsInRing()), 
                float(bond.GetIsConjugated()), 
