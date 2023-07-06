@@ -19,14 +19,6 @@ TOTAL_DEGREE = [1,2,3,4,"OTHER"]
 TOTAL_VALENCE = [1,2,3,4,5,6,"OTHER"]
 RING_COUNT = [0,1,2,3,4,5,"OTHER"]
 
-BOND_STEREO = ["STEREONONE", 
-               "STEREOANY", 
-               "STEREOZ", 
-               "STEREOE", 
-               "STEREOCIS", 
-               "STEREOTRANS",
-               "OTHER",
-               ]
 BOND_TYPE = ["SINGLE", 
              "DOUBLE", 
              "TRIPLE",
@@ -171,7 +163,6 @@ def generate_bond_features(bond):
         (list): one-hot encoded atom feature list
     """
     return (_get_allowed_set(bond.GetBondType(), BOND_TYPE)
-            + _get_allowed_set(bond.GetStereo(), BOND_STEREO)
             + [float(bond.IsInRing()), 
                float(bond.GetIsConjugated()), 
                float(bond.GetIsAromatic())
