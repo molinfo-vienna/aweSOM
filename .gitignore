@@ -109,11 +109,7 @@ ENV/
 */_version.py
 
 # Data
-data/accelrys/
-data/combo/
-data/metaQSAR/
-data/nitrosopropylamine/
-data/propanolol/
+data/
 
 # Output
 output/
@@ -123,6 +119,7 @@ models/accelrys/
 models/combo/
 models/metaQSAR/
 models/zaretzki/
+models/zaretzki_new/
 
 # Other
 *.json
