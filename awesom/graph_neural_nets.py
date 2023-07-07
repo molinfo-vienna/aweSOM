@@ -547,15 +547,15 @@ class MF(torch.nn.Module):
 
         self.leaky_relu = torch.nn.LeakyReLU()
 
-    def forward(self, x, edge_index, edge_attr, batch):
+    def forward(self, x, edge_index, batch):
 
         # Node embeddings
-        h = self.conv1(x, edge_index, edge_attr)
+        h = self.conv1(x, edge_index)
         h = self.leaky_relu(h)
 
         hs = []
         for layer in self.conv:
-            h = layer(h, edge_index, edge_attr)
+            h = layer(h, edge_index)
             h = self.leaky_relu(h)
             hs.append(h)
 
@@ -612,7 +612,7 @@ class TF(torch.nn.Module):
                             root_weight=True)
             for _ in range(n_conv_layers)])
 
-        self.classifier1 = torch.nn.Linear(out_channels*(n_conv_layers+1), size_classify_layers)
+        self.classifier1 = torch.nn.Linear(out_channels*heads*(n_conv_layers+1), size_classify_layers)
 
         self.classifier = torch.nn.ModuleList([
             torch.nn.Linear(size_classify_layers, size_classify_layers)
