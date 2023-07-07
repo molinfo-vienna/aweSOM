@@ -29,6 +29,7 @@ BOND_STEREO = ["STEREONONE",
                "STEREOTRANS",
                "OTHER",
                ]
+BOND_STEREO_INT = [0,1,2,3,4,5,6]
 BOND_TYPE_INT = [0, 
              1, 
              2, 
@@ -71,8 +72,7 @@ def load_mol_input(dir, indices):
     atom_ids = list()
     labels = list()
     node_features = list()
-    # try: #TODO uncomment
-    while True:
+    try: 
         for i in indices:
             mol = Chem.BasicMolecule()
             if not reader.read(int(i), mol):
@@ -104,10 +104,12 @@ def load_mol_input(dir, indices):
             labels.append(np.array([int(G.nodes[i]["is_som"]) for i in range(len(G.nodes))]))
             # Compute node features matrix
             node_features.append(compute_node_features_matrix(G))
+            # gr = nx.disjoint_union_all(graphs)
 
-    # except Exception as e: # handle exception raised in case of severe read errors
-    #     sys.exit('Error: reading molecule failed: ' + str(e))
-    # return graphs, mol_ids, atom_ids, labels, node_features
+    except Exception as e: # handle exception raised in case of severe read errors
+        return graphs, mol_ids, atom_ids, labels, node_features
+        # sys.exit('Error: reading molecule failed: ' + str(e))
+    return graphs, mol_ids, atom_ids, labels, node_features
 
 
 def _get_reader_by_file_extention(dir: str) -> Chem.MoleculeReader:
@@ -356,9 +358,9 @@ def generate_bond_features(bond,mol):
         (list): one-hot encoded atom feature list
     """
     return (_get_allowed_set(Chem.getOrder(bond), BOND_TYPE_INT)
-            + _get_allowed_set(Chem.calcBondStereoDescriptors(mol, False), BOND_STEREO) #TODO
+            + _get_allowed_set(Chem.calcBondStereoDescriptors(mol, False), BOND_STEREO_INT) #TODO
             + [float(Chem.getRingFlag(bond)), 
-               float(_is_conjugated(bond,mol)), #TODO
+               float(_is_conjugated(bond,mol)),
                float(Chem.getAromaticityFlag(bond))
               ]
            )
@@ -543,9 +545,9 @@ def _is_conjugated(bond: Chem.Bond, mol: Chem.BasicMolecule) -> bool:
         (Boolean): if conjugated (True) or not (False)
     '''
     elec_sys_list = Chem.perceivePiElectronSystems(mol)
-    is_conj = False                  
+    is_conj = False
     for elec_sys in elec_sys_list:  
-        if elec_sys.getNumAtoms < 3:    
+        if elec_sys.getNumAtoms() < 3:
             continue                 
 
         if elec_sys.containsAtom(bond.getBegin()) and elec_sys.containsAtom(bond.getEnd()): 
@@ -570,8 +572,8 @@ def mol_to_nx(mol_id, mol, soms):
     # Get ring info
     #rings = mol.GetRingInfo().AtomRings()
     # Assign each atom its molecular and atomic features and make it a node of G
-    for atom_idx in range(mol.getNumAtoms()): # TODO proper atom_idx for soms
-        atom = mol.getAtom(atom_idx)
+    for atom in mol.getAtoms(): # TODO !!!!! CHECK IF ATOM IDX CORRESPONDS TO THE CORRECT SOM ATM INDEX!!!!!
+        atom_idx = atom.getIndex()
         atm_ring_length = 0
         atm_ring_length = Chem.getSizeOfSmallestContainingFragment(atom, Chem.getSSSR(mol))
         molecular_features = [float(generate_fraction_element(mol, 7)),
@@ -695,17 +697,18 @@ def generate_preprocessed_data(num_workers, file_length, dir: str, canonical_SMI
         node_features (numpy array): a 2D array of dimension (number of nodes, 
                         number of node features)
     """
-    # chunks = np.array_split(df, num_workers)
-    # kit_ = [kit for _ in range(num_workers)]
-    # with Pool(num_workers) as p:
-    #     results = p.starmap(generate_preprocessed_data_chunk_RDKit, zip(chunks, kit_))
-
     chunks = np.array_split(range(file_length), num_workers)
     dirs = [dir for _ in range(num_workers)]
 
     with Pool(num_workers) as p:
         results = p.starmap(load_mol_input, zip(dirs,chunks))
-    G = nx.disjoint_union_all([result[0] for result in results])
+    # print("results",results)
+    graphs=list()
+    for result in results:
+        for graph in result[0]:
+            graphs.append(graph)
+        
+    G = nx.disjoint_union_all(graphs)
     mol_ids = np.concatenate([result[1] for result in results])
     atom_ids = np.concatenate([result[2] for result in results])
     labels = np.concatenate([result[3] for result in results])

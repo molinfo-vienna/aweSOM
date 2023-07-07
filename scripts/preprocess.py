@@ -66,7 +66,6 @@ def run(dir, file, kit, numberWorkers, trueSoms):
 
         ### generate a function that reads the indices
         file_length = get_file_length(str(os.path.join(dir, file)))
-        print("file_length",file_length)
         ### generate a function that does the preprocessing
         G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data(numberWorkers, file_length,os.path.join(dir, file),True)
         logging.info("Saving preprocessed test set...")
