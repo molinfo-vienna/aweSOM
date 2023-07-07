@@ -152,7 +152,7 @@ def objective(trial, train_loader, val_loader):
             data = data.to(DEVICE)
             optimizer.zero_grad()
 
-            if args.model in {"GIN", "GINNA", "GIN+"}:
+            if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
                 output = model(data.x, data.edge_index, data.batch)
             else:
                 output = model(data.x, data.edge_index, data.edge_attr, data.batch)
@@ -177,7 +177,7 @@ def objective(trial, train_loader, val_loader):
             for data in val_loader:
                 data = data.to(DEVICE)
 
-                if args.model in {"GIN", "GINNA", "GIN+"}:
+                if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
                     output = model(data.x, data.edge_index, data.batch)
                 else:
                     output = model(data.x, data.edge_index, data.edge_attr, data.batch)
@@ -544,7 +544,7 @@ if __name__ == "__main__":
                 data = data.to(DEVICE)
                 optimizer.zero_grad()
 
-                if args.model in {"GIN", "GINNA", "GIN+"}:
+                if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
                     output = model(data.x, data.edge_index, data.batch)
                 else:
                     output = model(data.x, data.edge_index, data.edge_attr, data.batch)
@@ -573,7 +573,7 @@ if __name__ == "__main__":
                 num_validation_samples = 0
                 for data in val_loader:
                     data = data.to(DEVICE)
-                    if args.model in {"GIN", "GINNA", "GIN+"}:
+                    if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
                         output = model(data.x, data.edge_index, data.batch)
                     else:
                         output = model(data.x, data.edge_index, data.edge_attr, data.batch)
@@ -628,7 +628,7 @@ if __name__ == "__main__":
             preds = []
             for data in test_loader:
                 data = data.to(DEVICE)
-                if args.model in {"GIN", "GINNA", "GIN+"}:
+                if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
                     output = model(data.x, data.edge_index, data.batch)
                 else:
                     output = model(data.x, data.edge_index, data.edge_attr, data.batch)
