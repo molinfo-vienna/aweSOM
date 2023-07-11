@@ -115,11 +115,7 @@ data/
 output/
 
 # Models
-models/accelrys/
-models/combo/
-models/metaQSAR/
-models/zaretzki/
-models/zaretzki_new/
+models/
 
 # Other
 *.json
