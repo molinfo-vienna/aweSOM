@@ -14,6 +14,7 @@ from sklearn.metrics import (
     matthews_corrcoef,
     precision_score,
     recall_score,
+    roc_auc_score,
     roc_curve,
 )
 from sklearn.model_selection import KFold, train_test_split
@@ -21,7 +22,7 @@ from sklearn.utils.class_weight import compute_class_weight
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 
-from awesom.graph_neural_nets import GATv2, GIN, MF, TF
+from awesom.graph_neural_nets import GATv2, GIN, GINNA, GINPlus, GINE, GINENA, GINEPlus, MF, TF
 from awesom.pyg_dataset_creator import SOM
 from awesom.utils import (
     MCC_BCE_Loss, 
@@ -38,8 +39,8 @@ DELTA = 0
 
 def objective(trial, train_loader, val_loader):
 
-    n_conv_layers = trial.suggest_int("n_conv_layers", 1, 5)
     out_channels = trial.suggest_int("out_channels", 8, 256)
+    n_conv_layers = trial.suggest_int("n_conv_layers", 1, 5)
     n_classify_layers = trial.suggest_int("n_classify_layers", 1, 3)
     size_classify_layers = trial.suggest_int("size_classify_layers", 8, 256)
     
@@ -60,9 +61,55 @@ def objective(trial, train_loader, val_loader):
         dropout = trial.suggest_float("dropout", 0.1, 0.5)
         model = GIN(in_channels=dataset.num_features,  
                     out_channels=out_channels, 
+                    dropout=dropout, 
+                    n_conv_layers=n_conv_layers,
+                    n_classifier_layers=n_classify_layers,
+                    size_classify_layers=size_classify_layers).to(DEVICE)
+    elif args.model == "GINNA":
+        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        model = GINNA(in_channels=dataset.num_features,  
+                      out_channels=out_channels, 
+                      dropout=dropout, 
+                      n_conv_layers=n_conv_layers,
+                      n_classifier_layers=n_classify_layers,
+                      size_classify_layers=size_classify_layers).to(DEVICE)
+    elif args.model == "GIN+":
+        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        depth_conv_layers = trial.suggest_int("depth_conv_layers", 1, 5)
+        model = GINPlus(in_channels=dataset.num_features,  
+                        out_channels=out_channels, 
+                        dropout=dropout, 
+                        n_conv_layers=n_conv_layers,
+                        depth_conv_layers=depth_conv_layers,
+                        n_classifier_layers=n_classify_layers,
+                        size_classify_layers=size_classify_layers).to(DEVICE) 
+    elif args.model == "GINE":
+        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        model = GINE(in_channels=dataset.num_features,  
+                    out_channels=out_channels, 
                     edge_dim=dataset.num_edge_features, 
                     dropout=dropout, 
                     n_conv_layers=n_conv_layers,
+                    n_classifier_layers=n_classify_layers,
+                    size_classify_layers=size_classify_layers).to(DEVICE)
+    elif args.model == "GINENA":
+        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        model = GINENA(in_channels=dataset.num_features,  
+                    out_channels=out_channels, 
+                    edge_dim=dataset.num_edge_features, 
+                    dropout=dropout, 
+                    n_conv_layers=n_conv_layers,
+                    n_classifier_layers=n_classify_layers,
+                    size_classify_layers=size_classify_layers).to(DEVICE)       
+    elif args.model == "GINE+":
+        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        depth_conv_layers = trial.suggest_int("depth_conv_layers", 1, 5)
+        model = GINEPlus(in_channels=dataset.num_features,  
+                    out_channels=out_channels, 
+                    edge_dim=dataset.num_edge_features, 
+                    dropout=dropout, 
+                    n_conv_layers=n_conv_layers,
+                    depth_conv_layers=depth_conv_layers,
                     n_classifier_layers=n_classify_layers,
                     size_classify_layers=size_classify_layers).to(DEVICE)
     elif args.model == "MF":
@@ -86,19 +133,30 @@ def objective(trial, train_loader, val_loader):
                    size_classify_layers=size_classify_layers).to(DEVICE)
     else: raise NotImplementedError(f"Invalid model: {args.model}")
     
-    # Generate optimizer
+    # Generate optimizer and scheduler
     lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
 
     # Initialize early stopper
     early_stopper = EarlyStopping(patience=PATIENCE, delta=DELTA, verbose=False)
 
     for _ in tqdm(range(args.epochs)):
-        # Training the model
+
+        validation_loss = []
+        targets = []
+        preds = []
+
         model.train()
         for data in train_loader:
             data = data.to(DEVICE)
-            output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+            optimizer.zero_grad()
+
+            if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
+                output = model(data.x, data.edge_index, data.batch)
+            else:
+                output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+
             if args.loss == "weighted_BCE":
                 class_weights = compute_class_weight(class_weight='balanced', 
                                                      classes=np.unique(data.y.cpu()), 
@@ -109,19 +167,21 @@ def objective(trial, train_loader, val_loader):
             else:
                 loss_value = loss_function(output[:, 0].to(float), 
                                            data.y.to(float))
+            
             loss_value.backward()
             optimizer.step()
-            optimizer.zero_grad()
 
-        # Validating the model
         model.eval()
         with torch.no_grad():
-            validation_loss = []
-            targets = []
-            preds = []
+
             for data in val_loader:
                 data = data.to(DEVICE)
-                output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+
+                if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
+                    output = model(data.x, data.edge_index, data.batch)
+                else:
+                    output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+
                 if args.loss == "weighted_BCE":
                     class_weights = compute_class_weight(class_weight='balanced', 
                                                          classes=np.unique(data.y.cpu()), 
@@ -132,35 +192,42 @@ def objective(trial, train_loader, val_loader):
                 else:
                     loss_value = loss_function(output[:, 0].to(float), 
                                                data.y.to(float))
+                    
                 validation_loss.append(loss_value.item())
                 targets.extend(data.y.tolist())
                 preds.extend(output.tolist())
 
-            targets = np.array(targets)
-            preds = np.array(list(itertools.chain(*preds)))
+        targets = np.array(targets)
+        preds = np.array(list(itertools.chain(*preds)))
 
-            # Get best threshold
-            if args.loss == "weighted_BCE":
-                opt_threshold = 0.5
-            else:
-                fpr, tpr, thresholds = roc_curve(targets, preds)
-                opt_threshold = thresholds[np.argmax(tpr - fpr)]
-            # Compute binary predictions from probability predictions with best threshold
-            preds_binary = preds > opt_threshold
-            # Compute evaluation metric
-            mcc = matthews_corrcoef(targets, preds_binary)
+        # Get best threshold
+        if args.loss == "weighted_BCE":
+            opt_threshold = 0.5
+        else:
+            fpr, tpr, thresholds = roc_curve(targets, preds)
+            opt_threshold = thresholds[np.argmax(tpr - fpr)]
 
-            early_stopper(np.sum(np.array(validation_loss)))
-            if early_stopper.early_stop:
-                break
+        # Compute binary predictions from probability predictions with best threshold
+        # preds_binary = preds > opt_threshold
 
-    return mcc
+        # Compute evaluation metric
+        # mcc = matthews_corrcoef(targets, preds_binary)
+        rocauc = roc_auc_score(targets, preds)
+
+        early_stopper(np.sum(np.array(validation_loss)))
+        if early_stopper.early_stop:
+            break
+        
+        scheduler.step(np.sum(np.array(validation_loss)))
+        
+    # return mcc
+    return rocauc
 
 
 def objective_cv(trial):
 
     fold = KFold(n_splits=args.numInternalCVFolds, shuffle=True, random_state=42)
-    mcc_list = []
+    metric_list = []
     for fold_idx_int, (train_idx, val_idx) in enumerate(fold.split(range(len(train_val_data)))):
         print(f"----- Internal CV fold {fold_idx_int+1}/{args.numInternalCVFolds}")
 
@@ -178,11 +245,10 @@ def objective_cv(trial):
             shuffle=True,
         )
 
-        mcc = objective(trial, train_loader, val_loader)
-        
-        mcc_list.append(mcc)
+        metric = objective(trial, train_loader, val_loader)
+        metric_list.append(metric)
 
-    return np.mean(mcc_list)
+    return np.mean(metric_list)
 
 
 if __name__ == "__main__":
@@ -298,6 +364,7 @@ if __name__ == "__main__":
             "precision", 
             "recall", 
             "auc_pr", 
+            "roc_auc", 
             )
         )
 
@@ -306,6 +373,7 @@ if __name__ == "__main__":
     precision_list = []
     recall_list = []
     auc_pr_list = []
+    rocauc_list = []
 
     fold = KFold(n_splits=args.numExternalCVFolds, shuffle=True, random_state=42)
     for fold_idx_ext, (train_val_idx, test_idx) in enumerate(fold.split(dataset)):
@@ -334,15 +402,21 @@ if __name__ == "__main__":
         logging.info("Searching for optimal hyperparameters...")
         study.optimize(objective_cv, n_trials=args.nTrials)
 
-        print("Best trial:")
         best_trial = study.best_trial
+
+        print("Best trial:")
         print("  Value: ", best_trial.value)
         logging.info(f"Best MCC for {fold_idx_ext+1}/{args.numExternalCVFolds}: {study.best_trial.value}")
         logging.info(f"Best hyperparameters fold {fold_idx_ext+1}/{args.numExternalCVFolds}:")
         print("  Params: ")
         for key, value in best_trial.params.items():
-            print(f"    {key}: {value}")
-            logging.info(f"    {key}: {value}")
+            print(f"    {key} {value}")
+            logging.info(f"    {key} {value}")
+
+        with open(os.path.join(args.outputDirectory, str(fold_idx_ext+1) + "/info.txt"), "w") as f:
+            f.write(f"model {args.model}\n")
+            for key, value in best_trial.params.items():
+                f.write(f"{key} {value}\n")
 
         #####################################################################
         # retrain model with best hyperparameters and test model on test data
@@ -364,9 +438,48 @@ if __name__ == "__main__":
         elif args.model == "GIN":
             model = GIN(in_channels=dataset.num_features,  
                         out_channels=best_trial.params["out_channels"], 
+                        dropout=best_trial.params["dropout"], 
+                        n_conv_layers=best_trial.params["n_conv_layers"],
+                        n_classifier_layers=best_trial.params["n_classify_layers"],
+                        size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
+        elif args.model == "GINNA":
+            model = GINNA(in_channels=dataset.num_features,  
+                          out_channels=best_trial.params["out_channels"], 
+                          dropout=best_trial.params["dropout"], 
+                          n_conv_layers=best_trial.params["n_conv_layers"],
+                          n_classifier_layers=best_trial.params["n_classify_layers"],
+                          size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
+        elif args.model == "GIN+":
+            model = GINPlus(in_channels=dataset.num_features,  
+                            out_channels=best_trial.params["out_channels"], 
+                            dropout=best_trial.params["dropout"], 
+                            n_conv_layers=best_trial.params["n_conv_layers"],
+                            depth_conv_layers=best_trial.params["depth_conv_layers"],
+                            n_classifier_layers=best_trial.params["n_classify_layers"],
+                            size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
+        elif args.model == "GINE":
+            model = GINE(in_channels=dataset.num_features,  
+                        out_channels=best_trial.params["out_channels"], 
                         edge_dim=dataset.num_edge_features, 
                         dropout=best_trial.params["dropout"], 
                         n_conv_layers=best_trial.params["n_conv_layers"],
+                        n_classifier_layers=best_trial.params["n_classify_layers"],
+                        size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
+        elif args.model == "GINENA":
+            model = GINENA(in_channels=dataset.num_features,  
+                        out_channels=best_trial.params["out_channels"], 
+                        edge_dim=dataset.num_edge_features, 
+                        dropout=best_trial.params["dropout"], 
+                        n_conv_layers=best_trial.params["n_conv_layers"],
+                        n_classifier_layers=best_trial.params["n_classify_layers"],
+                        size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE) 
+        elif args.model == "GINE+":
+            model = GINEPlus(in_channels=dataset.num_features,  
+                        out_channels=best_trial.params["out_channels"], 
+                        edge_dim=dataset.num_edge_features, 
+                        dropout=best_trial.params["dropout"], 
+                        n_conv_layers=best_trial.params["n_conv_layers"],
+                        depth_conv_layers=best_trial.params["depth_conv_layers"],
                         n_classifier_layers=best_trial.params["n_classify_layers"],
                         size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
         elif args.model == "MF":
@@ -386,9 +499,6 @@ if __name__ == "__main__":
                     n_classifier_layers=best_trial.params["n_classify_layers"],
                     size_classify_layers=best_trial.params["size_classify_layers"]).to(DEVICE)
         else: raise NotImplementedError(f"Invalid model: {args.model}")
-
-        # Generate the optimizer
-        optimizer = torch.optim.Adam(model.parameters(), lr=best_trial.params["lr"])
 
         # Resplit training/val data randomly into training (90%) and validation (10%) sets
         # the randomly chosen validation is used to determine the optimal number of training
@@ -415,6 +525,10 @@ if __name__ == "__main__":
             shuffle=True,
         )
 
+        # Generate the optimizer and scheduler
+        optimizer = torch.optim.Adam(model.parameters(), lr=best_trial.params["lr"])
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
+
         # Initialize early stopper
         early_stopper = EarlyStopping(patience=PATIENCE, delta=DELTA, verbose=False)
 
@@ -428,7 +542,13 @@ if __name__ == "__main__":
             num_training_samples = 0
             for data in train_loader:
                 data = data.to(DEVICE)
-                output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+                optimizer.zero_grad()
+
+                if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
+                    output = model(data.x, data.edge_index, data.batch)
+                else:
+                    output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+
                 if args.loss == "weighted_BCE":
                     class_weights = compute_class_weight(class_weight='balanced', 
                                                         classes=np.unique(data.y.cpu()), 
@@ -439,12 +559,12 @@ if __name__ == "__main__":
                 else:
                     batch_training_loss = loss_function(output[:, 0].to(float), 
                                                          data.y.to(float))
+                    
                 batch_training_losses.append(batch_training_loss.item())
                 num_training_samples += len(data.batch)
                 batch_training_loss.backward()
                 optimizer.step()
-                optimizer.zero_grad()
-
+                
             training_losses.append(np.sum(np.array(batch_training_losses))/num_training_samples)
 
             model.eval()
@@ -453,7 +573,10 @@ if __name__ == "__main__":
                 num_validation_samples = 0
                 for data in val_loader:
                     data = data.to(DEVICE)
-                    output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+                    if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
+                        output = model(data.x, data.edge_index, data.batch)
+                    else:
+                        output = model(data.x, data.edge_index, data.edge_attr, data.batch)
                     if args.loss == "weighted_BCE":
                         class_weights = compute_class_weight(class_weight='balanced', 
                                                             classes=np.unique(data.y.cpu()), 
@@ -472,6 +595,8 @@ if __name__ == "__main__":
             early_stopper(np.sum(np.array(batch_validation_losses)))
             if early_stopper.early_stop:
                 break
+
+            scheduler.step(np.sum(np.array(batch_validation_losses)))
 
         plt.figure()
         plt.plot(
@@ -503,7 +628,10 @@ if __name__ == "__main__":
             preds = []
             for data in test_loader:
                 data = data.to(DEVICE)
-                output = model(data.x, data.edge_index, data.edge_attr, data.batch)
+                if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
+                    output = model(data.x, data.edge_index, data.batch)
+                else:
+                    output = model(data.x, data.edge_index, data.edge_attr, data.batch)
                 targets.extend(data.y.tolist())
                 preds.extend(output.tolist())
             targets = np.array(targets)
@@ -512,6 +640,7 @@ if __name__ == "__main__":
         ## Compute test metrics of current fold
         ## with predictions on test set
         auc_pr = average_precision_score(targets, preds)
+        rocauc = roc_auc_score(targets, preds)
         # Get best threshold
         if args.loss == "weighted_BCE":
             opt_threshold = 0.5
@@ -530,9 +659,10 @@ if __name__ == "__main__":
         precision_list.append(precision)
         recall_list.append(recall)
         auc_pr_list.append(auc_pr)
+        rocauc_list.append(rocauc)
 
         # Save model
-        torch.save(model, os.path.join(args.outputDirectory, str(fold_idx_ext+1) + "/model.pt"))
+        torch.save(model.state_dict(), os.path.join(args.outputDirectory, str(fold_idx_ext+1) + "/model.pt"))
 
         # Save individual fold results
         with open(
@@ -542,7 +672,7 @@ if __name__ == "__main__":
             newline="",
         ) as f:
             writer = csv.writer(f)
-            writer.writerow([opt_threshold, mcc, precision, recall, auc_pr])
+            writer.writerow([opt_threshold, mcc, precision, recall, auc_pr, rocauc])
 
         logging.info(f"End external CV fold {fold_idx_ext+1}/{args.numExternalCVFolds}.")
 
@@ -556,6 +686,7 @@ if __name__ == "__main__":
         np.round(np.average(precision_list), 2),
         np.round(np.average(recall_list), 2),
         np.round(np.average(auc_pr_list), 2),
+        np.round(np.average(rocauc_list), 2),
     ]
     stddevs= [
         np.round(np.std(opt_threshold_list), 2), 
@@ -563,6 +694,7 @@ if __name__ == "__main__":
         np.round(np.std(precision_list), 2),
         np.round(np.std(recall_list), 2),
         np.round(np.std(auc_pr_list), 2),
+        np.round(np.std(rocauc_list), 2),
     ]
     names = [
         "opt_threshold",
@@ -570,6 +702,7 @@ if __name__ == "__main__":
         "precision", 
         "recall", 
         "auc_pr", 
+        "rocauc", 
         ]
     with open(
         os.path.join(args.outputDirectory, "results_summary.csv"),

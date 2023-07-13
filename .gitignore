@@ -109,22 +109,14 @@ ENV/
 */_version.py
 
 # Data
-data/accelrys/
-data/combo/
-data/metaQSAR/
-data/nitrosopropylamine/
-data/propanolol/
+data/
 
 # Output
 output/
 
 # Models
-models/accelrys/
-models/combo/
-models/metaQSAR/
-models/zaretzki/
+models/
 
 # Other
-*.json
 *.sh
 *.db

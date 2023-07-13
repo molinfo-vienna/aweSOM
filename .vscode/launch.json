@@ -17,9 +17,9 @@
             "request": "launch",
             "program": "scripts/preprocess.py",
             "args": [
-                "-d", "data/zaretzki_CDPKit", 
+                "-d", "data/RDKit/zaretzki", 
                 "-f", "data.sdf",
-                "-k", "CDPKit",
+                "-k", "RDKit",
                 "-w", "8",
                 "-t", "True",
                 "-v", "INFO"
@@ -113,13 +113,13 @@
             "request": "launch",
             "program": "scripts/train.py",
             "args": [
-                "-i", "data/metaQSAR/preprocessed", 
-                "-o", "models/metaQSAR/gine_eps/bce", 
+                "-i", "data/CDPKit/zaretzki/preprocessed", 
+                "-o", "models/CDPKit/zaretzki/gine/bce", 
                 "-m", "GINE",
                 "-l", "BCE",
                 "-b", "64",
                 "-e", "500",
-                "-nt", "100",
+                "-nt", "80",
                 "-nif", "5",
                 "-nef", "5",
                 "-v", "INFO"

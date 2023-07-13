@@ -78,8 +78,7 @@ def load_mol_input(dir, indices):
             if not reader.read(int(i), mol):
                 return graphs, mol_ids, atom_ids, labels, node_features
             if not Chem.hasStructureData(mol):
-                #TODO add logger here
-                print('Error: no structure data available for molecule \'%s\'' % Chem.getName(mol))
+                print(f'Error: no structure data available for molecule {Chem.getName(mol)}') # TODO logger
 
             struct_data = Chem.getStructureData(mol)
             soms=list()
@@ -624,7 +623,7 @@ def mol_to_nx_RDKit(mol_id, mol, soms):
 
     # Assign each atom its molecular and atomic features and make it a node of G
     for atom_idx in range(mol.GetNumAtoms()):
-        atom = mol.getAtom(atom_idx)
+        atom = mol.GetAtomWithIdx(atom_idx)
         atm_ring_length = 0
         if atom.IsInRing():
             for ring in rings:
@@ -660,7 +659,46 @@ def mol_to_nx_RDKit(mol_id, mol, soms):
         )
     return G
 
-def generate_preprocessed_data_chunk_RDKit(chunk, kit): #TODO remove RDKit
+
+def generate_preprocessed_data(num_workers, file_length, dir: str, canonical_SMILES: bool = True):
+    """
+    Generates the necessary preprocessed data from the input data using multiple workers.
+    Args:
+        numWorkers (int):   number of worker processes to use
+        file_length (int):  length of the instances in the file
+        dir (str):          dir to file (incl filename)
+        canonical_SMILES (bool): Generate canonical SMILES - default True
+    Returns:
+        G (NetworkX Graph): a molecular graph describing the entire input data
+                            (individual molecules are processed as subgraphs of 
+                            one big graph object)
+        mol_ids (numpy array): an array with the molecular ID of each node in G
+                                (i.e. the molecule, to which each atom belongs to)
+        atom_ids (numpy array): an array with the atom ID of each node in G
+        labels (numpy array): an array with the SoM labels (0/1) of each node in G
+        node_features (numpy array): a 2D array of dimension (number of nodes, 
+                        number of node features)
+    """
+    chunks = np.array_split(range(file_length), num_workers)
+    dirs = [dir for _ in range(num_workers)]
+
+    with Pool(num_workers) as p:
+        results = p.starmap(load_mol_input, zip(dirs,chunks))
+    graphs=list()
+    for result in results:
+        for graph in result[0]:
+            graphs.append(graph)
+        
+    G = nx.disjoint_union_all(graphs)
+    mol_ids = np.concatenate([result[1] for result in results])
+    atom_ids = np.concatenate([result[2] for result in results])
+    labels = np.concatenate([result[3] for result in results])
+    node_features = np.concatenate([result[4] for result in results], axis=0)
+
+    return G, mol_ids, atom_ids, labels, node_features
+
+
+def generate_preprocessed_data_chunk_RDKit(chunk):
     """
     Generates preprocessed data from a chunk of the input data.
     """
@@ -678,51 +716,12 @@ def generate_preprocessed_data_chunk_RDKit(chunk, kit): #TODO remove RDKit
     return G, mol_ids, atom_ids, labels, node_features
 
 
-def generate_preprocessed_data(num_workers, file_length, dir: str, canonical_SMILES: bool = True):
-    """
-    Generates the necessary preprocessed data from the input data using multiple workers.
-    Args:
-        numWorkers (int):      number of worker processes to use
-        file_length (int):     length of the instances in the file
-        dir (str): dir to file (incl filename)
-        canonical_SMILES (boolean): Generate canonical SMILES - default True
-    Returns:
-        G (NetworkX Graph): a molecular graph describing the entire input data
-                            (individual molecules are processed as subgraphs of 
-                            one big graph object)
-        mol_ids (numpy array): an array with the molecular ID of each node in G
-                                (i.e. the molecule, to which each atom belongs to)
-        atom_ids (numpy array): an array with the atom ID of each node in G
-        labels (numpy array): an array with the SoM labels (0/1) of each node in G
-        node_features (numpy array): a 2D array of dimension (number of nodes, 
-                        number of node features)
-    """
-    chunks = np.array_split(range(file_length), num_workers)
-    dirs = [dir for _ in range(num_workers)]
-
-    with Pool(num_workers) as p:
-        results = p.starmap(load_mol_input, zip(dirs,chunks))
-    # print("results",results)
-    graphs=list()
-    for result in results:
-        for graph in result[0]:
-            graphs.append(graph)
-        
-    G = nx.disjoint_union_all(graphs)
-    mol_ids = np.concatenate([result[1] for result in results])
-    atom_ids = np.concatenate([result[2] for result in results])
-    labels = np.concatenate([result[3] for result in results])
-    node_features = np.concatenate([result[4] for result in results], axis=0)
-
-    return G, mol_ids, atom_ids, labels, node_features
-
-def generate_preprocessed_data_RDKit(df, num_workers, kit): #TODO remove kit
+def generate_preprocessed_data_RDKit(df, num_workers):
     """
     Generates the necessary preprocessed data from the input data using multiple workers.
     Args:
         df (pandas dataframe): input data
         numWorkers (int):      number of worker processes to use
-        kit (string):          the desired toolkit (RDKit or CDPKit)
     Returns:
         G (NetworkX Graph): a molecular graph describing the entire input data
                             (individual molecules are processed as subgraphs of 
@@ -735,9 +734,8 @@ def generate_preprocessed_data_RDKit(df, num_workers, kit): #TODO remove kit
                         number of node features)
     """
     chunks = np.array_split(df, num_workers)
-    kit_ = [kit for _ in range(num_workers)]
     with Pool(num_workers) as p:
-        results = p.starmap(generate_preprocessed_data_chunk_RDKit, zip(chunks, kit_))
+        results = p.map(generate_preprocessed_data_chunk_RDKit, chunks)
     G = nx.disjoint_union_all([result[0] for result in results])
     mol_ids = np.concatenate([result[1] for result in results])
     atom_ids = np.concatenate([result[2] for result in results])

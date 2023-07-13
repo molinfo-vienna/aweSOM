@@ -9,8 +9,14 @@ import shutil
 from rdkit.Chem import PandasTools
 from torch_geometric import seed_everything
 
-from awesom.process_input_data import generate_preprocessed_data,generate_preprocessed_data_RDKit,save_preprocessed_data, load_mol_input, get_file_length
+from awesom.process_input_data import (
+    generate_preprocessed_data,
+    generate_preprocessed_data_RDKit,
+    save_preprocessed_data, load_mol_input, 
+    get_file_length
+)
 from awesom.utils import seed_everything
+
 
 def run(dir, file, kit, numberWorkers, trueSoms):
     """Computes and saves the necessary data (graph, features, labels, graph_ids)
@@ -23,9 +29,7 @@ def run(dir, file, kit, numberWorkers, trueSoms):
         numberWorker (int): the number of worker for parallelization
         trueSoms (bool):    are the true labels known?
     """
-
-    ##### make output directory
-
+    
     if os.path.exists(os.path.join(dir, "preprocessed")):
         overwrite = input("Folder already exists. Overwrite? [y/n] \n")
         if overwrite == "y":
@@ -35,8 +39,6 @@ def run(dir, file, kit, numberWorkers, trueSoms):
             return None
     else:
         os.mkdir(os.path.join(dir, "preprocessed"))
-
-    ##### generate df
 
     _, file_extension = os.path.splitext(file)
 
@@ -55,21 +57,39 @@ def run(dir, file, kit, numberWorkers, trueSoms):
         
         print("Preprocessing... This can take a few minutes.")
         logging.info("START preprocessing")
+        G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data_RDKit(df, numberWorkers)
 
-        G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data_RDKit(df, numberWorkers, kit)
         logging.info("Saving preprocessed test set...")
-        save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, os.path.join(dir, "preprocessed"))
+        save_preprocessed_data(G, 
+                               mol_ids, 
+                               atom_ids, 
+                               labels, 
+                               node_features, 
+                               os.path.join(dir, "preprocessed"))
 
         print("Preprocessing sucessful!")
         logging.info("END preprocessing")
-    elif kit == "CDPKit":
 
-        ### generate a function that reads the indices
+    elif kit == "CDPKit":
         file_length = get_file_length(str(os.path.join(dir, file)))
-        ### generate a function that does the preprocessing
-        G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data(numberWorkers, file_length,os.path.join(dir, file),True)
+
+        print("Preprocessing... This can take a few minutes.")
+        logging.info("START preprocessing")
+        G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data(numberWorkers, 
+                                                                                 file_length,
+                                                                                 os.path.join(dir, file),
+                                                                                 True)
+
         logging.info("Saving preprocessed test set...")
-        save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, os.path.join(dir, "preprocessed"))
+        save_preprocessed_data(G, 
+                               mol_ids, 
+                               atom_ids, 
+                               labels, 
+                               node_features, 
+                               os.path.join(dir, "preprocessed"))
+
+        print("Preprocessing sucessful!")
+        logging.info("END preprocessing")
 
     else: raise NotImplementedError(f"Invalid kit: {kit}")
 
@@ -124,15 +144,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     logging.basicConfig(filename= os.path.join(args.dir, 'logfile_preprocess.log'), 
-                    level=getattr(logging, args.verbosityLevel), 
-                    format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+                        level=getattr(logging, args.verbosityLevel), 
+                        format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 
-    # try:
     run(args.dir, 
         args.file, 
         args.kit, 
         args.numberWorkers, 
         args.trueSoms, 
         )
-    # except Exception as e:
-    #     logging.error("The preprocess was terminated:", e)
