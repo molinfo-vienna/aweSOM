@@ -1,0 +1,224 @@
+{
+    "version": "0.2.0",
+    "debugOptions": ["RedirectOutput", "PyDebug", "ShowReturnValue", "WaitOnAbnormalExit", "WaitOnNormalExit", "Timeout=300"],
+    "redirectOutput": true,
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Preprocess",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/preprocess.py",
+            "args": [
+                "-d", "data/metaQSAR", 
+                "-f", "data.sdf",
+                "-w", "12",
+                "-p", "False",
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train GATv2",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train.py",
+            "args": [
+                "-i", "data/zaretzki/preprocessed", 
+                "-o", "models/test", 
+                "-m", "GATv2",
+                "-l", "BCE",
+                "-b", "64",
+                "-e", "10",
+                "-nt", "5",
+                "-nif", "2",
+                "-nef", "2",
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train GIN",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train.py",
+            "args": [
+                "-i", "data/metaQSAR/preprocessed", 
+                "-o", "models/metaQSAR/gin/bce", 
+                "-m", "GIN",
+                "-l", "BCE",
+                "-b", "64",
+                "-e", "500",
+                "-nt", "100",
+                "-nif", "5",
+                "-nef", "5",
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train GINNA",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train.py",
+            "args": [
+                "-i", "data/metaQSAR/preprocessed", 
+                "-o", "models/metaQSAR/ginna/bce", 
+                "-m", "GINNA",
+                "-l", "BCE",
+                "-b", "64",
+                "-e", "500",
+                "-nt", "100",
+                "-nif", "5",
+                "-nef", "5",
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train GIN+",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train.py",
+            "args": [
+                "-i", "data/metaQSAR/preprocessed", 
+                "-o", "models/metaQSAR/gin+/bce", 
+                "-m", "GIN+",
+                "-l", "BCE",
+                "-b", "64",
+                "-e", "500",
+                "-nt", "100",
+                "-nif", "5",
+                "-nef", "5",
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train GINE",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train.py",
+            "args": [
+                "-i", "data/metaQSAR/preprocessed", 
+                "-o", "models/metaQSAR/gine_eps/bce", 
+                "-m", "GINE",
+                "-l", "BCE",
+                "-b", "64",
+                "-e", "500",
+                "-nt", "100",
+                "-nif", "5",
+                "-nef", "5",
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train GINENA",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train.py",
+            "args": [
+                "-i", "data/metaQSAR/preprocessed", 
+                "-o", "models/metaQSAR/ginena/bce", 
+                "-m", "GINENA",
+                "-l", "BCE",
+                "-b", "64",
+                "-e", "500",
+                "-nt", "100",
+                "-nif", "5",
+                "-nef", "5",
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train GINE+",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train.py",
+            "args": [
+                "-i", "data/metaQSAR/preprocessed", 
+                "-o", "models/metaQSAR/gine+/bce", 
+                "-m", "GINE+",
+                "-l", "BCE",
+                "-b", "64",
+                "-e", "500",
+                "-nt", "100",
+                "-nif", "5",
+                "-nef", "5",
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train MF",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train.py",
+            "args": [
+                "-i", "data/zaretzki/preprocessed", 
+                "-o", "output/zaretzki/mf/bce", 
+                "-m", "MF",
+                "-l", "BCE",
+                "-b", "64",
+                "-e", "500",
+                "-nt", "100",
+                "-nif", "5",
+                "-nef", "5",
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Train TF",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/train.py",
+            "args": [
+                "-i", "data/zaretzki/preprocessed", 
+                "-o", "output/zaretzki/tf/bce", 
+                "-m", "TF",
+                "-l", "BCE",
+                "-b", "64",
+                "-e", "500",
+                "-nt", "100",
+                "-nif", "5",
+                "-nef", "5",
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Predict",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/predict.py",
+            "args": [
+                "-i", "data/propanolol/preprocessed", 
+                "-o", "output/propanolol/zaretzki/gin/bce", 
+                "-m", "models/zaretzki/gin/bce", 
+                "-v", "INFO"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+    ]
+}
