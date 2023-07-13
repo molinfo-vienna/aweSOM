@@ -212,9 +212,9 @@
             "request": "launch",
             "program": "scripts/predict.py",
             "args": [
-                "-i", "data/capsaicin/preprocessed", 
-                "-o", "output/capsaicin/test", 
-                "-m", "models/test", 
+                "-i", "data/propanolol/preprocessed", 
+                "-o", "output/propanolol/zaretzki/gin/bce", 
+                "-m", "models/zaretzki/gin/bce", 
                 "-v", "INFO"
             ],
             "console": "integratedTerminal",
