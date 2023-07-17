@@ -5,6 +5,7 @@ import logging
 import os
 import pandas as pd
 import shutil
+import sys
 
 from rdkit.Chem import PandasTools
 from torch_geometric import seed_everything
@@ -12,51 +13,8 @@ from torch_geometric import seed_everything
 from awesom.process_input_data import generate_preprocessed_data, save_preprocessed_data
 from awesom.utils import seed_everything
 
-def run(dir, file, numberWorkers, predict):
-    """Computes and saves the necessary data (graph, features, labels, graph_ids)
-    to create a PyTorch Geometric custom dataset from an SDF file containing molecules.
+from typing import Union
 
-    Args:
-        dir (string):       the directory where the input data is stored
-        file (string):      the name of the data file (with file name extension)
-        numberWorker (int): the number of worker for parallelization
-        predict (bool):     is the data for prediction purposes?
-    """
-
-    if os.path.exists(os.path.join(dir, "preprocessed")):
-        overwrite = input("Folder already exists. Overwrite? [y/n] \n")
-        if overwrite == "y":
-            shutil.rmtree(os.path.join(dir, "preprocessed"))
-            os.mkdir(os.path.join(dir, "preprocessed"))
-        if overwrite == "n":
-            return None
-    else:
-        os.mkdir(os.path.join(dir, "preprocessed"))
-
-    _, file_extension = os.path.splitext(file)
-
-    if file_extension == ".sdf":
-        df = PandasTools.LoadSDF(os.path.join(dir, file), removeHs=True)
-    elif file_extension == ".smiles":
-        df = pd.read_csv(os.path.join(dir, file), names=["smiles"]) 
-        PandasTools.AddMoleculeColumnToFrame(df, "smiles")
-    else: raise NotImplementedError(f"Invalid file extension: {file_extension}")
-    
-    if predict:
-        df["soms"] = "[]"
-
-    df["soms"] = df["soms"].map(ast.literal_eval)
-    df["ID"] = df.index
-    
-    print("Preprocessing... This can take a few minutes.")
-    logging.info("START preprocessing")
-
-    G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data(df, numberWorkers)
-    logging.info("Saving preprocessed test set...")
-    save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, os.path.join(dir, "preprocessed"))
-
-    print("Preprocessing sucessful!")
-    logging.info("END preprocessing")
     
 if __name__ == "__main__":
     
@@ -64,18 +22,18 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser("Preprocess the data.")
 
-    parser.add_argument("-d",
-        "--dir",
+    parser.add_argument("-i",
+        "--inputPath",
         type=str,
         required=True,
-        help="The directory where the input data is stored.",    
-    )
-    parser.add_argument("-f",
-        "--file",
-        type=str,
-        required=True,
-        help="The name of the input data file (with file name extension).\
+        help="The absolute path to the input data file (with file name extension).\
               The file can be either sdf or smiles. E.g., \"data.sdf\".",    
+    )
+    parser.add_argument("-o",
+        "--outputDir",
+        type=str,
+        required=True,
+        help="The directory of the preprocessed data.",    
     )
     parser.add_argument("-w",
         "--numberWorkers",
@@ -101,15 +59,41 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    logging.basicConfig(filename= os.path.join(args.dir, 'logfile_preprocess.log'), 
-                    level=getattr(logging, args.verbosityLevel), 
-                    format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+    if os.path.exists(args.outputDir):
+        overwrite = input("Folder already exists. Overwrite? [y/n] \n")
+        if overwrite == "y":
+            shutil.rmtree(args.outputDir)
+            os.makedirs(args.outputDir)
+        if overwrite == "n":
+            raise FileExistsError("Folder already exists.")
+    else:
+        os.makedirs(args.outputDir)
 
-    try:
-        run(args.dir,
-            args.file, 
-            args.numberWorkers,
-            args.predict,
-            )
-    except Exception as e:
-        logging.error("The preprocess was terminated:", e)
+    logging.basicConfig(filename= os.path.join(args.outputDir, 'logfile_preprocess.log'), 
+                level=getattr(logging, args.verbosityLevel), 
+                format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+
+    _, file_extension = os.path.splitext(args.inputPath)
+
+    if file_extension == ".sdf":
+        df = PandasTools.LoadSDF(args.inputPath, removeHs=True)
+    elif file_extension == ".smiles":
+        df = pd.read_csv(args.inputPath, names=["smiles"]) 
+        PandasTools.AddMoleculeColumnToFrame(df, "smiles")
+    else: raise NotImplementedError(f"Invalid file extension: {file_extension}")
+    
+    if args.predict:
+        df["soms"] = "[]"
+
+    df["soms"] = df["soms"].map(ast.literal_eval)
+    df["ID"] = df.index
+    
+    print("Preprocessing... This can take a few minutes.")
+    logging.info("START preprocessing")
+
+    G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data(df, args.numberWorkers)
+    logging.info("Saving preprocessed test set...")
+    save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, args.outputDir)
+
+    print("Preprocessing sucessful!")
+    logging.info("END preprocessing")
