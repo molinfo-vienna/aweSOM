@@ -1,12 +1,14 @@
+from __future__ import annotations
 import json
 import logging
 import networkx as nx
 import numpy as np
 import os
 import sys
+from typing import Any, Union
 
 from multiprocessing import Pool
-from rdkit.Chem import rdMolDescriptors
+from rdkit.Chem import Mol, rdMolDescriptors
 
 ELEM_LIST =[5, 6, 7, 8, 9, 14, 15, 16, 17, 34, 35, 53,"OTHER"]
 HYBRIDIZATION_TYPE = ["SP", 
@@ -26,7 +28,7 @@ BOND_TYPE = ["SINGLE",
              ]
 
 
-def _get_allowed_set(x, allowable_set):
+def _get_allowed_set(x: Any, allowable_set: list[Any]) -> list[float]:
     """
     PRIVATE METHOD
     Generates a one-hot encoded list for x. If x not in allowable_set,
@@ -42,7 +44,7 @@ def _get_allowed_set(x, allowable_set):
     return list(map(lambda s: float(x == s), allowable_set))
 
 
-def generate_fraction_rotatable_bonds(mol):
+def generate_fraction_rotatable_bonds(mol: Mol):
     """
     Computes the fraction of rotatable bonds in the parsed molecule.
     Args:

@@ -327,6 +327,9 @@ if __name__ == "__main__":
     logging.basicConfig(filename= os.path.join(args.outputDirectory, 'logfile_train.log'), 
                     level=getattr(logging, args.verbosityLevel), 
                     format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+    
+
+    loss_function: torch.nn.modules.loss._Loss
 
     # Retrieve user-defined hyperparameters
     if args.loss == "BCE":
@@ -424,6 +427,8 @@ if __name__ == "__main__":
 
         logging.info("Retraining model with best hyperparameters ...")
         print("Retraining model with best hyperparameters ...")
+
+        model: torch.nn.Module
     
         if args.model == "GATv2":
             model = GATv2(in_channels=dataset.num_features, 
@@ -625,7 +630,7 @@ if __name__ == "__main__":
         model.eval()
         with torch.no_grad():
             targets = []
-            preds = []
+            preds_list = []
             for data in test_loader:
                 data = data.to(DEVICE)
                 if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
@@ -633,9 +638,9 @@ if __name__ == "__main__":
                 else:
                     output = model(data.x, data.edge_index, data.edge_attr, data.batch)
                 targets.extend(data.y.tolist())
-                preds.extend(output.tolist())
+                preds_list.extend(output.tolist())
             targets = np.array(targets)
-            preds = np.array(list(itertools.chain(*preds)))
+            preds = np.array(list(itertools.chain(*preds_list)))
 
         ## Compute test metrics of current fold
         ## with predictions on test set

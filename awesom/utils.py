@@ -57,7 +57,7 @@ class EarlyStopping:
 
 #################### Loss related utility functions ####################
 
-class weighted_BCE_Loss(torch.nn.Module):
+class weighted_BCE_Loss(torch.nn.modules.loss._Loss):
     def __init__(self):
         super(weighted_BCE_Loss, self).__init__()
 
@@ -73,7 +73,7 @@ class weighted_BCE_Loss(torch.nn.Module):
         return torch.neg(torch.mean(loss))
 
 
-class MCC_BCE_Loss(torch.nn.Module):
+class MCC_BCE_Loss(torch.nn.modules.loss._Loss):
     def __init__(self):
         super(MCC_BCE_Loss, self).__init__()
 
@@ -89,7 +89,7 @@ class MCC_BCE_Loss(torch.nn.Module):
         return MCC_loss + BCE_loss
     
     
-class FocalLoss(torch.nn.Module):
+class FocalLoss(torch.nn.modules.loss._Loss):
     """
     Implementation of FocalLoss for imbalanced datasets with binary labels.
     """
