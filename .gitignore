@@ -110,6 +110,7 @@ ENV/
 
 # Data
 data/
+data_preprocessed/
 
 # Output
 output/
