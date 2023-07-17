@@ -1,0 +1,8 @@
+stages:
+  preprocessing_metaQSAR:
+    cmd: python scripts/preprocess.py -d RDKit/data/metaQSAR -f data.sdf -w 12 -p False -v INFO
+    deps:
+      - scripts/preprocess.py
+      - RDKit/data/metaQSAR/data.sdf
+    outs:
+      - RDKit/data/metaQSAR/preprocessed
