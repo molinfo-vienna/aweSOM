@@ -1,61 +1,61 @@
 import argparse
 import ast
-import distutils
+import distutils.util
 import logging
 import os
 import pandas as pd
 import shutil
-import sys
 
 from rdkit.Chem import PandasTools
-from torch_geometric import seed_everything
 
 from awesom.process_input_data import generate_preprocessed_data, save_preprocessed_data
 from awesom.utils import seed_everything
 
-from typing import Union
 
-    
 if __name__ == "__main__":
-    
     seed_everything(42)
-    
+
     parser = argparse.ArgumentParser("Preprocess the data.")
 
-    parser.add_argument("-i",
+    parser.add_argument(
+        "-i",
         "--inputPath",
         type=str,
         required=True,
-        help="The absolute path to the input data file (with file name extension).\
-              The file can be either sdf or smiles. E.g., \"data.sdf\".",    
+        help='The absolute path to the input data file (with file name extension).\
+              The file can be either sdf or smiles. E.g., "data.sdf".',
     )
-    parser.add_argument("-o",
+    parser.add_argument(
+        "-o",
         "--outputDir",
         type=str,
         required=True,
-        help="The directory of the preprocessed data.",    
+        help="The directory of the preprocessed data.",
     )
-    parser.add_argument("-w",
+    parser.add_argument(
+        "-w",
         "--numberWorkers",
         type=int,
         required=True,
         help="The number of parallel workers. Please note that -w should not \
-            be set to a number greater than the number of molecules in the data.",    
+            be set to a number greater than the number of molecules in the data.",
     )
-    parser.add_argument("-p",
+    parser.add_argument(
+        "-p",
         "--predict",
-        type=lambda x:bool(distutils.util.strtobool(x)),
+        type=lambda x: bool(distutils.util.strtobool(x)),
         required=True,
         help="Set to False if the data serves as training data (known SoMs).\
-              Set to True if the purpose is to predict the SoMs.",    
+              Set to True if the purpose is to predict the SoMs.",
     )
-    parser.add_argument("-v",
+    parser.add_argument(
+        "-v",
         "--verbose",
-        dest="verbosityLevel", 
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        default='INFO',
-        help="Set the verbosity level of the logger - default is on INFO."
-        )
+        dest="verbosityLevel",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="INFO",
+        help="Set the verbosity level of the logger - default is on INFO.",
+    )
 
     args = parser.parse_args()
 
@@ -69,29 +69,34 @@ if __name__ == "__main__":
     else:
         os.makedirs(args.outputDir)
 
-    logging.basicConfig(filename= os.path.join(args.outputDir, 'logfile_preprocess.log'), 
-                level=getattr(logging, args.verbosityLevel), 
-                format='%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+    logging.basicConfig(
+        filename=os.path.join(args.outputDir, "logfile_preprocess.log"),
+        level=getattr(logging, args.verbosityLevel),
+        format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+    )
 
     _, file_extension = os.path.splitext(args.inputPath)
 
     if file_extension == ".sdf":
         df = PandasTools.LoadSDF(args.inputPath, removeHs=True)
     elif file_extension == ".smiles":
-        df = pd.read_csv(args.inputPath, names=["smiles"]) 
+        df = pd.read_csv(args.inputPath, names=["smiles"])
         PandasTools.AddMoleculeColumnToFrame(df, "smiles")
-    else: raise NotImplementedError(f"Invalid file extension: {file_extension}")
-    
+    else:
+        raise NotImplementedError(f"Invalid file extension: {file_extension}")
+
     if args.predict:
         df["soms"] = "[]"
 
     df["soms"] = df["soms"].map(ast.literal_eval)
     df["ID"] = df.index
-    
+
     print("Preprocessing... This can take a few minutes.")
     logging.info("START preprocessing")
 
-    G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data(df, args.numberWorkers)
+    G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data(
+        df, args.numberWorkers
+    )
     logging.info("Saving preprocessed test set...")
     save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, args.outputDir)
 

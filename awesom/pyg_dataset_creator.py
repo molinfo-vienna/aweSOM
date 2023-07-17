@@ -5,37 +5,26 @@ from networkx.readwrite import json_graph
 import numpy as np
 import torch
 from torch_geometric.data import InMemoryDataset, Data
+from typing import List
 
 __all__ = ["SOM"]
 
 
 class SOM(InMemoryDataset):
     """Creates a PyTorch Geometric Dataset from preprocessed input data.
-    The preprocessed data is generated from an input .sdf file via methods 
+    The preprocessed data is generated from an input .sdf file via methods
     from the process_input_data.py file.
     Args:
         root (string): The directory where the dataset will be saved.
-        transform (callable, optional): A function/transform that takes in an
-            :obj:`torch_geometric.data.Data` object and returns a transformed
-            version. The data object will be transformed before every access.
-            (default: :obj:`None`)
-        pre_transform (callable, optional): A function/transform that takes in
-            an :obj:`torch_geometric.data.Data` object and returns a
-            transformed version. The data object will be transformed before
-            being saved to disk. (default: :obj:`None`)
-        pre_filter (callable, optional): A function that takes in an
-            :obj:`torch_geometric.data.Data` object and returns a boolean
-            value, indicating whether the data object should be included in the
-            final dataset. (default: :obj:`None`)
     """
 
-    def __init__(self, root, transform=None, pre_transform=None, pre_filter=None):
-        super().__init__(root, transform, pre_transform, pre_filter)
+    def __init__(self, root: str) -> None:
+        super().__init__(root)
         self.root = root
         self.data, self.slices = torch.load(self.processed_paths[0])
 
     @property
-    def raw_file_names(self):
+    def raw_file_names(self) -> List[str]:
         return [
             "graph.json",
             "node_features.npy",
@@ -45,11 +34,10 @@ class SOM(InMemoryDataset):
         ]
 
     @property
-    def processed_file_names(self):
+    def processed_file_names(self) -> List[str]:
         return ["data.pt"]
 
-    def process(self):
-
+    def process(self) -> None:
         with open(self.root + "/graph.json", "r") as f:
             G = nx.DiGraph(json_graph.node_link_graph(json.load(f)))
 
@@ -66,7 +54,6 @@ class SOM(InMemoryDataset):
         data_list = []
 
         for mol_id in unique_mol_ids:
-            
             try:
                 mask = mol_ids == mol_id
 
@@ -77,8 +64,17 @@ class SOM(InMemoryDataset):
 
                 for i, edge in enumerate(list(G_s.edges)):
                     if i == 0:
-                        edge_attr = torch.empty((len(G_s.edges), len(G_s.get_edge_data(edge[0], edge[1])["bond_features"])))
-                    edge_attr[i] = torch.tensor(G_s.get_edge_data(edge[0], edge[1])["bond_features"])
+                        edge_attr = torch.empty(
+                            (
+                                len(G_s.edges),
+                                len(
+                                    G_s.get_edge_data(edge[0], edge[1])["bond_features"]
+                                ),
+                            )
+                        )
+                    edge_attr[i] = torch.tensor(
+                        G_s.get_edge_data(edge[0], edge[1])["bond_features"]
+                    )
 
                 # num_subsamplings = 30  # this is a hyperparameter
                 # sampling_mask = torch.empty((len(y[mask]), num_subsamplings))
@@ -98,21 +94,17 @@ class SOM(InMemoryDataset):
                     edge_index=edge_index_reset,
                     edge_attr=edge_attr,
                     y=y[mask],
-                    #sampling_mask=sampling_mask,
+                    # sampling_mask=sampling_mask,
                     mol_id=torch.full((len(y[mask]),), mol_id),
                     atom_id=atom_ids[mask],
                 )
 
-                if self.pre_filter is not None:
-                    data = self.pre_filter(data)
-
-                if self.pre_transform is not None:
-                    data = self.pre_transform(data)
-
                 data_list.append(data)
 
-            except:
-                logging.warning(f"An error occurred on molecule with mol_id {mol_id}.")
+            except Exception as e:
+                logging.warning(
+                    f"An error occurred on molecule with mol_id {mol_id}. Exception: {e}"
+                )
                 continue
 
         torch.save(self.collate(data_list), self.processed_paths[0])
