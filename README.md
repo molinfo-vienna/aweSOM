@@ -29,21 +29,21 @@ A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (So
 
 #### Dataset Generation
 
-To load new data for model training/testing and/or prediction purposes run the following:
+To load new data for model training/testing and/or prediction purposes run the following before running ```train``` or ```predict```:
 
-```python scripts/preprocess.py -d DIRECTORY -f FILE.sdf -w NUMBER_WORKERS -p PREDICT -v VERBOSE```
+```python scripts/preprocess.py -i INPUT_DIRECTORY -o OUTPUT_DIRECTORY -w NUMBER_WORKERS -k KIT -tl TRUE_LABELS -v VERBOSE```
 
-```DIRECTORY``` is the directory where the unprocessed data is stored.
+```INPUT_DIRECTORY``` is the directory of the unprocessed data. Only ```.sdf``` and ```.smiles``` input files are currently supported.
 
-```FILE``` is the name of the data file. Only ```.sdf``` and ```.smiles``` files are currently supported.
+```OUTPUT_DIRECTORY``` is the directory where the preprocessed data will stored.
 
 ```WORKERS``` is the desired number of parallel workers. Please do not set this number higher than the number of molecules in the data file.
 
-```PREDICT``` (True/False) indicates whether the preprocessed data will be used for training or predicting purposes.
+```KIT``` is the desired chemistry tool kit for preprocessing the data. Choose between ```RDKit``` and ```CDPKit```.
+
+```TRUE_LABELS``` (True/False) indicates whether the input data has true labels or not. Ste to True when preprocessing training data and False when preprocessing data for making predictions.
 
 ```VERBOSE``` should be set to the desired verbosity level, e.g. ```INFO```.
-
-The output of the preprocessing steps will be written to ```DIRECTORY/preprocessed/```.
 
 #### Model Training
 
@@ -57,7 +57,9 @@ Running the following will take preprocessed training data and run internal/exte
 
 Supported ```MODEL_TYPE``` include ```GIN```, ```GATv2```, ```MF``` and ```TF```.
 
-GIN refers to PyTorch Geometric's GINEConv: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html#torch_geometric.nn.conv.GINEConv
+GIN refers to PyTorch Geometric's GINConv: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINConv.html#torch_geometric.nn.conv.GINConv
+
+GINE refers to PyTorch Geometric's GINEConv: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html#torch_geometric.nn.conv.GINEConv
 
 GATv2 refers to PyTorch Geometric's GATv2Conv: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html#torch_geometric.nn.conv.GATv2Conv
 
@@ -77,17 +79,17 @@ Supported ```LOSS_FUNCTION``` inlcude ```BCE```, ```weighted_BCE```, ```MCC_BCE`
 
 Example:
 
-```python scripts/train.py -i data/zaretzki -o data/zaretzki/gatv2/bce -m GATv2 -l BCE -b 64 -e 500 -nt 100 -nif 5 -nef 5 -v INFO```
+```python scripts/train.py -i data_preprocessed/RDKit/zaretzki -o models/RDKit/zaretzki/gin/bce -m GINE -l BCE -b 64 -e 500 -nt 100 -nif 5 -nef 5 -v INFO```
 
 #### Predicting SoMs
 
 To predict the Sites of Metabolism of one or multiple molecules run:
 
-```python scripts/predict.py -i INPUT_DIRECTORY o OUTPUT_DIRECTORY -m MODELs_DIRECTORY -v VERBOSE```
+```python scripts/predict.py -i INPUT_DIRECTORY o OUTPUT_DIRECTORY -m MODELS_DIRECTORY -v VERBOSE```
 
 Example:
 
-```python scripts/predict.py -i data/capsaicin/preprocessed -o output/capsaicin/zaretzki/gatv2/bce -m models/zaretzki/gatv2/bce -v INFO```
+```python scripts/predict.py -i data_preprocessed/RDKit/capsaicin -o output/RDKit/capsaicin/zaretzki/gine/bce -m models/RDKit/zaretzki/gine/bce -v INFO```
 
 ### License
 
