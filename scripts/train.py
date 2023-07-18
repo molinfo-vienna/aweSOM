@@ -263,6 +263,10 @@ def objective_cv(trial: optuna.trial.Trial) -> float:
     for fold_idx_int, (train_idx, val_idx) in enumerate(
         fold.split(range(len(train_val_data)))
     ):
+        if trial.number >= args.nTrials:
+            study.stop()
+            raise optuna.TrialPruned()
+
         print(f"----- Internal CV fold {fold_idx_int+1}/{args.numInternalCVFolds}")
 
         train_data = itemgetter(*train_idx)(train_val_data)
@@ -285,6 +289,35 @@ def objective_cv(trial: optuna.trial.Trial) -> float:
     mean_metric = np.mean(metric_list)
 
     return mean_metric
+
+
+def check_logfile_for_string(logfile_path: str, target_string: str) -> bool:
+    """
+    Check if a specific string is present in the contents of a logfile.
+
+    This function reads the contents of the specified logfile and checks whether the
+    given target string is present in it.
+
+    Parameters:
+        logfile_path (str): The path to the logfile that will be checked.
+        target_string (str): The string to search for in the logfile's contents.
+
+    Returns:
+        bool: True if the target_string is found in the logfile, False otherwise.
+
+    Raises:
+        FileNotFoundError: If the specified logfile_path does not exist.
+    """
+    try:
+        with open(logfile_path, "r") as file:
+            log_contents = file.read()
+            if target_string in log_contents:
+                return True
+            else:
+                return False
+    except FileNotFoundError:
+        print(f"File '{logfile_path}' not found.")
+        return False
 
 
 if __name__ == "__main__":
@@ -375,6 +408,9 @@ if __name__ == "__main__":
         format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
     )
 
+    optuna.logging.enable_propagation()  # Propagate logs to the root logger.
+    optuna.logging.disable_default_handler()  # Stop showing logs in sys.stderr.
+
     loss_function: torch.nn.modules.loss._Loss
 
     # Retrieve user-defined hyperparameters
@@ -427,238 +463,294 @@ if __name__ == "__main__":
 
     fold = KFold(n_splits=args.numExternalCVFolds, shuffle=True, random_state=42)
     for fold_idx_ext, (train_val_idx, test_idx) in enumerate(fold.split(dataset)):
-        print(f"External CV fold {fold_idx_ext+1}/{args.numExternalCVFolds}")
-        logging.info(
-            f"Starting external CV fold {fold_idx_ext+1}/{args.numExternalCVFolds}"
-        )
-
-        if not os.path.exists(
-            os.path.join(args.outputDirectory, str(fold_idx_ext + 1))
+        if not check_logfile_for_string(
+            str(os.path.join(args.outputDirectory, "logfile_train.log")),
+            f"End external CV fold {fold_idx_ext+1}/{args.numExternalCVFolds}.",
         ):
-            os.mkdir(os.path.join(args.outputDirectory, str(fold_idx_ext + 1)))
-
-        # Create optuna study
-        study = optuna.create_study(
-            storage="sqlite:///" + args.outputDirectory + "/storage.db",
-            study_name="fold-" + str(fold_idx_ext),
-            direction="maximize",
-            load_if_exists=True,
-        )
-
-        # Get data
-        train_val_data = itemgetter(*train_val_idx)(dataset)
-        test_data = itemgetter(*test_idx)(dataset)
-
-        #####################################################################
-        #          tune hyperparameters on training/validation data
-        #####################################################################
-
-        logging.info("Searching for optimal hyperparameters...")
-        study.optimize(objective_cv, n_trials=args.nTrials)
-
-        best_trial = study.best_trial
-
-        print("Best trial:")
-        print("  Value: ", best_trial.value)
-        logging.info(
-            f"Best MCC for {fold_idx_ext+1}/{args.numExternalCVFolds}: {study.best_trial.value}"
-        )
-        logging.info(
-            f"Best hyperparameters fold {fold_idx_ext+1}/{args.numExternalCVFolds}:"
-        )
-        print("  Params: ")
-        for key, value in best_trial.params.items():
-            print(f"    {key} {value}")
-            logging.info(f"    {key} {value}")
-
-        with open(
-            os.path.join(args.outputDirectory, str(fold_idx_ext + 1) + "/info.txt"), "w"
-        ) as f:
-            f.write(f"model {args.model}\n")
-            for key, value in best_trial.params.items():
-                f.write(f"{key} {value}\n")
-
-        #####################################################################
-        # retrain model with best hyperparameters and test model on test data
-        #####################################################################
-
-        logging.info("Retraining model with best hyperparameters ...")
-        print("Retraining model with best hyperparameters ...")
-
-        model: torch.nn.Module
-
-        if args.model == "GATv2":
-            model = GATv2(
-                in_channels=dataset.num_features,
-                out_channels=best_trial.params["out_channels"],
-                edge_dim=dataset.num_edge_features,
-                heads=best_trial.params["heads"],
-                negative_slope=best_trial.params["negative_slope"],
-                dropout=best_trial.params["dropout"],
-                n_conv_layers=best_trial.params["n_conv_layers"],
-                n_classifier_layers=best_trial.params["n_classify_layers"],
-                size_classify_layers=best_trial.params["size_classify_layers"],
-            ).to(DEVICE)
-        elif args.model == "GIN":
-            model = GIN(
-                in_channels=dataset.num_features,
-                out_channels=best_trial.params["out_channels"],
-                dropout=best_trial.params["dropout"],
-                n_conv_layers=best_trial.params["n_conv_layers"],
-                n_classifier_layers=best_trial.params["n_classify_layers"],
-                size_classify_layers=best_trial.params["size_classify_layers"],
-            ).to(DEVICE)
-        elif args.model == "GINNA":
-            model = GINNA(
-                in_channels=dataset.num_features,
-                out_channels=best_trial.params["out_channels"],
-                dropout=best_trial.params["dropout"],
-                n_conv_layers=best_trial.params["n_conv_layers"],
-                n_classifier_layers=best_trial.params["n_classify_layers"],
-                size_classify_layers=best_trial.params["size_classify_layers"],
-            ).to(DEVICE)
-        elif args.model == "GIN+":
-            model = GINPlus(
-                in_channels=dataset.num_features,
-                out_channels=best_trial.params["out_channels"],
-                dropout=best_trial.params["dropout"],
-                n_conv_layers=best_trial.params["n_conv_layers"],
-                depth_conv_layers=best_trial.params["depth_conv_layers"],
-                n_classifier_layers=best_trial.params["n_classify_layers"],
-                size_classify_layers=best_trial.params["size_classify_layers"],
-            ).to(DEVICE)
-        elif args.model == "GINE":
-            model = GINE(
-                in_channels=dataset.num_features,
-                out_channels=best_trial.params["out_channels"],
-                edge_dim=dataset.num_edge_features,
-                dropout=best_trial.params["dropout"],
-                n_conv_layers=best_trial.params["n_conv_layers"],
-                n_classifier_layers=best_trial.params["n_classify_layers"],
-                size_classify_layers=best_trial.params["size_classify_layers"],
-            ).to(DEVICE)
-        elif args.model == "GINENA":
-            model = GINENA(
-                in_channels=dataset.num_features,
-                out_channels=best_trial.params["out_channels"],
-                edge_dim=dataset.num_edge_features,
-                dropout=best_trial.params["dropout"],
-                n_conv_layers=best_trial.params["n_conv_layers"],
-                n_classifier_layers=best_trial.params["n_classify_layers"],
-                size_classify_layers=best_trial.params["size_classify_layers"],
-            ).to(DEVICE)
-        elif args.model == "GINE+":
-            model = GINEPlus(
-                in_channels=dataset.num_features,
-                out_channels=best_trial.params["out_channels"],
-                edge_dim=dataset.num_edge_features,
-                dropout=best_trial.params["dropout"],
-                n_conv_layers=best_trial.params["n_conv_layers"],
-                depth_conv_layers=best_trial.params["depth_conv_layers"],
-                n_classifier_layers=best_trial.params["n_classify_layers"],
-                size_classify_layers=best_trial.params["size_classify_layers"],
-            ).to(DEVICE)
-        elif args.model == "MF":
-            model = MF(
-                in_channels=dataset.num_features,
-                out_channels=best_trial.params["out_channels"],
-                max_degree=best_trial.params["max_degree"],
-                n_conv_layers=best_trial.params["n_conv_layers"],
-                n_classifier_layers=best_trial.params["n_classify_layers"],
-                size_classify_layers=best_trial.params["size_classify_layers"],
-            ).to(DEVICE)
-        elif args.model == "TF":
-            model = TF(
-                in_channels=dataset.num_features,
-                out_channels=best_trial.params["out_channels"],
-                edge_dim=dataset.num_edge_features,
-                heads=best_trial.params["heads"],
-                dropout=best_trial.params["dropout"],
-                n_conv_layers=best_trial.params["n_conv_layers"],
-                n_classifier_layers=best_trial.params["n_classify_layers"],
-                size_classify_layers=best_trial.params["size_classify_layers"],
-            ).to(DEVICE)
-        else:
-            raise NotImplementedError(f"Invalid model: {args.model}")
-
-        # Resplit training/val data randomly into training (90%) and validation (10%) sets
-        # the randomly chosen validation is used to determine the optimal number of training
-        # epochs via early stopping
-
-        train_data, val_data = train_test_split(
-            train_val_data, test_size=0.2, shuffle=True, random_state=None
-        )
-
-        train_loader = DataLoader(
-            train_data,
-            batch_size=args.batchSize,
-            shuffle=True,
-        )
-        val_loader = DataLoader(
-            val_data,
-            batch_size=args.batchSize,
-            shuffle=True,
-        )
-        test_loader = DataLoader(
-            test_data,
-            batch_size=args.batchSize,
-            shuffle=True,
-        )
-
-        # Generate the optimizer and scheduler
-        optimizer = torch.optim.Adam(model.parameters(), lr=best_trial.params["lr"])
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode="min", factor=0.1, patience=10
-        )
-
-        # Initialize early stopper
-        early_stopper = EarlyStopping(patience=PATIENCE, delta=DELTA, verbose=False)
-
-        # Retrain model
-        training_losses = []
-        validation_losses = []
-
-        for epoch in tqdm(range(args.epochs)):
-            model.train()
-            batch_training_losses = []
-            num_training_samples = 0
-            for data in train_loader:
-                data = data.to(DEVICE)
-                optimizer.zero_grad()
-
-                if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
-                    output = model(data.x, data.edge_index, data.batch)
-                else:
-                    output = model(data.x, data.edge_index, data.edge_attr, data.batch)
-
-                if args.loss == "weighted_BCE":
-                    class_weights = compute_class_weight(
-                        class_weight="balanced",
-                        classes=np.unique(data.y.cpu()),
-                        y=np.array(data.y.cpu()),
-                    )
-                    batch_training_loss = loss_function(
-                        output[:, 0].to(float), data.y.to(float), class_weights
-                    )
-                else:
-                    batch_training_loss = loss_function(
-                        output[:, 0].to(float), data.y.to(float)
-                    )
-
-                batch_training_losses.append(batch_training_loss.item())
-                num_training_samples += len(data.batch)
-                batch_training_loss.backward()
-                optimizer.step()
-
-            training_losses.append(
-                np.sum(np.array(batch_training_losses)) / num_training_samples
+            print(f"External CV fold {fold_idx_ext+1}/{args.numExternalCVFolds}")
+            logging.info(
+                f"Starting external CV fold {fold_idx_ext+1}/{args.numExternalCVFolds}"
             )
 
+            if not os.path.exists(
+                os.path.join(args.outputDirectory, str(fold_idx_ext + 1))
+            ):
+                os.mkdir(os.path.join(args.outputDirectory, str(fold_idx_ext + 1)))
+
+            # Get data
+            train_val_data = itemgetter(*train_val_idx)(dataset)
+            test_data = itemgetter(*test_idx)(dataset)
+
+            #####################################################################
+            #          tune hyperparameters on training/validation data
+            #####################################################################
+            
+            
+            study = optuna.create_study(
+            storage="sqlite:///" + args.outputDirectory + "/storage.db",
+            study_name="fold-" + str(fold_idx_ext+1),
+            direction="maximize",
+            load_if_exists=True,
+            )
+
+            try:
+                study.optimize(objective_cv, args.nTrials)
+            except KeyboardInterrupt:
+                pass
+            except Exception as e:
+                logging.error(f"Optuna study failed. Error: {e}")
+
+            best_trial = study.best_trial
+
+            print("Best trial:")
+            print("  Value: ", best_trial.value)
+            logging.info(
+                f"Best MCC for {fold_idx_ext+1}/{args.numExternalCVFolds}: {best_trial.value}"
+            )
+            logging.info(
+                f"Best hyperparameters fold {fold_idx_ext+1}/{args.numExternalCVFolds}:"
+            )
+            print("  Params: ")
+            for key, value in  best_trial.params.items():
+                print(f"    {key} {value}")
+                logging.info(f"    {key} {value}")
+
+            with open(
+                os.path.join(args.outputDirectory, str(fold_idx_ext + 1) + "/info.txt"),
+                "w",
+            ) as f:
+                f.write(f"model {args.model}\n")
+                for key, value in best_trial.params.items():
+                    f.write(f"{key} {value}\n")
+
+            #####################################################################
+            # retrain model with best hyperparameters and test model on test data
+            #####################################################################
+
+            logging.info("Retraining model with best hyperparameters ...")
+            print("Retraining model with best hyperparameters ...")
+
+            model: torch.nn.Module
+
+            if args.model == "GATv2":
+                model = GATv2(
+                    in_channels=dataset.num_features,
+                    out_channels=best_trial.params["out_channels"],
+                    edge_dim=dataset.num_edge_features,
+                    heads=best_trial.params["heads"],
+                    negative_slope=best_trial.params["negative_slope"],
+                    dropout=best_trial.params["dropout"],
+                    n_conv_layers=best_trial.params["n_conv_layers"],
+                    n_classifier_layers=best_trial.params["n_classify_layers"],
+                    size_classify_layers=best_trial.params["size_classify_layers"],
+                ).to(DEVICE)
+            elif args.model == "GIN":
+                model = GIN(
+                    in_channels=dataset.num_features,
+                    out_channels=best_trial.params["out_channels"],
+                    dropout=best_trial.params["dropout"],
+                    n_conv_layers=best_trial.params["n_conv_layers"],
+                    n_classifier_layers=best_trial.params["n_classify_layers"],
+                    size_classify_layers=best_trial.params["size_classify_layers"],
+                ).to(DEVICE)
+            elif args.model == "GINNA":
+                model = GINNA(
+                    in_channels=dataset.num_features,
+                    out_channels=best_trial.params["out_channels"],
+                    dropout=best_trial.params["dropout"],
+                    n_conv_layers=best_trial.params["n_conv_layers"],
+                    n_classifier_layers=best_trial.params["n_classify_layers"],
+                    size_classify_layers=best_trial.params["size_classify_layers"],
+                ).to(DEVICE)
+            elif args.model == "GIN+":
+                model = GINPlus(
+                    in_channels=dataset.num_features,
+                    out_channels=best_trial.params["out_channels"],
+                    dropout=best_trial.params["dropout"],
+                    n_conv_layers=best_trial.params["n_conv_layers"],
+                    depth_conv_layers=best_trial.params["depth_conv_layers"],
+                    n_classifier_layers=best_trial.params["n_classify_layers"],
+                    size_classify_layers=best_trial.params["size_classify_layers"],
+                ).to(DEVICE)
+            elif args.model == "GINE":
+                model = GINE(
+                    in_channels=dataset.num_features,
+                    out_channels=best_trial.params["out_channels"],
+                    edge_dim=dataset.num_edge_features,
+                    dropout=best_trial.params["dropout"],
+                    n_conv_layers=best_trial.params["n_conv_layers"],
+                    n_classifier_layers=best_trial.params["n_classify_layers"],
+                    size_classify_layers=best_trial.params["size_classify_layers"],
+                ).to(DEVICE)
+            elif args.model == "GINENA":
+                model = GINENA(
+                    in_channels=dataset.num_features,
+                    out_channels=best_trial.params["out_channels"],
+                    edge_dim=dataset.num_edge_features,
+                    dropout=best_trial.params["dropout"],
+                    n_conv_layers=best_trial.params["n_conv_layers"],
+                    n_classifier_layers=best_trial.params["n_classify_layers"],
+                    size_classify_layers=best_trial.params["size_classify_layers"],
+                ).to(DEVICE)
+            elif args.model == "GINE+":
+                model = GINEPlus(
+                    in_channels=dataset.num_features,
+                    out_channels=best_trial.params["out_channels"],
+                    edge_dim=dataset.num_edge_features,
+                    dropout=best_trial.params["dropout"],
+                    n_conv_layers=best_trial.params["n_conv_layers"],
+                    depth_conv_layers=best_trial.params["depth_conv_layers"],
+                    n_classifier_layers=best_trial.params["n_classify_layers"],
+                    size_classify_layers=best_trial.params["size_classify_layers"],
+                ).to(DEVICE)
+            elif args.model == "MF":
+                model = MF(
+                    in_channels=dataset.num_features,
+                    out_channels=best_trial.params["out_channels"],
+                    max_degree=best_trial.params["max_degree"],
+                    n_conv_layers=best_trial.params["n_conv_layers"],
+                    n_classifier_layers=best_trial.params["n_classify_layers"],
+                    size_classify_layers=best_trial.params["size_classify_layers"],
+                ).to(DEVICE)
+            elif args.model == "TF":
+                model = TF(
+                    in_channels=dataset.num_features,
+                    out_channels=best_trial.params["out_channels"],
+                    edge_dim=dataset.num_edge_features,
+                    heads=best_trial.params["heads"],
+                    dropout=best_trial.params["dropout"],
+                    n_conv_layers=best_trial.params["n_conv_layers"],
+                    n_classifier_layers=best_trial.params["n_classify_layers"],
+                    size_classify_layers=best_trial.params["size_classify_layers"],
+                ).to(DEVICE)
+            else:
+                raise NotImplementedError(f"Invalid model: {args.model}")
+
+            # Resplit training/val data randomly into training (90%) and validation (10%) sets
+            # the randomly chosen validation is used to determine the optimal number of training
+            # epochs via early stopping
+
+            train_data, val_data = train_test_split(
+                train_val_data, test_size=0.2, shuffle=True, random_state=None
+            )
+
+            train_loader = DataLoader(
+                train_data,
+                batch_size=args.batchSize,
+                shuffle=True,
+            )
+            val_loader = DataLoader(
+                val_data,
+                batch_size=args.batchSize,
+                shuffle=True,
+            )
+            test_loader = DataLoader(
+                test_data,
+                batch_size=args.batchSize,
+                shuffle=True,
+            )
+
+            # Generate the optimizer and scheduler
+            optimizer = torch.optim.Adam(model.parameters(), lr=best_trial.params["lr"])
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, mode="min", factor=0.1, patience=10
+            )
+
+            # Initialize early stopper
+            early_stopper = EarlyStopping(patience=PATIENCE, delta=DELTA, verbose=False)
+
+            # Retrain model
+            training_losses = []
+            validation_losses = []
+
+            for epoch in tqdm(range(args.epochs)):
+                model.train()
+                batch_training_losses = []
+                num_training_samples = 0
+                for data in train_loader:
+                    data = data.to(DEVICE)
+                    optimizer.zero_grad()
+
+                    if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
+                        output = model(data.x, data.edge_index, data.batch)
+                    else:
+                        output = model(
+                            data.x, data.edge_index, data.edge_attr, data.batch
+                        )
+
+                    if args.loss == "weighted_BCE":
+                        class_weights = compute_class_weight(
+                            class_weight="balanced",
+                            classes=np.unique(data.y.cpu()),
+                            y=np.array(data.y.cpu()),
+                        )
+                        batch_training_loss = loss_function(
+                            output[:, 0].to(float), data.y.to(float), class_weights
+                        )
+                    else:
+                        batch_training_loss = loss_function(
+                            output[:, 0].to(float), data.y.to(float)
+                        )
+
+                    batch_training_losses.append(batch_training_loss.item())
+                    num_training_samples += len(data.batch)
+                    batch_training_loss.backward()
+                    optimizer.step()
+
+                training_losses.append(
+                    np.sum(np.array(batch_training_losses)) / num_training_samples
+                )
+
+                model.eval()
+                with torch.no_grad():
+                    batch_validation_losses = []
+                    num_validation_samples = 0
+                    for data in val_loader:
+                        data = data.to(DEVICE)
+                        if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
+                            output = model(data.x, data.edge_index, data.batch)
+                        else:
+                            output = model(
+                                data.x, data.edge_index, data.edge_attr, data.batch
+                            )
+                        if args.loss == "weighted_BCE":
+                            class_weights = compute_class_weight(
+                                class_weight="balanced",
+                                classes=np.unique(data.y.cpu()),
+                                y=np.array(data.y.cpu()),
+                            )
+                            batch_validation_loss = loss_function(
+                                output[:, 0].to(float), data.y.to(float), class_weights
+                            )
+                        else:
+                            batch_validation_loss = loss_function(
+                                output[:, 0].to(float), data.y.to(float)
+                            )
+                        batch_validation_losses.append(batch_validation_loss.item())
+                        num_validation_samples += len(data.batch)
+
+                validation_losses.append(
+                    np.sum(np.array(batch_validation_losses)) / num_validation_samples
+                )
+
+                early_stopper(np.sum(np.array(batch_validation_losses)))
+                if early_stopper.early_stop:
+                    break
+
+                scheduler.step(np.sum(np.array(batch_validation_losses)))
+
+            plot_losses(
+                training_losses,
+                validation_losses,
+                os.path.join(args.outputDirectory, str(fold_idx_ext + 1) + "/loss.png"),
+            )
+
+            # Apply retrained model to test data
             model.eval()
             with torch.no_grad():
-                batch_validation_losses = []
-                num_validation_samples = 0
-                for data in val_loader:
+                targets = []
+                preds_list = []
+                for data in test_loader:
                     data = data.to(DEVICE)
                     if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
                         output = model(data.x, data.edge_index, data.batch)
@@ -666,103 +758,60 @@ if __name__ == "__main__":
                         output = model(
                             data.x, data.edge_index, data.edge_attr, data.batch
                         )
-                    if args.loss == "weighted_BCE":
-                        class_weights = compute_class_weight(
-                            class_weight="balanced",
-                            classes=np.unique(data.y.cpu()),
-                            y=np.array(data.y.cpu()),
-                        )
-                        batch_validation_loss = loss_function(
-                            output[:, 0].to(float), data.y.to(float), class_weights
-                        )
-                    else:
-                        batch_validation_loss = loss_function(
-                            output[:, 0].to(float), data.y.to(float)
-                        )
-                    batch_validation_losses.append(batch_validation_loss.item())
-                    num_validation_samples += len(data.batch)
+                    targets.extend(data.y.tolist())
+                    preds_list.extend(output.tolist())
 
-            validation_losses.append(
-                np.sum(np.array(batch_validation_losses)) / num_validation_samples
-            )
-
-            early_stopper(np.sum(np.array(batch_validation_losses)))
-            if early_stopper.early_stop:
-                break
-
-            scheduler.step(np.sum(np.array(batch_validation_losses)))
-
-        plot_losses(
-            training_losses,
-            validation_losses,
-            os.path.join(args.outputDirectory, str(fold_idx_ext + 1) + "/loss.png"),
-        )
-
-        # Apply retrained model to test data
-        model.eval()
-        with torch.no_grad():
-            targets = []
-            preds_list = []
-            for data in test_loader:
-                data = data.to(DEVICE)
-                if args.model in {"GIN", "GINNA", "GIN+", "MF"}:
-                    output = model(data.x, data.edge_index, data.batch)
-                else:
-                    output = model(data.x, data.edge_index, data.edge_attr, data.batch)
-                targets.extend(data.y.tolist())
-                preds_list.extend(output.tolist())
-
-        # Compute test metrics of current fold with predictions on test set
-        auc_pr = average_precision_score(
-            np.array(targets), np.array(list(itertools.chain(*preds_list)))
-        )
-        rocauc = roc_auc_score(
-            np.array(targets), np.array(list(itertools.chain(*preds_list)))
-        )
-        # Get best threshold
-        if args.loss == "weighted_BCE":
-            opt_threshold = 0.5
-        else:
-            fpr, tpr, thresholds = roc_curve(
+            # Compute test metrics of current fold with predictions on test set
+            auc_pr = average_precision_score(
                 np.array(targets), np.array(list(itertools.chain(*preds_list)))
             )
-            opt_threshold = thresholds[np.argmax(tpr - fpr)]
-        # Compute binary predictions from probability predictions with best threshold
-        preds_binary = np.array(list(itertools.chain(*preds_list))) > opt_threshold
-        # Compute metrics that require binary predictions
-        mcc = matthews_corrcoef(np.array(targets), preds_binary)
-        precision = precision_score(np.array(targets), preds_binary)
-        recall = recall_score(np.array(targets), preds_binary)
+            rocauc = roc_auc_score(
+                np.array(targets), np.array(list(itertools.chain(*preds_list)))
+            )
+            # Get best threshold
+            if args.loss == "weighted_BCE":
+                opt_threshold = 0.5
+            else:
+                fpr, tpr, thresholds = roc_curve(
+                    np.array(targets), np.array(list(itertools.chain(*preds_list)))
+                )
+                opt_threshold = thresholds[np.argmax(tpr - fpr)]
+            # Compute binary predictions from probability predictions with best threshold
+            preds_binary = np.array(list(itertools.chain(*preds_list))) > opt_threshold
+            # Compute metrics that require binary predictions
+            mcc = matthews_corrcoef(np.array(targets), preds_binary)
+            precision = precision_score(np.array(targets), preds_binary)
+            recall = recall_score(np.array(targets), preds_binary)
 
-        opt_threshold_list.append(opt_threshold)
-        mcc_list.append(mcc)
-        precision_list.append(precision)
-        recall_list.append(recall)
-        auc_pr_list.append(auc_pr)
-        rocauc_list.append(rocauc)
+            opt_threshold_list.append(opt_threshold)
+            mcc_list.append(mcc)
+            precision_list.append(precision)
+            recall_list.append(recall)
+            auc_pr_list.append(auc_pr)
+            rocauc_list.append(rocauc)
 
-        # Save model
-        torch.save(
-            model.state_dict(),
-            os.path.join(args.outputDirectory, str(fold_idx_ext + 1) + "/model.pt"),
-        )
+            # Save model
+            torch.save(
+                model.state_dict(),
+                os.path.join(args.outputDirectory, str(fold_idx_ext + 1) + "/model.pt"),
+            )
 
-        # Save individual fold results
-        with open(
-            os.path.join(args.outputDirectory, "results_individual.csv"),
-            "a",
-            encoding="UTF8",
-            newline="",
-        ) as f:
-            writer = csv.writer(f)
-            writer.writerow([opt_threshold, mcc, precision, recall, auc_pr, rocauc])
+            # Save individual fold results
+            with open(
+                os.path.join(args.outputDirectory, "results_individual.csv"),
+                "a",
+                encoding="UTF8",
+                newline="",
+            ) as f:
+                writer = csv.writer(f)
+                writer.writerow([opt_threshold, mcc, precision, recall, auc_pr, rocauc])
 
-        logging.info(
-            f"End external CV fold {fold_idx_ext+1}/{args.numExternalCVFolds}."
-        )
+            logging.info(
+                f"End external CV fold {fold_idx_ext+1}/{args.numExternalCVFolds}."
+            )
 
     #####################################################################
-    #                           save results
+    #                       save averaged results
     #####################################################################
 
     averages = [
