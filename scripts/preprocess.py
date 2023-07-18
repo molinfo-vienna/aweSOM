@@ -8,7 +8,12 @@ import shutil
 
 from rdkit.Chem import PandasTools
 
-from awesom.process_input_data import generate_preprocessed_data, save_preprocessed_data
+from awesom.process_input_data import (
+    generate_preprocessed_data_RDKit,
+    generate_preprocessed_data_CDPKit,
+    save_preprocessed_data,
+    _get_file_length,
+)
 from awesom.utils import seed_everything
 
 
@@ -33,6 +38,13 @@ if __name__ == "__main__":
         help="The directory of the preprocessed data.",
     )
     parser.add_argument(
+        "-k",
+        "--kit",
+        type=str,
+        required=True,
+        help='The desired Python Kit to process the data. Choose between "RDKit" and "CDPKit".',
+    )
+    parser.add_argument(
         "-w",
         "--numberWorkers",
         type=int,
@@ -41,12 +53,12 @@ if __name__ == "__main__":
             be set to a number greater than the number of molecules in the data.",
     )
     parser.add_argument(
-        "-p",
-        "--predict",
+        "-tl",
+        "--trueLabels",
         type=lambda x: bool(distutils.util.strtobool(x)),
         required=True,
-        help="Set to False if the data serves as training data (known SoMs).\
-              Set to True if the purpose is to predict the SoMs.",
+        help="Set to True if the true SoMs are known and the data serves as training data.\
+              Set to False if the true SoMs are not known and the purpose is to predict the SoMs.",
     )
     parser.add_argument(
         "-v",
@@ -77,28 +89,50 @@ if __name__ == "__main__":
 
     _, file_extension = os.path.splitext(args.inputPath)
 
-    if file_extension == ".sdf":
-        df = PandasTools.LoadSDF(args.inputPath, removeHs=True)
-    elif file_extension == ".smiles":
-        df = pd.read_csv(args.inputPath, names=["smiles"])
-        PandasTools.AddMoleculeColumnToFrame(df, "smiles")
+    if args.kit == "RDKit":
+        if file_extension == ".sdf":
+            df = PandasTools.LoadSDF(args.inputPath, removeHs=True)
+        elif file_extension == ".smiles":
+            df = pd.read_csv(args.inputPath, names=["smiles"])
+            PandasTools.AddMoleculeColumnToFrame(df, "smiles")
+        else:
+            raise NotImplementedError(f"Invalid file extension: {file_extension}")
+        if not args.trueLabels:
+            df["soms"] = "[]"
+
+        df["soms"] = df["soms"].map(ast.literal_eval)
+        df["ID"] = df.index
+
+        print("Preprocessing... This can take a few minutes.")
+        logging.info("START preprocessing")
+
+        G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data_RDKit(
+            df, args.numberWorkers
+        )
+        logging.info("Saving preprocessed data set...")
+        save_preprocessed_data(
+            G, mol_ids, atom_ids, labels, node_features, args.outputDir
+        )
+
+        print("Preprocessing sucessful!")
+        logging.info("END preprocessing")
+
+    elif args.kit == "CDPKit":
+        file_length = _get_file_length(args.inputPath)
+
+        print("Preprocessing... This can take a few minutes.")
+        logging.info("START preprocessing")
+        G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data_CDPKit(
+            args.numberWorkers, file_length, args.inputPath
+        )
+
+        logging.info("Saving preprocessed data set...")
+        save_preprocessed_data(
+            G, mol_ids, atom_ids, labels, node_features, args.outputDir
+        )
+
+        print("Preprocessing sucessful!")
+        logging.info("END preprocessing")
+
     else:
-        raise NotImplementedError(f"Invalid file extension: {file_extension}")
-
-    if args.predict:
-        df["soms"] = "[]"
-
-    df["soms"] = df["soms"].map(ast.literal_eval)
-    df["ID"] = df.index
-
-    print("Preprocessing... This can take a few minutes.")
-    logging.info("START preprocessing")
-
-    G, mol_ids, atom_ids, labels, node_features = generate_preprocessed_data(
-        df, args.numberWorkers
-    )
-    logging.info("Saving preprocessed test set...")
-    save_preprocessed_data(G, mol_ids, atom_ids, labels, node_features, args.outputDir)
-
-    print("Preprocessing sucessful!")
-    logging.info("END preprocessing")
+        raise NotImplementedError(f"Invalid kit: {args.kit}")

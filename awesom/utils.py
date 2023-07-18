@@ -15,7 +15,7 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from statistics import mean
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
 
 __all__ = [
@@ -30,7 +30,7 @@ __all__ = [
 
 
 """
--------------------- Neural-network-related utility functions --------------------
+-------------------- Neural network related utility functions --------------------
 """
 
 
@@ -57,7 +57,7 @@ class EarlyStopping:
         self.delta: float = delta
         self.verbose: bool = verbose
         self.counter: int = 0
-        self.best_score: float = float("inf")
+        self.best_score = None
         self.early_stop: bool = False
 
     def __call__(self, val_loss: float) -> None:
@@ -90,7 +90,7 @@ class weighted_BCE_Loss(torch.nn.modules.loss._Loss):
         self,
         prediction: torch.Tensor,
         target: torch.Tensor,
-        class_weights: np.ndarray[np.float64, Any],
+        class_weights: np.ndarray,
     ) -> torch.Tensor:
         if class_weights is not None:
             assert len(class_weights) == 2
