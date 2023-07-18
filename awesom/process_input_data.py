@@ -10,12 +10,15 @@ from itertools import chain
 from multiprocessing import Pool
 from rdkit.Chem import rdMolDescriptors
 from rdkit.Chem import Mol as RDKitMol
-from rdkit.Chem.rdchem import Bond as RDKitBond
 from rdkit.Chem.rdchem import Atom as RDKitAtom
+from rdkit.Chem.rdchem import Bond as RDKitBond
 from typing import Any, List, Tuple
 
 import CDPL.Chem as Chem
 import CDPL.MolProp as MolProp
+from CDPL.Chem import BasicMolecule as CDPKitMol
+from CDPL.Chem import Atom as CDPKitAtom
+from CDPL.Chem import Bond as CDPKitBond
 
 ELEM_LIST = [5, 6, 7, 8, 9, 14, 15, 16, 17, 34, 35, 53, "OTHER"]
 HYBRIDIZATION_TYPE = ["SP", "SP2", "SP3", "OTHER"]
@@ -224,7 +227,7 @@ def generate_fraction_rotatable_bonds_RDKit(mol: RDKitMol) -> float:
     return num_rotatable_bonds / num_bonds
 
 
-def generate_fraction_rotatable_bonds_CDPKit(mol) -> float:
+def generate_fraction_rotatable_bonds_CDPKit(mol: CDPKitMol) -> float:
     """
     Computes the fraction of rotatable bonds in the parsed molecule.
     Args:
@@ -258,7 +261,7 @@ def generate_fraction_HBA_RDKit(mol: RDKitMol) -> float:
     return num_HBA / num_atoms
 
 
-def generate_fraction_HBA_CDPKit(mol) -> float:
+def generate_fraction_HBA_CDPKit(mol: CDPKitMol) -> float:
     """
     Computes the fraction of hydrogen bond acceptors in the parsed molecule.
     Args:
@@ -292,7 +295,7 @@ def generate_fraction_HBD_RDKit(mol: RDKitMol) -> float:
     return num_HBD / num_atoms
 
 
-def generate_fraction_HBD_CDPKit(mol) -> float:
+def generate_fraction_HBD_CDPKit(mol: CDPKitMol) -> float:
     """
     Computes the fraction of hydrogen bond donors in the parsed molecule.
     Args:
@@ -324,7 +327,7 @@ def generate_fraction_element_RDKit(mol: RDKitMol, element: str) -> float:
     )
 
 
-def generate_fraction_element_CDPKit(mol, element) -> float:
+def generate_fraction_element_CDPKit(mol: CDPKitMol, element: int) -> float:
     """
     Computes the fraction of atoms corresponding to a specific element
     in the parsed molecule.
@@ -354,7 +357,7 @@ def generate_fraction_halogens_RDKit(mol: RDKitMol) -> float:
     )
 
 
-def generate_fraction_halogens_CDPKit(mol) -> float:
+def generate_fraction_halogens_CDPKit(mol: CDPKitMol) -> float:
     """
     Computes the fraction of halogens in the parsed molecule
     Args:
@@ -385,7 +388,7 @@ def generate_fraction_aromatics(mol: RDKitMol) -> float:
     return num_ar / num_atoms
 
 
-def generate_fraction_aromatics_CDPKit(mol) -> float:
+def generate_fraction_aromatics_CDPKit(mol: CDPKitMol) -> float:
     """
     Computes the fraction of aromatic atoms in the parsed molecule.
     Args:
@@ -417,7 +420,7 @@ def generate_bond_features_RDKit(bond: RDKitBond) -> list[float]:
     ]
 
 
-def generate_bond_features_CDPKit(bond, mol) -> list[float]:
+def generate_bond_features_CDPKit(bond: CDPKitBond, mol: CDPKitMol) -> list[float]:
     """
     Generates the edge features for each bond.
     Args:
@@ -471,7 +474,10 @@ def generate_node_features_RDKit(
 
 
 def generate_node_features_CDPKit(
-    atom, atm_ring_length, molecular_features, mol
+    atom: CDPKitAtom,
+    atm_ring_length: int,
+    molecular_features: List[float],
+    mol: CDPKitMol,
 ) -> List[float]:
     """
     Generates the node features for each atom
@@ -588,13 +594,13 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
     return G
 
 
-def mol_to_nx_CDPKit(mol_id: int, mol, soms: list[int]) -> nx.Graph:
+def mol_to_nx_CDPKit(mol_id: int, mol: CDPKitMol, soms: List[int]) -> nx.Graph:
     """
     This function takes an CDPKit Mol object as input and returns its corresponding
     NetworkX graph with node and edge attributes.
     Args:
         mol_id (int): the molecular ID of the parsed mol
-        mol (CDPKit Mol): an CDPKit Mol object
+        mol (CDPKit Mol): a CDPKit Mol object
         soms (list): a list of the indices of atoms that are SoMs (This is
                     of course only relevant for training data. If there is no info
                     about which atom is a SoM, then the list is simply empty.)
@@ -768,22 +774,29 @@ def generate_preprocessed_data_CDPKit(
     return G, mol_ids, atom_ids, labels, node_features
 
 
-def load_mol_input(dir: str, indices: List[int]):
+def load_mol_input(
+    dir: str, indices: List[int]
+) -> Tuple[
+    List[nx.Graph],
+    List[np.ndarray[Any, Any]],
+    List[np.ndarray[Any, Any]],
+    List[np.ndarray[Any, Any]],
+    List[np.ndarray[np.float64, Any]],
+]:
     """
     loads the dataset based on either SDF or SMILES format.
     Args:
         dir (str): dir to file (incl filename)
-        indices list(int): list of indices for the entry selection
+        indices (list[int]): list of indices for the entry selection
     Returns:
-        list (CDPKit Mol)
-        list (SMILES)
+
     """
     reader = _get_reader_by_file_extention(dir)
-    graphs = list()
-    mol_ids = list()
-    atom_ids = list()
-    labels = list()
-    node_features = list()
+    graphs: List[nx.Graph] = list()
+    mol_ids: List[np.ndarray[Any, Any]] = list()
+    atom_ids: List[np.ndarray[Any, Any]] = list()
+    labels: List[np.ndarray[Any, Any]] = list()
+    node_features: List[np.ndarray[np.float64, Any]] = list()
 
     for i in indices:
         try:

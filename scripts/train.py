@@ -484,13 +484,12 @@ if __name__ == "__main__":
             #####################################################################
             #          tune hyperparameters on training/validation data
             #####################################################################
-            
-            
+
             study = optuna.create_study(
-            storage="sqlite:///" + args.outputDirectory + "/storage.db",
-            study_name="fold-" + str(fold_idx_ext+1),
-            direction="maximize",
-            load_if_exists=True,
+                storage="sqlite:///" + args.outputDirectory + "/storage.db",
+                study_name="fold-" + str(fold_idx_ext + 1),
+                direction="maximize",
+                load_if_exists=True,
             )
 
             try:
@@ -511,7 +510,7 @@ if __name__ == "__main__":
                 f"Best hyperparameters fold {fold_idx_ext+1}/{args.numExternalCVFolds}:"
             )
             print("  Params: ")
-            for key, value in  best_trial.params.items():
+            for key, value in best_trial.params.items():
                 print(f"    {key} {value}")
                 logging.info(f"    {key} {value}")
 
