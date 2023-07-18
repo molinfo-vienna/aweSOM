@@ -5,7 +5,6 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import os
-import sys
 
 from itertools import chain
 from multiprocessing import Pool
@@ -27,7 +26,7 @@ TOTAL_VALENCE = [1, 2, 3, 4, 5, 6, "OTHER"]
 RING_COUNT = [0, 1, 2, 3, 4, 5, "OTHER"]
 
 BOND_TYPE = ["SINGLE", "DOUBLE", "TRIPLE", "OTHER"]
-BOND_TYPE_INT = [0, 1, 2, 3, "OTHER"]
+BOND_TYPE_INT = [1, 2, 3, "OTHER"]
 
 
 def _get_reader_by_file_extention(dir: str) -> Chem.MoleculeReader:
