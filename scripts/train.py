@@ -504,7 +504,7 @@ if __name__ == "__main__":
             print("Best trial:")
             print("  Value: ", best_trial.value)
             logging.info(
-                f"Best MCC for {fold_idx_ext+1}/{args.numExternalCVFolds}: {best_trial.value}"
+                f"Best AUROC for {fold_idx_ext+1}/{args.numExternalCVFolds}: {best_trial.value}"
             )
             logging.info(
                 f"Best hyperparameters fold {fold_idx_ext+1}/{args.numExternalCVFolds}:"
