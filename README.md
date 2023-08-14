@@ -41,7 +41,7 @@ To load new data for model training/testing and/or prediction purposes run the f
 
 ```KIT``` is the desired chemistry tool kit for preprocessing the data. Choose between ```RDKit``` and ```CDPKit```.
 
-```TRUE_LABELS``` (True/False) indicates whether the input data has true labels or not. Ste to True when preprocessing training data and False when preprocessing data for making predictions.
+```TRUE_LABELS``` (True/False) indicates whether the input data has true labels or not. Set to ```True``` when preprocessing training data and ```False``` when preprocessing data for making predictions.
 
 ```VERBOSE``` should be set to the desired verbosity level, e.g. ```INFO```.
 
@@ -55,7 +55,7 @@ Running the following will take preprocessed training data and run internal/exte
 
 ```OUTPUT_DIRECTORY``` is the directory where the trained models and their metadata will be stored.
 
-Supported ```MODEL_TYPE``` include ```GIN```, ```GATv2```, ```MF``` and ```TF```.
+Supported ```MODEL_TYPE``` include ```GIN```, ```GINE```, ```GATv2```, ```MF``` and ```TF```.
 
 GIN refers to PyTorch Geometric's GINConv: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINConv.html#torch_geometric.nn.conv.GINConv
 
@@ -93,4 +93,4 @@ Example:
 
 ### License
 
-This project is licensed under the MIT license.
+This project is licensed under MIT license.
