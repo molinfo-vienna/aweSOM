@@ -79,7 +79,7 @@ Supported ```LOSS_FUNCTION``` inlcude ```BCE```, ```weighted_BCE```, ```MCC_BCE`
 
 Example:
 
-```python scripts/train.py -i data_preprocessed/RDKit/zaretzki -o models/RDKit/zaretzki/gin/bce -m GINE -l BCE -b 64 -e 500 -nt 100 -nif 5 -nef 5 -v INFO```
+```python scripts/train.py -i data_preprocessed/RDKit/zaretzki -o models/RDKit/zaretzki/gine/bce -m GINE -l BCE -b 64 -e 500 -nt 100 -nif 5 -nef 5 -v INFO```
 
 #### Predicting SoMs
 
