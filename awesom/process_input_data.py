@@ -413,7 +413,7 @@ def generate_bond_features_RDKit(bond: RDKitBond) -> list[float]:
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
-    return _get_allowed_set(bond.GetBondType(), BOND_TYPE) + [
+    return _get_allowed_set(str(bond.GetBondType()), BOND_TYPE) + [
         float(bond.IsInRing()),
         float(bond.GetIsConjugated()),
         float(bond.GetIsAromatic()),
