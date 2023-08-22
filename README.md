@@ -45,6 +45,9 @@ To load new data for model training/testing and/or prediction purposes run the f
 
 ```VERBOSE``` should be set to the desired verbosity level, e.g. ```INFO```.
 
+```python scripts/preprocess.py -i data/raw/zaretzki.sdf -o data/preprocessed/CDPKit/zaretzki -w 12 -k CDPKit -tl True -v INFO```
+```python scripts/preprocess.py -i data/raw/propanolol.smiles -o data/preprocessed/RDKit/propanolol -w 1 -k RDKit -tl False -v INFO```
+
 #### Model Training
 
 Running the following will take preprocessed training data and run internal/external cross validation to determine the optimal hyperparameters with Optuna. The best model per external cross-validation fold will be saved in the corresponding subdirectory (model.pt), along with a text file (info.txt) holding the best hyperparameters and a plot of the validation and training losses during the final training phase (loss.png). Trained models can then be used to make predictions on preprocessed data.
