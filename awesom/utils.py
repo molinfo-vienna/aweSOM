@@ -5,7 +5,6 @@ import numpy as np
 import os
 import random
 import torch
-import torch.nn.functional as F
 
 from collections import Counter
 from sklearn.metrics import (
@@ -20,9 +19,6 @@ from typing import Dict, List, Tuple
 
 __all__ = [
     "EarlyStopping",
-    "weighted_BCE_Loss",
-    "MCC_BCE_Loss",
-    "FocalLoss",
     "seed_everything",
     "plot_losses",
     "save_predict",
@@ -71,127 +67,6 @@ class EarlyStopping:
         else:
             self.best_score = score
             self.counter = 0
-
-
-"""
--------------------- Loss-related utility functions --------------------
-"""
-
-
-class weighted_BCE_Loss(torch.nn.modules.loss._Loss):
-    """
-    Weighted Binary Cross Entropy loss for imbalanced datasets with binary labels.
-    """
-
-    def __init__(self) -> None:
-        super(weighted_BCE_Loss, self).__init__()
-
-    def forward(
-        self,
-        prediction: torch.Tensor,
-        target: torch.Tensor,
-        class_weights: np.ndarray,
-    ) -> torch.Tensor:
-        if class_weights is not None:
-            assert len(class_weights) == 2
-
-            loss = class_weights[1] * (target * torch.log(prediction)) + class_weights[
-                0
-            ] * ((1 - target) * torch.log(1 - prediction))
-        else:
-            loss = target * torch.log(prediction) + (1 - target) * torch.log(
-                1 - prediction
-            )
-
-        return torch.neg(torch.mean(loss))
-
-
-class MCC_BCE_Loss(torch.nn.modules.loss._Loss):
-    """
-    Binary Cross Entropy loss modified to incorporate Matthew's Correlation Coefficient.
-    """
-
-    def __init__(self) -> None:
-        super(MCC_BCE_Loss, self).__init__()
-
-    def forward(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        tp = torch.sum(prediction * target)
-        tn = torch.sum((1 - prediction) * (1 - target))
-        fp = torch.sum((1 - target) * prediction)
-        fn = torch.sum(target * (1 - prediction))
-        MCC = (tp * tn - fp * fn) / (
-            torch.sqrt(tp + fp)
-            * torch.sqrt(tp + fn)
-            * torch.sqrt(tn + fp)
-            * torch.sqrt(tn + fn)
-        )
-
-        MCC_loss = 1 - MCC
-        BCE_loss = F.binary_cross_entropy(prediction, target, reduction="sum")
-
-        return MCC_loss + BCE_loss
-
-
-class FocalLoss(torch.nn.modules.loss._Loss):
-    """
-    Focal loss for imbalanced datasets with binary labels.
-    """
-
-    def __init__(
-        self,
-        alpha: float = 0.9,
-        gamma: float = 2.0,
-        reduction: str = "mean",
-    ) -> None:
-        super().__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-        self.reduction = reduction
-
-    def forward(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        """Compute binary focal loss.
-        Args:
-            prediction: input data tensor of arbitrary shape.
-            target: the target tensor with shape matching input.
-            alpha: Weighting factor for the rare class; alpha in [0, 1].
-            gamma: Focusing parameter; gamma >= 0.
-            reduction: Specifies the reduction to apply to the output:
-                    none: no reduction will be applied,
-                    mean: the sum of the output will be divided by the number of elements in the output,
-                    sum: the output will be summed.
-        Returns:
-            loss (float): the computed loss.
-        Examples:
-            - kwargs = {"alpha": 0.25, "gamma": 2.0, "reduction": 'mean'}
-            - logits = torch.tensor([[[6.325]],[[5.26]],[[87.49]]])
-            - labels = torch.tensor([[[1.]],[[1.]],[[0.]]])
-            - binary_focal_loss_with_logits(logits, labels, **kwargs)
-                -> tensor(21.8725)
-        """
-
-        probs_pos = prediction.sigmoid()
-        probs_neg = (-prediction).sigmoid()
-
-        log_probs_pos = torch.nn.functional.logsigmoid(prediction)
-        log_probs_neg = torch.nn.functional.logsigmoid(-prediction)
-
-        loss_tmp = (
-            -self.alpha * probs_neg.pow(self.gamma) * target * log_probs_pos
-            - (1 - self.alpha)
-            * probs_pos.pow(self.gamma)
-            * (1.0 - target)
-            * log_probs_neg
-        )
-
-        if self.reduction == "none":
-            loss = loss_tmp
-        elif self.reduction == "mean":
-            loss = torch.mean(loss_tmp)
-        elif self.reduction == "sum":
-            loss = torch.sum(loss_tmp)
-        else:
-            raise NotImplementedError(f"Invalid reduction mode: {self.reduction}")
-        return loss
 
 
 """
