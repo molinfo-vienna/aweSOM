@@ -12,13 +12,7 @@ from typing import Any, Dict, List, Tuple
 from awesom.graph_neural_nets import (
     GATv2,
     GIN,
-    GINNA,
-    GINPlus,
     GINE,
-    GINENA,
-    GINEPlus,
-    MF,
-    TF,
 )
 from awesom.pyg_dataset_creator import SOM
 from awesom.utils import seed_everything, save_predict
@@ -117,97 +111,34 @@ if __name__ == "__main__":
                 else:
                     info[key] = float(val)
 
+        size_conv_layers = [value for (key, value) in info.items() if key.startswith("size_conv_layers")]
+        size_classify_layers = [value for (key, value) in info.items() if key.startswith("size_classify_layers")]
+
         # Initialize model
         model: torch.nn.Module
         if info["model"] == "GATv2":
             model = GATv2(
                 in_channels=dataset.num_features,
-                out_channels=int(info["out_channels"]),
                 edge_dim=dataset.num_edge_features,
                 heads=int(info["heads"]),
                 negative_slope=info["negative_slope"],
                 dropout=info["dropout"],
-                n_conv_layers=int(info["n_conv_layers"]),
-                n_classifier_layers=int(info["n_classify_layers"]),
+                size_conv_layers=int(info["size_conv_layers"]),
                 size_classify_layers=int(info["size_classify_layers"]),
             ).to(DEVICE)
         elif info["model"] == "GIN":
             model = GIN(
                 in_channels=dataset.num_features,
-                out_channels=int(info["out_channels"]),
                 dropout=info["dropout"],
-                n_conv_layers=int(info["n_conv_layers"]),
-                n_classifier_layers=int(info["n_classify_layers"]),
-                size_classify_layers=int(info["size_classify_layers"]),
-            ).to(DEVICE)
-        elif info["model"] == "GINNA":
-            model = GINNA(
-                in_channels=dataset.num_features,
-                out_channels=int(info["out_channels"]),
-                dropout=info["dropout"],
-                n_conv_layers=int(info["n_conv_layers"]),
-                n_classifier_layers=int(info["n_classify_layers"]),
-                size_classify_layers=int(info["size_classify_layers"]),
-            ).to(DEVICE)
-        elif info["model"] == "GIN+":
-            model = GINPlus(
-                in_channels=dataset.num_features,
-                out_channels=int(info["out_channels"]),
-                dropout=info["dropout"],
-                n_conv_layers=int(info["n_conv_layers"]),
-                depth_conv_layers=int(info["depth_conv_layers"]),
-                n_classifier_layers=int(info["n_classify_layers"]),
+                size_conv_layers=int(info["size_conv_layers"]),
                 size_classify_layers=int(info["size_classify_layers"]),
             ).to(DEVICE)
         elif info["model"] == "GINE":
             model = GINE(
                 in_channels=dataset.num_features,
-                out_channels=int(info["out_channels"]),
                 edge_dim=dataset.num_edge_features,
                 dropout=info["dropout"],
-                n_conv_layers=int(info["n_conv_layers"]),
-                n_classifier_layers=int(info["n_classify_layers"]),
-                size_classify_layers=int(info["size_classify_layers"]),
-            ).to(DEVICE)
-        elif info["model"] == "GINENA":
-            model = GINENA(
-                in_channels=dataset.num_features,
-                out_channels=int(info["out_channels"]),
-                edge_dim=dataset.num_edge_features,
-                dropout=info["dropout"],
-                n_conv_layers=int(info["n_conv_layers"]),
-                n_classifier_layers=int(info["n_classify_layers"]),
-                size_classify_layers=int(info["size_classify_layers"]),
-            ).to(DEVICE)
-        elif info["model"] == "GINE+":
-            model = GINEPlus(
-                in_channels=dataset.num_features,
-                out_channels=int(info["out_channels"]),
-                edge_dim=dataset.num_edge_features,
-                dropout=info["dropout"],
-                n_conv_layers=int(info["n_conv_layers"]),
-                depth_conv_layers=int(info["depth_conv_layers"]),
-                n_classifier_layers=int(info["n_classify_layers"]),
-                size_classify_layers=int(info["size_classify_layers"]),
-            ).to(DEVICE)
-        elif info["model"] == "MF":
-            model = MF(
-                in_channels=dataset.num_features,
-                out_channels=int(info["out_channels"]),
-                max_degree=int(info["max_degree"]),
-                n_conv_layers=int(info["n_conv_layers"]),
-                n_classifier_layers=int(info["n_classify_layers"]),
-                size_classify_layers=int(info["size_classify_layers"]),
-            ).to(DEVICE)
-        elif info["model"] == "TF":
-            model = TF(
-                in_channels=dataset.num_features,
-                out_channels=int(info["out_channels"]),
-                edge_dim=dataset.num_edge_features,
-                heads=int(info["heads"]),
-                dropout=info["dropout"],
-                n_conv_layers=int(info["n_conv_layers"]),
-                n_classifier_layers=int(info["n_classify_layers"]),
+                size_conv_layers=int(info["size_conv_layers"]),
                 size_classify_layers=int(info["size_classify_layers"]),
             ).to(DEVICE)
 
@@ -229,7 +160,7 @@ if __name__ == "__main__":
         model.eval()
         for data in loader:
             data = data.to(DEVICE)
-            if info["model"] in {"GIN", "GINNA", "GIN+"}:
+            if info["model"] in {"GIN"}:
                 output = model(data.x, data.edge_index, data.batch)
             else:
                 output = model(data.x, data.edge_index, data.edge_attr, data.batch)
