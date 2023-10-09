@@ -1,6 +1,5 @@
 import csv
 import json
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 import random
@@ -18,60 +17,9 @@ from typing import Dict, List, Tuple
 
 
 __all__ = [
-    "EarlyStopping",
     "seed_everything",
-    "plot_losses",
     "save_predict",
 ]
-
-
-"""
--------------------- Neural network related utility functions --------------------
-"""
-
-
-class EarlyStopping:
-    """Early stops the training if validation loss doesn't
-    improve after a given patience."""
-
-    def __init__(
-        self, patience: int = 5, delta: float = 0, verbose: bool = False
-    ) -> None:
-        """
-        Args:
-            patience (int): How many epcohs to wait after last time
-                            validation loss improved before stopping.
-                            Default: 5
-            delta (float):  Minimum change in the monitored quantity
-                            to qualify as an improvement.
-                            Default: 0
-            verbose (bool): If True, prints a message for each
-                            validation loss improvement.
-                            Default: False
-        """
-        self.patience: int = patience
-        self.delta: float = delta
-        self.verbose: bool = verbose
-        self.counter: int = 0
-        self.best_score = None
-        self.early_stop: bool = False
-
-    def __call__(self, val_loss: float) -> None:
-        score = -val_loss
-        if self.best_score is None:
-            self.best_score = score
-        elif score < self.best_score + self.delta:
-            self.counter += 1
-            if self.counter >= self.patience:
-                self.early_stop = True
-        else:
-            self.best_score = score
-            self.counter = 0
-
-
-"""
--------------------- General utility functions --------------------
-"""
 
 
 def seed_everything(seed: int = 42) -> None:
@@ -88,41 +36,6 @@ def seed_everything(seed: int = 42) -> None:
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
-
-
-def plot_losses(
-    train_loss: List[np.float64], val_loss: List[np.float64], dir: str
-) -> None:
-    """Plot training and validation losses.
-    Args:
-        train_loss (list): training losses
-        val_loss(list): validation losses
-        dir (str): output directory
-    Returns:
-        None
-    """
-    plt.figure()
-    plt.plot(
-        np.arange(0, len(train_loss), 1),
-        train_loss,
-        linestyle="-",
-        linewidth=1,
-        color="orange",
-        label="Training Loss",
-    )
-    plt.plot(
-        np.arange(0, len(train_loss), 1),
-        val_loss,
-        linestyle="-",
-        linewidth=1,
-        color="blue",
-        label="Validation Loss",
-    )
-    plt.title("Training and Validation loss")
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.savefig(dir)
 
 
 def save_predict(
