@@ -1,187 +1,139 @@
 import argparse
-import logging
+import csv
 import os
-import pandas as pd
-import shutil
-import sys
 import torch
 
+from lightning import Trainer
+from torchmetrics import MatthewsCorrCoef, AUROC
+from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from torch_geometric.loader import DataLoader
-from typing import Any, Dict, List, Tuple
 
-from awesom.graph_neural_nets import (
+from awesom.models import (
     GATv2,
     GIN,
     GINE,
+    NN,
 )
-from awesom.pyg_dataset_creator import SOM
-from awesom.utils import seed_everything, save_predict
+from awesom.dataset import LabeledData, UnlabeledData
+from awesom.utils import (
+    seed_everything,
+)
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-BATCHSIZE = 64
+THRESHOLD = 0.2
+
+
+def run_predict():
+    if not os.path.exists(args.outputFolder):
+        os.makedirs(args.outputFolder)
+
+    if args.trueLabels == "False":
+        data = UnlabeledData(args.inputFolder)
+    else:
+        data = LabeledData(args.inputFolder)
+
+    print(f"Number of molecules: {len(data)}")
+
+    best_model_paths = []
+    with open(os.path.join(args.logFolder, "best_model_paths.txt"), "r") as f:
+        best_model_paths = f.read().splitlines()
+
+    y_hat_avg = None
+    for i, path in enumerate(best_model_paths):
+        for file in os.listdir(path):
+            if file.endswith(".ckpt"):
+                path = os.path.join(path, file)
+
+        if args.model == "GATv2":
+            model = GATv2.load_from_checkpoint(path)
+        elif args.model == "GIN":
+            model = GIN.load_from_checkpoint(path)
+        elif args.model == "GINE":
+            model = GINE.load_from_checkpoint(path)
+        elif args.model == "NN":
+            model = NN.load_from_checkpoint(path)
+
+        trainer = Trainer(accelerator="auto", logger=False)
+        out = trainer.predict(model, DataLoader(data, batch_size=len(data)))
+        y_hat = out[0][0]
+        if i == 0:
+            y_hat_avg = y_hat
+            y = out[0][1]
+            mol_id = out[0][2]
+            atom_id = out[0][3]
+        else:
+            y_hat_avg = torch.vstack((y_hat_avg, y_hat))
+
+    y_hat_avg = torch.mean(y_hat_avg, dim=0)
+
+    with open(os.path.join(args.outputFolder, "results.csv"), "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(("predicted_labels", "true_labels", "mol_id", "atom_id"))
+        for row in zip(
+            y_hat_avg.tolist(),
+            y.tolist(),
+            mol_id.tolist(),
+            atom_id.tolist(),
+        ):
+            writer.writerow(row)
+
+    if args.trueLabels == "True":
+        mcc = MatthewsCorrCoef(task="binary", threshold=THRESHOLD)
+        auroc = AUROC(task="binary")
+        precision = BinaryPrecision(threshold=THRESHOLD)
+        recall = BinaryRecall(threshold=THRESHOLD)
+
+        with open(os.path.join(args.outputFolder, "results.txt"), "w") as f:
+            f.write(f"MCC: {mcc(y_hat_avg, y)}\n")
+            f.write(f"AUROC: {auroc(y_hat_avg, y)}\n")
+            f.write(f"Precision: {precision(y_hat_avg, y)}\n")
+            f.write(f"Recall: {recall(y_hat_avg, y)}\n")
+
+    return None
 
 
 if __name__ == "__main__":
-    seed_everything(42)
-
-    parser = argparse.ArgumentParser("Predicting SoMs...")
+    parser = argparse.ArgumentParser("Predicting SoMs for unseen data.")
 
     parser.add_argument(
         "-i",
-        "--inputDirectory",
+        "--inputFolder",
         type=str,
         required=True,
-        help="The directory where the input data is stored.",
+        help="The folder where the input data is stored.",
     )
     parser.add_argument(
-        "-o",
-        "--outputDirectory",
+        "-l",
+        "--logFolder",
         type=str,
         required=True,
-        help="The directory where the output will be written.",
+        help="The folder where the model's checkpoints are stored.",
     )
     parser.add_argument(
         "-m",
-        "--modelsDirectory",
+        "--model",
         type=str,
         required=True,
-        help="The directory where the trained models and the csv file containing \
-            the trained models' hyperparameters and performance is stored.",
+        help="The desired model architecture. Choose between 'GATv2', 'GIN', 'GINE' and 'NN'.",
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbosityLevel",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        default="INFO",
-        help="Set the verbosity level of the logger - default is on INFO.",
+        "-t",
+        "--trueLabels",
+        type=str,
+        required=True,
+        default="False",
+        help="Whether or not your input data has true labels. If set to true, predict.py will compute classification metrics MCC, AUROC, precision and recall.",
+    )
+    parser.add_argument(
+        "-o",
+        "--outputFolder",
+        type=str,
+        required=True,
+        help="The folder where the output will be written.",
     )
 
     args = parser.parse_args()
 
-    if os.path.exists(args.outputDirectory):
-        overwrite = input(f"{args.outputDirectory} already exists. Overwrite? [y/n] \n")
-        if overwrite == "y":
-            shutil.rmtree(args.outputDirectory)
-            os.makedirs(args.outputDirectory)
-        if overwrite == "n":
-            sys.exit()
-    else:
-        os.makedirs(args.outputDirectory)
+    seed_everything(42)
+    torch.set_float32_matmul_precision("medium")
 
-    logging.basicConfig(
-        filename=os.path.join(args.outputDirectory, "logfile_predict.log"),
-        level=getattr(logging, args.verbosityLevel),
-        format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
-    )
-
-    # Create/Load Custom PyTorch Geometric Dataset
-    logging.info("Loading data")
-    dataset = SOM(root=args.inputDirectory)
-    logging.info("Data successfully loaded!")
-
-    # Print dataset info
-    print(f"Number of molecules: {len(dataset)}")
-    print(f"Number of node features: {dataset.num_node_features}")
-    print(f"Number of edge features: {dataset.num_edge_features}")
-    print(f"Number of classes: {dataset.num_classes}")
-
-    print("Start predicting...")
-    logging.info("Start predicting...")
-
-    targets: Dict[Tuple[Any, Any], List[float]] = {}
-    predictions: Dict[Tuple[Any, Any], List[float]] = {}
-    opt_thresholds: List[float] = []
-
-    # Load data
-    loader = DataLoader(dataset, batch_size=BATCHSIZE, shuffle=True)
-
-    tmp = pd.read_csv(os.path.join(args.modelsDirectory, "results_individual.csv"))
-
-    for i in range(len(tmp)):
-        # Read metadata
-        info: Dict[str, Any] = {}
-        with open(
-            os.path.join(os.path.join(args.modelsDirectory, str(i + 1)), "info.txt")
-        ) as f:
-            for line in f:
-                (key, val) = line.split()
-                if key == "model":
-                    info[key] = str(val)
-                else:
-                    info[key] = float(val)
-
-        size_conv_layers = [value for (key, value) in info.items() if key.startswith("size_conv_layers")]
-        size_classify_layers = [value for (key, value) in info.items() if key.startswith("size_classify_layers")]
-
-        # Initialize model
-        model: torch.nn.Module
-        if info["model"] == "GATv2":
-            model = GATv2(
-                in_channels=dataset.num_features,
-                edge_dim=dataset.num_edge_features,
-                heads=int(info["heads"]),
-                negative_slope=info["negative_slope"],
-                dropout=info["dropout"],
-                size_conv_layers=int(info["size_conv_layers"]),
-                size_classify_layers=int(info["size_classify_layers"]),
-            ).to(DEVICE)
-        elif info["model"] == "GIN":
-            model = GIN(
-                in_channels=dataset.num_features,
-                dropout=info["dropout"],
-                size_conv_layers=int(info["size_conv_layers"]),
-                size_classify_layers=int(info["size_classify_layers"]),
-            ).to(DEVICE)
-        elif info["model"] == "GINE":
-            model = GINE(
-                in_channels=dataset.num_features,
-                edge_dim=dataset.num_edge_features,
-                dropout=info["dropout"],
-                size_conv_layers=int(info["size_conv_layers"]),
-                size_classify_layers=int(info["size_classify_layers"]),
-            ).to(DEVICE)
-
-        # Load saved state dictionary
-        model.load_state_dict(
-            torch.load(
-                os.path.join(
-                    os.path.join(args.modelsDirectory, str(i + 1)), "model.pt"
-                ),
-                map_location=DEVICE,
-            )
-        )
-
-        y_preds = []
-        y_trues = []
-        mol_ids = []
-        atom_ids = []
-
-        model.eval()
-        for data in loader:
-            data = data.to(DEVICE)
-            if info["model"] in {"GIN"}:
-                output = model(data.x, data.edge_index, data.batch)
-            else:
-                output = model(data.x, data.edge_index, data.edge_attr, data.batch)
-            y_preds.extend(output[:, 0].tolist())
-            y_trues.extend(data.y.tolist())
-            mol_ids.extend(data.mol_id.tolist())
-            atom_ids.extend(data.atom_id.tolist())
-
-        for index, molid_atomid_tuple in enumerate(zip(mol_ids, atom_ids)):
-            predictions.setdefault(molid_atomid_tuple, []).append(y_preds[index])
-            targets[molid_atomid_tuple] = y_trues[index]
-
-        opt_thresholds.append(tmp["opt_threshold"][i])
-
-    logging.info("Saving results...")
-    save_predict(
-        args.outputDirectory,
-        targets,
-        predictions,
-        opt_thresholds,
-    )
-
-    print("Predicting succesful!")
-    logging.info("Predicting succesful!")
+    run_predict()
