@@ -95,6 +95,14 @@ class SOM(InMemoryDataset):
         labels = torch.from_numpy(
             np.array([int(G.nodes[i]["is_som"]) for i in range(len(G.nodes))])
         )
+        # labels = torch.transpose(torch.from_numpy(
+        #     np.array(
+        #         [
+        #             [int(not G.nodes[i]["is_som"]) for i in range(len(G.nodes))],
+        #             [int(G.nodes[i]["is_som"]) for i in range(len(G.nodes))],
+        #         ]
+        #     )
+        # ), 0, 1)
 
         # Compute node features matrix
         num_nodes = len(G.nodes)
@@ -151,7 +159,7 @@ class SOM(InMemoryDataset):
                     edge_index=edge_index_reset,
                     edge_attr=edge_attr,
                     y=labels[mask],
-                    mol_id=torch.full((len(labels[mask]),), mol_id),
+                    mol_id=torch.full((labels[mask].shape[0],), mol_id),
                     atom_id=atom_ids[mask],
                     # pos=coordinates[mask]
                 )
@@ -164,21 +172,22 @@ class SOM(InMemoryDataset):
 
         return data_list
 
-    # def get_class_distribution(self):
-    #     size = 0
-    #     som = 0
-    #     for data in self:
-    #         for label in data.y:
-    #             size += 1
-    #             som += int(label)
-    #     nosom = size - som
-    #     return size, nosom, som
+    def get_class_distribution(self):
+        size = 0
+        som = 0
+        for data in self:
+            for label in data.y:
+                size += 1
+                # som += int(label[1])
+                som += int(label)
+        nosom = size - som
+        return size, nosom, som
 
-    # def get_class_weights(self):
-    #     size, nosom, som = self.get_class_distribution()
-    #     return torch.tensor(
-    #         [size / (2 * nosom), (size / (2 * som))], dtype=torch.float
-    #     ).cuda()
+    def get_class_weights(self):
+        size, nosom, som = self.get_class_distribution()
+        return torch.tensor(
+            [size / (2 * nosom), (size / (2 * som))], dtype=torch.float
+        ).cuda()
 
 
 class LabeledData(SOM):
