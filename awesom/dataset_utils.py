@@ -27,8 +27,8 @@ TOTAL_DEGREE = [1, 2, 3, 4, "OTHER"]
 TOTAL_VALENCE = [1, 2, 3, 4, 5, 6, "OTHER"]
 RING_COUNT = [0, 1, 2, 3, 4, 5, "OTHER"]
 
-BOND_TYPE = ["SINGLE", "DOUBLE", "TRIPLE", "OTHER"]
-BOND_TYPE_INT = [1, 2, 3, "OTHER"]
+# BOND_TYPE = ["SINGLE", "DOUBLE", "TRIPLE", "OTHER"]
+# BOND_TYPE_INT = [1, 2, 3, "OTHER"]
 
 
 ################ General Utilities ################
@@ -224,7 +224,12 @@ def generate_bond_features_CDPKit(bond: CDPKitBond, mol: CDPKitMol) -> list[floa
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
-    return _get_allowed_set(Chem.getOrder(bond), BOND_TYPE_INT) + [
+    # return _get_allowed_set(Chem.getOrder(bond), BOND_TYPE_INT) + [
+    #     float(Chem.getRingFlag(bond)),
+    #     float(_is_conjugated(bond, mol)),
+    #     float(Chem.getAromaticityFlag(bond)),
+    # ]
+    return [
         float(Chem.getRingFlag(bond)),
         float(_is_conjugated(bond, mol)),
         float(Chem.getAromaticityFlag(bond)),
@@ -353,11 +358,7 @@ def load_mol_input(dir: str, labels: bool, indices: List[int]) -> Tuple[List[nx.
                 )
             struct_data = Chem.getStructureData(mol)
             soms = list()
-            for (
-                entry
-            ) in (
-                struct_data
-            ):  # iterate of structure data entries consisting of a header line and the actual data
+            for entry in struct_data:  # iterate of structure data entries consisting of a header line and the actual data
                 if labels:
                     if "som" in entry.header.lower():
                         if len(entry.data) > 2:
@@ -419,7 +420,7 @@ def load_mol_input(dir: str, labels: bool, indices: List[int]) -> Tuple[List[nx.
             Chem.makeHydrogenDeplete(mol)  # remove explicit hydrogens
             Chem.perceiveComponents(mol, True)
 
-            G = mol_to_nx_CDPKit(i, mol, soms)
+            G = mol_to_nx_CDPKit(Chem.getName(mol), mol, soms)
             graphs.append(G)
 
         except Exception as e:
@@ -479,7 +480,12 @@ def generate_bond_features_RDKit(bond: RDKitBond) -> list[float]:
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
-    return _get_allowed_set(str(bond.GetBondType()), BOND_TYPE) + [
+    # return _get_allowed_set(str(bond.GetBondType()), BOND_TYPE) + [
+    #     float(bond.IsInRing()),
+    #     float(bond.GetIsConjugated()),
+    #     float(bond.GetIsAromatic()),
+    # ]
+    return [
         float(bond.IsInRing()),
         float(bond.GetIsConjugated()),
         float(bond.GetIsAromatic()),
@@ -582,7 +588,7 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
     # Get ring info
     rings = mol.GetRingInfo().AtomRings()
 
-    # Assign each atom its molecular and atomic features and make it a node of G
+    # Assign each atom its features and make it a node of G
     for atom_idx in range(mol.GetNumAtoms()):
         atom = mol.GetAtomWithIdx(atom_idx)
         atm_ring_length = 0
@@ -590,8 +596,6 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
             for ring in rings:
                 if atom_idx in ring:
                     atm_ring_length = len(ring)
-        # Compute molecular features here so that we don't do it again and again
-        # for each atom in generate_node_features.
         G.add_node(
             atom_idx,  # node identifier
             node_features=generate_node_features_RDKit(atom, atm_ring_length),

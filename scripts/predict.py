@@ -1,12 +1,14 @@
 import argparse
 import csv
+import matplotlib.pyplot as plt
 import os
 import torch
 
-from lightning import Trainer
+from lightning import Trainer, seed_everything
 from torchmetrics import MatthewsCorrCoef, AUROC
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from torch_geometric.loader import DataLoader
+from sklearn.metrics import RocCurveDisplay
 
 from awesom.models import (
     GATv2,
@@ -15,14 +17,11 @@ from awesom.models import (
     NN,
 )
 from awesom.dataset import LabeledData, UnlabeledData
-from awesom.utils import (
-    seed_everything,
-)
-
-THRESHOLD = 0.2
 
 
 def run_predict():
+    seed_everything(42, workers=True)
+
     if not os.path.exists(args.outputFolder):
         os.makedirs(args.outputFolder)
 
@@ -37,7 +36,7 @@ def run_predict():
     with open(os.path.join(args.logFolder, "best_model_paths.txt"), "r") as f:
         best_model_paths = f.read().splitlines()
 
-    y_hat_avg = None
+    y_hats = []
     for i, path in enumerate(best_model_paths):
         for file in os.listdir(path):
             if file.endswith(".ckpt"):
@@ -53,23 +52,57 @@ def run_predict():
             model = NN.load_from_checkpoint(path)
 
         trainer = Trainer(accelerator="auto", logger=False)
-        out = trainer.predict(model, DataLoader(data, batch_size=len(data)))
+        out = trainer.predict(
+            model=model, dataloaders=DataLoader(data, batch_size=len(data))
+        )
         y_hat = out[0][0]
+        y_hats.append(y_hat)
         if i == 0:
-            y_hat_avg = y_hat
             y = out[0][1]
             mol_id = out[0][2]
             atom_id = out[0][3]
-        else:
-            y_hat_avg = torch.vstack((y_hat_avg, y_hat))
 
-    y_hat_avg = torch.mean(y_hat_avg, dim=0)
+    y_hats = torch.stack(y_hats, dim=0)
+    y_hat_avg = torch.mean(y_hats, dim=0)
+    y_hat_bin = torch.max(y_hat_avg, dim=1).indices
+
+    # y_hats_bin = torch.stack([torch.max(y_hat, dim=1).indices for y_hat in y_hats], dim=0)
+    # y_hat_voted = torch.sum(y_hats_bin, dim=0)  >= y_hats_bin.shape[0]/2
+    # y_hat_any = torch.any(y_hats_bin, dim=0)
+
+    ranking = torch.cat(
+        [
+            torch.argsort(
+                torch.argsort(
+                    torch.index_select(
+                        y_hat_avg[:, 1], 0, torch.where(mol_id == mid)[0]
+                    ),
+                    dim=0,
+                    descending=True,
+                ),
+                dim=0,
+                descending=False,
+            )
+            for mid in set(mol_id.tolist())
+        ]
+    )
 
     with open(os.path.join(args.outputFolder, "results.csv"), "w") as f:
         writer = csv.writer(f)
-        writer.writerow(("predicted_labels", "true_labels", "mol_id", "atom_id"))
+        writer.writerow(
+            (
+                "averaged_probabilities",
+                "ranking",
+                "predicted_labels",
+                "true_labels",
+                "mol_id",
+                "atom_id",
+            )
+        )
         for row in zip(
-            y_hat_avg.tolist(),
+            y_hat_avg[:, 1].tolist(),
+            ranking.tolist(),
+            torch.max(y_hat_avg, dim=1).indices.tolist(),
             y.tolist(),
             mol_id.tolist(),
             atom_id.tolist(),
@@ -77,16 +110,19 @@ def run_predict():
             writer.writerow(row)
 
     if args.trueLabels == "True":
-        mcc = MatthewsCorrCoef(task="binary", threshold=THRESHOLD)
-        auroc = AUROC(task="binary")
-        precision = BinaryPrecision(threshold=THRESHOLD)
-        recall = BinaryRecall(threshold=THRESHOLD)
+        mcc = MatthewsCorrCoef(task="binary")
+        auroc = AUROC(task="multiclass", num_classes=2)
+        precision = BinaryPrecision(threshold=0.5)
+        recall = BinaryRecall(threshold=0.5)
 
         with open(os.path.join(args.outputFolder, "results.txt"), "w") as f:
-            f.write(f"MCC: {mcc(y_hat_avg, y)}\n")
-            f.write(f"AUROC: {auroc(y_hat_avg, y)}\n")
-            f.write(f"Precision: {precision(y_hat_avg, y)}\n")
-            f.write(f"Recall: {recall(y_hat_avg, y)}\n")
+            f.write(f"AUROC: {round(auroc(y_hat_avg, y).item(), 2)}\n")
+            f.write(f"MCC: {round(mcc(y_hat_bin, y).item(), 2)}\n")
+            f.write(f"Precision: {round(precision(y_hat_bin, y).item(), 2)}\n")
+            f.write(f"Recall: {round(recall(y_hat_bin, y).item(), 2)}\n")
+
+    RocCurveDisplay.from_predictions(y, y_hat_avg[:, 1])
+    plt.savefig(str(os.path.join(args.outputFolder, "roc.png")), dpi=300)
 
     return None
 
@@ -132,8 +168,4 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
-    seed_everything(42)
-    torch.set_float32_matmul_precision("medium")
-
     run_predict()
