@@ -3,18 +3,17 @@ from torch_geometric.nn import (
     GATv2Conv,
     GINConv,
     GINEConv,
-    NNConv,
+    MFConv,
+    ChebConv,
     global_add_pool,
 )
 from typing import List, Optional, Tuple, Union
 from lightning import LightningModule
-from torchmetrics import AUROC, MatthewsCorrCoef, Precision, Recall
+from torchmetrics import AUROC, MatthewsCorrCoef
 from torch_geometric.nn.norm import LayerNorm
 
-import numpy as np
 
-
-__all__ = ["GNN", "GATv2", "GIN", "GINE", "NN"]
+__all__ = ["GNN", "GATv2", "GIN", "GINE", "GINP", "MF", "Cheb"]
 
 
 class GNN(LightningModule):
@@ -26,7 +25,6 @@ class GNN(LightningModule):
     ) -> None:
         super(GNN, self).__init__()
 
-        # self.loss_function = torch.nn.BCELoss(reduction="mean")
         self.loss_function = torch.nn.CrossEntropyLoss(
             weight=class_weights, reduction="mean"
         )
@@ -37,10 +35,6 @@ class GNN(LightningModule):
             task="multiclass", num_classes=2, threshold=0.5
         )
         self.val_mcc = MatthewsCorrCoef(task="multiclass", num_classes=2, threshold=0.5)
-        # self.train_precision = Precision(task="multiclass", num_classes=2, threshold=0.5)
-        # self.val_precision = Precision(task="multiclass", num_classes=2, threshold=0.5)
-        # self.train_recall = Recall(task="multiclass", num_classes=2, threshold=0.5)
-        # self.val_recall = Recall(task="multiclass", num_classes=2, threshold=0.5)
 
         self.learning_rate = hyperparams["learning_rate"]
         self.weight_decay = hyperparams["weight_decay"]
@@ -70,15 +64,10 @@ class GNN(LightningModule):
                 "val/auroc": 0,
                 "train/mcc": 0,
                 "val/mcc": 0,
-                # "train/precision": 0,
-                # "val/precision": 0,
-                # "train/recall": 0,
-                # "val/recall": 0,
             },
         )
 
     def step(self, batch):
-        # y_hat = self(batch, batch.batch).flatten().to(float)
         y_hat = self(batch, batch.batch)
         loss = self.loss_function(y_hat, batch.y)
         return loss, y_hat
@@ -87,8 +76,6 @@ class GNN(LightningModule):
         loss, y_hat = self.step(batch)
         self.train_auroc(y_hat, batch.y)
         self.train_mcc(y_hat, batch.y)
-        # self.train_precision(y_hat, batch.y)
-        # self.train_recall(y_hat, batch.y)
         self.log(
             "train/loss",
             loss,
@@ -115,30 +102,12 @@ class GNN(LightningModule):
             logger=True,
             batch_size=len(batch),
         )
-        # self.log(
-        #     "train/precision",
-        #     self.train_precision,
-        #     on_step=False,
-        #     on_epoch=True,
-        #     logger=True,
-        #     batch_size=len(batch),
-        # )
-        # self.log(
-        #     "train/recall",
-        #     self.train_recall,
-        #     on_step=False,
-        #     on_epoch=True,
-        #     logger=True,
-        #     batch_size=len(batch),
-        # )
         return loss
 
     def validation_step(self, batch, batch_idx):
         loss, y_hat = self.step(batch)
         self.val_auroc(y_hat, batch.y)
         self.val_mcc(y_hat, batch.y)
-        # self.val_precision(y_hat, batch.y)
-        # self.val_recall(y_hat, batch.y)
         self.log(
             "val/loss",
             loss,
@@ -162,22 +131,6 @@ class GNN(LightningModule):
             logger=True,
             batch_size=len(batch),
         )
-        # self.log(
-        #     "val/precision",
-        #     self.val_precision,
-        #     on_step=False,
-        #     on_epoch=True,
-        #     logger=True,
-        #     batch_size=len(batch),
-        # )
-        # self.log(
-        #     "val/recall",
-        #     self.val_recall,
-        #     on_step=False,
-        #     on_epoch=True,
-        #     logger=True,
-        #     batch_size=len(batch),
-        # )
 
     def predict_step(self, batch, batch_idx):
         _, y_hat = self.step(batch)
@@ -265,12 +218,12 @@ class GATv2(GNN):
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         n_conv_layers = trial.suggest_int("n_conv_layers", 1, 5)
         size_conv_layers = [
-            trial.suggest_int(f"size_conv_layers_{i}", 16, 512)
+            trial.suggest_int(f"size_conv_layers_{i}", 64, 512)
             for i in range(n_conv_layers)
         ]
         n_classify_layers = trial.suggest_int("n_classify_layers", 1, 5)
         size_classify_layers = [
-            trial.suggest_int(f"size_classify_layers_{i}", 16, 512)
+            trial.suggest_int(f"size_classify_layers_{i}", 64, 512)
             for i in range(n_classify_layers)
         ]
         heads = trial.suggest_int("heads", 2, 8)
@@ -317,22 +270,15 @@ class GIN(GNN):
             self.conv.append(
                 GINConv(
                     torch.nn.Sequential(
-                        torch.nn.Linear(
-                            in_channels, hyperparams["size_hidden_network"]
-                        ),
+                        torch.nn.Linear(in_channels, out_channels),
                         LayerNorm(
-                            hyperparams["size_hidden_network"],
-                        ),
-                        torch.nn.LeakyReLU(),
-                        torch.nn.Linear(
-                            hyperparams["size_hidden_network"], out_channels
+                            out_channels,
                         ),
                         torch.nn.LeakyReLU(),
                     ),
                     train_eps=True,
                 )
             )
-            in_channels = out_channels
 
         self.classifier = torch.nn.ModuleList()
         in_channels = (
@@ -383,15 +329,14 @@ class GIN(GNN):
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         n_conv_layers = trial.suggest_int("n_conv_layers", 1, 5)
         size_conv_layers = [
-            trial.suggest_int(f"size_conv_layers_{i}", 16, 512)
+            trial.suggest_int(f"size_conv_layers_{i}", 64, 512)
             for i in range(n_conv_layers)
         ]
         n_classify_layers = trial.suggest_int("n_classify_layers", 1, 5)
         size_classify_layers = [
-            trial.suggest_int(f"size_classify_layers_{i}", 16, 512)
+            trial.suggest_int(f"size_classify_layers_{i}", 64, 512)
             for i in range(n_classify_layers)
         ]
-        size_hidden_network = trial.suggest_int("size_hidden_network", 16, 512)
         dropout = trial.suggest_float("dropout", 0.1, 0.3)
 
         params = dict(
@@ -406,7 +351,6 @@ class GIN(GNN):
             size_conv_layers=size_conv_layers,
             n_classify_layers=n_classify_layers,
             size_classify_layers=size_classify_layers,
-            size_hidden_network=size_hidden_network,
             dropout=dropout,
         )
 
@@ -490,12 +434,12 @@ class GINE(GNN):
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         n_conv_layers = trial.suggest_int("n_conv_layers", 1, 5)
         size_conv_layers = [
-            trial.suggest_int(f"size_conv_layers_{i}", 16, 512)
+            trial.suggest_int(f"size_conv_layers_{i}", 64, 512)
             for i in range(n_conv_layers)
         ]
         n_classify_layers = trial.suggest_int("n_classify_layers", 1, 5)
         size_classify_layers = [
-            trial.suggest_int(f"size_classify_layers_{i}", 16, 512)
+            trial.suggest_int(f"size_classify_layers_{i}", 64, 512)
             for i in range(n_classify_layers)
         ]
         dropout = trial.suggest_float("dropout", 0.1, 0.3)
@@ -518,17 +462,13 @@ class GINE(GNN):
         return params, hyperparams
 
 
-class NN(GNN):
-    """The continuous kernel-based convolutional operator from the “Neural Message Passing for Quantum Chemistry” paper
-    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.NNConv.html#torch_geometric.nn.conv.NNConv
+class GINP(GNN):
+    """The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html#torch_geometric.nn.conv.GINEConv
     """
 
-    def __init__(
-        self,
-        params,
-        hyperparams,
-    ) -> None:
-        super(NN, self).__init__(params, hyperparams)
+    def __init__(self, params, hyperparams, class_weights) -> None:
+        super(GINP, self).__init__(params, hyperparams, class_weights)
 
         self.save_hyperparameters()
 
@@ -536,41 +476,24 @@ class NN(GNN):
         in_channels = params["num_node_features"]
         for out_channels in hyperparams["size_conv_layers"]:
             self.conv.append(
-                NNConv(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    edge_dim=params["num_edge_features"],
-                    nn=torch.nn.Sequential(
-                        torch.nn.Linear(
-                            params["num_edge_features"],
-                            hyperparams["size_hidden_network"],
-                        ),
+                GINEConv(
+                    torch.nn.Sequential(
+                        torch.nn.Linear(in_channels, out_channels),
                         LayerNorm(
-                            hyperparams["size_hidden_network"],
-                        ),
-                        torch.nn.LeakyReLU(),
-                        torch.nn.Linear(
-                            hyperparams["size_hidden_network"],
-                            in_channels * out_channels,
+                            out_channels,
                         ),
                         torch.nn.LeakyReLU(),
                     ),
+                    train_eps=True,
+                    edge_dim=params["num_edge_features"],
                 )
             )
             in_channels = out_channels
 
-        self.classifier = torch.nn.ModuleList()
         in_channels = (
             sum(hyperparams["size_conv_layers"]) + hyperparams["size_conv_layers"][-1]
         )
-        for out_channels in hyperparams["size_classify_layers"]:
-            self.classifier.append(torch.nn.Linear(in_channels, out_channels))
-            in_channels = out_channels
-
-        self.final = torch.nn.Linear(in_channels, 1)
-
-        self.leaky_relu = torch.nn.LeakyReLU()
-        self.dropout = torch.nn.Dropout(p=hyperparams["dropout"])
+        self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
 
     def forward(
         self,
@@ -594,13 +517,8 @@ class NN(GNN):
         h = torch.cat((*hs, h_pool_), dim=1)
 
         # Classify
-        for layer in self.classifier:
-            h = layer(h)
-            h = self.leaky_relu(h)
-            h = self.dropout(h)
         h = self.final(h)
-
-        return torch.sigmoid(h)
+        return torch.softmax(h, dim=1)
 
     @classmethod
     def get_params(self, data, trial):
@@ -608,16 +526,9 @@ class NN(GNN):
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         n_conv_layers = trial.suggest_int("n_conv_layers", 1, 5)
         size_conv_layers = [
-            trial.suggest_int(f"size_conv_layers_{i}", 16, 512)
+            trial.suggest_int(f"size_conv_layers_{i}", 64, 512)
             for i in range(n_conv_layers)
         ]
-        n_classify_layers = trial.suggest_int("n_classify_layers", 1, 5)
-        size_classify_layers = [
-            trial.suggest_int(f"size_classify_layers_{i}", 16, 512)
-            for i in range(n_classify_layers)
-        ]
-        size_hidden_network = trial.suggest_int("size_hidden_network", 16, 512)
-        dropout = trial.suggest_float("dropout", 0.1, 0.3)
 
         params = dict(
             num_node_features=data.num_node_features,
@@ -629,10 +540,175 @@ class NN(GNN):
             weight_decay=weight_decay,
             n_conv_layers=n_conv_layers,
             size_conv_layers=size_conv_layers,
-            n_classify_layers=n_classify_layers,
-            size_classify_layers=size_classify_layers,
-            size_hidden_network=size_hidden_network,
-            dropout=dropout,
+        )
+
+        return params, hyperparams
+    
+
+class MF(GNN):
+    """The graph neural network operator from the “Convolutional Networks on Graphs for Learning Molecular Fingerprints” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv
+    """
+
+    def __init__(
+        self,
+        params,
+        hyperparams,
+        class_weights,
+    ) -> None:
+        super(MF, self).__init__(params, hyperparams, class_weights)
+
+        self.save_hyperparameters()
+
+        self.conv = torch.nn.ModuleList()
+        in_channels = params["num_node_features"]
+        for out_channels in hyperparams["size_conv_layers"]:
+            self.conv.append(
+                MFConv(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    max_degree=hyperparams["max_degree"],
+                )
+            )
+            in_channels = out_channels
+
+        in_channels = (
+            sum(hyperparams["size_conv_layers"]) + hyperparams["size_conv_layers"][-1]
+        )
+        self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        batch: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        # Compute node intermediate embeddings
+        hs = []
+        x = data.x
+        for layer in self.conv:
+            h = layer(x, data.edge_index)
+            x = h
+            hs.append(h)
+
+        # Pooling
+        h_pool = global_add_pool(h, batch)
+        num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
+        h_pool_ = torch.repeat_interleave(h_pool, num_atoms_per_mol, dim=0)
+
+        # Concatenate embeddings
+        h = torch.cat((*hs, h_pool_), dim=1)
+
+        # Classify
+        h = self.final(h)
+
+        return torch.softmax(h, dim=1)
+    
+    @classmethod
+    def get_params(self, data, trial):
+        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+        n_conv_layers = trial.suggest_int("n_conv_layers", 1, 5)
+        size_conv_layers = [
+            trial.suggest_int(f"size_conv_layers_{i}", 64, 512)
+            for i in range(n_conv_layers)
+        ]
+        max_degree = trial.suggest_int("max_degree", 1, 5)
+
+        params = dict(
+            num_node_features=data.num_node_features,
+            num_edge_features=data.num_edge_features,
+        )
+
+        hyperparams = dict(
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            n_conv_layers=n_conv_layers,
+            size_conv_layers=size_conv_layers,
+            max_degree=max_degree,
+        )
+
+        return params, hyperparams
+
+
+class Cheb(GNN):
+    """The graph neural network operator from the “Convolutional Networks on Graphs for Learning Molecular Fingerprints” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv
+    """
+
+    def __init__(
+        self,
+        params,
+        hyperparams,
+        class_weights,
+    ) -> None:
+        super(Cheb, self).__init__(params, hyperparams, class_weights)
+
+        self.save_hyperparameters()
+
+        self.conv = torch.nn.ModuleList()
+        in_channels = params["num_node_features"]
+        for out_channels in hyperparams["size_conv_layers"]:
+            self.conv.append(
+                ChebConv(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    K=hyperparams["filter_size"],
+                )
+            )
+            in_channels = out_channels
+
+        in_channels = (
+            sum(hyperparams["size_conv_layers"]) + hyperparams["size_conv_layers"][-1]
+        )
+        self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        batch: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        # Compute node intermediate embeddings
+        hs = []
+        x = data.x
+        for layer in self.conv:
+            h = layer(x, data.edge_index)
+            x = h
+            hs.append(h)
+
+        # Pooling
+        h_pool = global_add_pool(h, batch)
+        num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
+        h_pool_ = torch.repeat_interleave(h_pool, num_atoms_per_mol, dim=0)
+
+        # Concatenate embeddings
+        h = torch.cat((*hs, h_pool_), dim=1)
+
+        h = self.final(h)
+
+        return torch.softmax(h, dim=1)
+    
+    @classmethod
+    def get_params(self, data, trial):
+        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+        n_conv_layers = trial.suggest_int("n_conv_layers", 1, 5)
+        size_conv_layers = [
+            trial.suggest_int(f"size_conv_layers_{i}", 64, 512)
+            for i in range(n_conv_layers)
+        ]
+        filter_size = trial.suggest_int("filter_size", 1, 10)
+
+        params = dict(
+            num_node_features=data.num_node_features,
+            num_edge_features=data.num_edge_features,
+        )
+
+        hyperparams = dict(
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            n_conv_layers=n_conv_layers,
+            size_conv_layers=size_conv_layers,
+            filter_size=filter_size,
         )
 
         return params, hyperparams
