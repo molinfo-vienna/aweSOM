@@ -1,4 +1,5 @@
 import argparse
+import csv
 import optuna
 import os
 import torch
@@ -17,13 +18,17 @@ from torch_geometric.loader import DataLoader
 from torchmetrics import MatthewsCorrCoef, AUROC
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
 
+from awesom.dataset import SOM
+from awesom.metrics_utils import compute_ranking
 from awesom.models import (
     GATv2,
     GIN,
     GINE,
-    NN,
+    GINP,
+    MF,
+    Cheb,
 )
-from awesom.dataset import SOM
+
 
 NFOLDS = 10
 BATCHSIZE = 64
@@ -45,11 +50,15 @@ def run_train():
     class_weights = data.get_class_weights()
 
     print(f"Number of training graphs: {len(data)}")
-    
+
     aurocs = []
     mccs = []
     precisions = []
     recalls = []
+    mol_r_precisions = []
+    mol_aurocs = []
+    top2s = []
+    atom_r_precisions = []
 
     fold = KFold(n_splits=NFOLDS, shuffle=True, random_state=42)
     for fold_id, (train_idx, val_idx) in enumerate(fold.split(range(len(data)))):
@@ -68,9 +77,15 @@ def run_train():
             elif args.model == "GINE":
                 params, hyperparams = GINE.get_params(data, trial)
                 model = GINE(params, hyperparams, class_weights)
-            elif args.model == "NN":
-                params, hyperparams = NN.get_params(data, trial)
-                model = NN(params, hyperparams, class_weights)
+            elif args.model == "GINP":
+                params, hyperparams = GINP.get_params(data, trial)
+                model = GINP(params, hyperparams, class_weights)
+            elif args.model == "MF":
+                params, hyperparams = MF.get_params(data, trial)
+                model = MF(params, hyperparams, class_weights)
+            elif args.model == "Cheb":
+                params, hyperparams = Cheb.get_params(data, trial)
+                model = Cheb(params, hyperparams, class_weights)
 
             tbl = TensorBoardLogger(
                 save_dir=os.path.join(
@@ -132,7 +147,9 @@ def run_train():
         with open(os.path.join(args.logFolder, "best_model_paths.txt"), "a") as f:
             f.write(path + "\n")
 
-        # Recompute validation metrics and log them into validation.txt
+        ##### Recompute validation metrics and log them into validation.txt #####
+
+        # Load best models
 
         for file in os.listdir(path):
             if file.endswith(".ckpt"):
@@ -144,27 +161,93 @@ def run_train():
             model = GIN.load_from_checkpoint(path)
         elif args.model == "GINE":
             model = GINE.load_from_checkpoint(path)
-        elif args.model == "NN":
-            model = NN.load_from_checkpoint(path)
+        elif args.model == "GINP":
+            model = GINP.load_from_checkpoint(path)
+        elif args.model == "MF":
+            model = MF.load_from_checkpoint(path)
+        elif args.model == "Cheb":
+            model = Cheb.load_from_checkpoint(path)
+
+        # Make predictions on validation split with best model
 
         trainer = Trainer(accelerator="auto", logger=False)
         out = trainer.predict(
-            model=model, dataloaders=DataLoader(data, batch_size=len(data))
+            model=model, dataloaders=DataLoader(val_data, batch_size=len(val_data))
         )
         y_hat = out[0][0]
-        y_hat_bin = torch.max(out[0][0], dim=1).indices
         y = out[0][1]
-        aurocs.append(auroc(y_hat, y).item())
+        mol_id = out[0][2]
+        atom_id = out[0][3]
+
+        y_hat_bin = torch.max(y_hat, dim=1).indices
+
+        # Compute normal metrics
+
         mccs.append(mcc(y_hat_bin, y).item())
         precisions.append(precision(y_hat_bin, y).item())
         recalls.append(recall(y_hat_bin, y).item())
+        aurocs.append(auroc(y_hat, y).item())
 
+        # Compute the atom ranking for the current validation fold
+        # and write the detailed, per atom results into validation_fold{fold_id}.csv
+        ranking = compute_ranking(y_hat, mol_id)
+        with open(os.path.join(args.logFolder, f"validation_fold{fold_id}.csv"), "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                (
+                    "probabilities",
+                    "ranking",
+                    "predicted_labels",
+                    "true_labels",
+                    "mol_id",
+                    "atom_id",
+                )
+            )
+            for row in zip(
+                y_hat[:, 1].tolist(),
+                ranking.tolist(),
+                y_hat_bin.tolist(),
+                y.tolist(),
+                mol_id.tolist(),
+                atom_id.tolist(),
+            ):
+                writer.writerow(row)
+    
+        # Compute weird metrics from Porokhin's GNN-SOM paper for comparison's sake...
+        ranked_y_hat_bin = torch.index_select(y_hat_bin, 0, ranking)
+        total_num_soms_in_validation_split = torch.sum(y).item()
+        atom_r_precisions.append(torch.sum(ranked_y_hat_bin[:total_num_soms_in_validation_split]).item() / total_num_soms_in_validation_split)
+
+        top2_correctness_rate = 0
+        per_molecule_aurocs = []
+        per_molecule_r_precisions = []
+        for mid in list(dict.fromkeys(mol_id.tolist())):  # This is a somewhat complicated way to get an ordered set, but it works
+            mask = torch.where(mol_id == mid)[0]
+            masked_ranking = ranking[mask]
+            masked_y = y[mask]
+            masked_y_hat = y_hat[mask]
+            masked_y_hat_bin = y_hat_bin[mask]
+            masked_ranked_y_hat_bin = torch.index_select(masked_y_hat_bin, 0, masked_ranking)
+            num_soms_in_current_mol = torch.sum(masked_y).item()
+            top2_correctness_rate += 1 if torch.sum(masked_ranked_y_hat_bin[:2]).item() > 0 else 0
+            per_molecule_aurocs.append(auroc(masked_y_hat, masked_y).item())
+            per_molecule_r_precisions.append(torch.sum(masked_ranked_y_hat_bin[:num_soms_in_current_mol]).item() / num_soms_in_current_mol)
+        top2_correctness_rate /= len(set(mol_id.tolist()))
+        top2s.append(top2_correctness_rate)
+        mol_aurocs.append(mean(per_molecule_aurocs))
+        mol_r_precisions.append(mean(per_molecule_r_precisions))
+    
+    # Write the normal and Porokhin's metrics to a text file
     with open(os.path.join(args.logFolder, "validation.txt"), "w") as f:
-        f.write(f"AUROC: {round(mean(aurocs), 2)} +/- {round(stdev(aurocs), 2)}\n")
         f.write(f"MCC: {round(mean(mccs), 2)} +/- {round(stdev(mccs), 2)}\n")
         f.write(f"Precision: {round(mean(precisions), 2)} +/- {round(stdev(precisions), 2)}\n")
         f.write(f"Recall: {round(mean(recalls), 2)} +/- {round(stdev(recalls), 2)}\n")
-
+        f.write(f"Molecular R-Precision: {round(mean(mol_r_precisions), 2)} +/- {round(stdev(mol_r_precisions), 2)}\n")
+        f.write(f"Molecular AUROC:  {round(mean(mol_aurocs), 2)} +/- {round(stdev(mol_aurocs), 2)}\n")
+        f.write(f"Top-2 Correctness Rate: {round(mean(top2s), 2)} +/- {round(stdev(top2s), 2)}\n")
+        f.write(f"Atomic R-Precision: {round(mean(atom_r_precisions), 2)} +/- {round(stdev(atom_r_precisions), 2)}\n")
+        f.write(f"Atomic AUROC: {round(mean(aurocs), 2)} +/- {round(stdev(aurocs), 2)}\n")
+    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Training and testing the model.")
@@ -188,7 +271,7 @@ if __name__ == "__main__":
         "--model",
         type=str,
         required=True,
-        help="The desired model architecture. Choose between 'GATv2', 'GIN' and 'GINE'.",
+        help="The desired model architecture.",
     )
     parser.add_argument(
         "-e",

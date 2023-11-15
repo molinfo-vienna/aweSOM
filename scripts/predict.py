@@ -10,13 +10,16 @@ from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from torch_geometric.loader import DataLoader
 from sklearn.metrics import RocCurveDisplay
 
+from awesom.dataset import LabeledData, UnlabeledData
+from awesom.metrics_utils import compute_ranking
 from awesom.models import (
     GATv2,
     GIN,
     GINE,
-    NN,
+    GINP,
+    MF,
+    Cheb,
 )
-from awesom.dataset import LabeledData, UnlabeledData
 
 
 def run_predict():
@@ -26,9 +29,9 @@ def run_predict():
         os.makedirs(args.outputFolder)
 
     if args.trueLabels == "False":
-        data = UnlabeledData(args.inputFolder)
+        data = UnlabeledData(root=args.inputFolder)
     else:
-        data = LabeledData(args.inputFolder)
+        data = LabeledData(root=args.inputFolder)
 
     print(f"Number of molecules: {len(data)}")
 
@@ -48,8 +51,12 @@ def run_predict():
             model = GIN.load_from_checkpoint(path)
         elif args.model == "GINE":
             model = GINE.load_from_checkpoint(path)
-        elif args.model == "NN":
-            model = NN.load_from_checkpoint(path)
+        elif args.model == "GINP":
+            model = GINP.load_from_checkpoint(path)
+        elif args.model == "MF":
+            model = MF.load_from_checkpoint(path)
+        elif args.model == "Cheb":
+            model = Cheb.load_from_checkpoint(path)
 
         trainer = Trainer(accelerator="auto", logger=False)
         out = trainer.predict(
@@ -70,22 +77,7 @@ def run_predict():
     # y_hat_voted = torch.sum(y_hats_bin, dim=0)  >= y_hats_bin.shape[0]/2
     # y_hat_any = torch.any(y_hats_bin, dim=0)
 
-    ranking = torch.cat(
-        [
-            torch.argsort(
-                torch.argsort(
-                    torch.index_select(
-                        y_hat_avg[:, 1], 0, torch.where(mol_id == mid)[0]
-                    ),
-                    dim=0,
-                    descending=True,
-                ),
-                dim=0,
-                descending=False,
-            )
-            for mid in set(mol_id.tolist())
-        ]
-    )
+    ranking = compute_ranking(y_hat_avg, mol_id)
 
     with open(os.path.join(args.outputFolder, "results.csv"), "w") as f:
         writer = csv.writer(f)
@@ -121,8 +113,8 @@ def run_predict():
             f.write(f"Precision: {round(precision(y_hat_bin, y).item(), 2)}\n")
             f.write(f"Recall: {round(recall(y_hat_bin, y).item(), 2)}\n")
 
-    RocCurveDisplay.from_predictions(y, y_hat_avg[:, 1])
-    plt.savefig(str(os.path.join(args.outputFolder, "roc.png")), dpi=300)
+        RocCurveDisplay.from_predictions(y, y_hat_avg[:, 1])
+        plt.savefig(str(os.path.join(args.outputFolder, "roc.png")), dpi=300)
 
     return None
 
@@ -149,7 +141,7 @@ if __name__ == "__main__":
         "--model",
         type=str,
         required=True,
-        help="The desired model architecture. Choose between 'GATv2', 'GIN', 'GINE' and 'NN'.",
+        help="The desired model architecture.",
     )
     parser.add_argument(
         "-t",

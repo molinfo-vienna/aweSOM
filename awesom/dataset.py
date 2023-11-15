@@ -21,8 +21,7 @@ from awesom.dataset_utils import (
 __all__ = ["SOM", "LabeledData", "UnlabeledData"]
 
 
-KIT = "CDPKIT"  # "RDKIT" or "CDPKIT"
-
+KIT = "RDKIT"
 
 class SOM(InMemoryDataset):
     """Creates a PyTorch Geometric Dataset from data.sdf.
@@ -64,12 +63,17 @@ class SOM(InMemoryDataset):
                 PandasTools.AddMoleculeColumnToFrame(df, "smiles")
             else:
                 raise NotImplementedError(f"Invalid file extension: {file_extension}")
-
+            
+            if 'ID' not in df:
+                df["ID"] = df.index
             if not labels:
                 df["soms"] = "[]"
-                df["ID"] = df.index
-
             df["soms"] = df["soms"].map(ast.literal_eval)
+            #################################################################
+            df["reamainclasses"] = df["reamainclasses"].map(ast.literal_eval)
+            df["reaclasses"] = df["reaclasses"].map(ast.literal_eval)
+            df["reasubclasses"] = df["reasubclasses"].map(ast.literal_eval)
+            #################################################################
 
             G = generate_preprocessed_data_RDKit(df, min(len(df), cpu_count()))
 
@@ -78,6 +82,9 @@ class SOM(InMemoryDataset):
             G = generate_preprocessed_data_CDPKit(
                 path, file_length, min(file_length, cpu_count()), labels
             )
+        
+        else:
+            raise IOError("Error: invalid chemistry toolkit name")
 
         return self.create_data_list(G)
 
@@ -86,7 +93,6 @@ class SOM(InMemoryDataset):
         mol_ids = torch.from_numpy(
             np.array([G.nodes[i]["mol_id"] for i in range(len(G.nodes))])
         ).to(torch.long)
-        unique_mol_ids = torch.unique(mol_ids).tolist()
         # Compute list of atom ids
         atom_ids = torch.from_numpy(
             np.array([G.nodes[i]["atom_id"] for i in range(len(G.nodes))])
@@ -121,7 +127,8 @@ class SOM(InMemoryDataset):
 
         data_list = []
 
-        for mol_id in unique_mol_ids:
+        for mol_id in torch.unique(mol_ids).tolist():
+
             try:
                 mask = mol_ids == mol_id
 
@@ -178,7 +185,6 @@ class SOM(InMemoryDataset):
         for data in self:
             for label in data.y:
                 size += 1
-                # som += int(label[1])
                 som += int(label)
         nosom = size - som
         return size, nosom, som

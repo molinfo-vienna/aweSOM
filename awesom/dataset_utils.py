@@ -19,7 +19,7 @@ from CDPL.Chem import Atom as CDPKitAtom
 from CDPL.Chem import Bond as CDPKitBond
 
 
-ELEM_LIST = [5, 6, 7, 8, 9, 14, 15, 16, 17, 34, 35, 53, "OTHER"]
+ELEM_LIST = [6, 7, 8, 9, 14, 15, 16, 17, 35, 53, "OTHER"]
 HYBRIDIZATION_TYPE = ["SP", "SP2", "SP3", "OTHER"]
 FORMAL_CHARGE = [-1, 0, 1, "OTHER"]
 RING_SIZE = [0, 3, 4, 5, 6, 7, 8, "OTHER"]
@@ -27,9 +27,12 @@ TOTAL_DEGREE = [1, 2, 3, 4, "OTHER"]
 TOTAL_VALENCE = [1, 2, 3, 4, 5, 6, "OTHER"]
 RING_COUNT = [0, 1, 2, 3, 4, 5, "OTHER"]
 
-# BOND_TYPE = ["SINGLE", "DOUBLE", "TRIPLE", "OTHER"]
+# BOND_TYPE_STR = ["SINGLE", "DOUBLE", "TRIPLE", "OTHER"]
 # BOND_TYPE_INT = [1, 2, 3, "OTHER"]
 
+REAMAINCLASSES = [i for i in range(4)]  # 3 total
+REACLASSES = [i for i in range(22)]  # 21 total
+REASUBCLASSES = [i for i in range(156)]  # 93 total
 
 ################ General Utilities ################
 
@@ -47,6 +50,17 @@ def _get_allowed_set(x: Any, allowable_set: list[Any]) -> List[float]:
     if x not in allowable_set:
         x = allowable_set[-1]
     return list(map(lambda s: float(x == s), allowable_set))
+
+def _one_hot_encode_list(lst: list[int], allowable_set: list[int]) -> List[float]:
+    """
+    PRIVATE method generates a one-hot encoded list for a list of inputs lst.
+    Args:
+        lst (list): list of target values
+        allowable_set (list): the allowed set
+    Returns:
+        (list): one-hot encoded list
+    """
+    return [1. if x in lst else 0. for x in allowable_set]
 
 
 ################ CDPKit Utilities ################
@@ -480,7 +494,7 @@ def generate_bond_features_RDKit(bond: RDKitBond) -> list[float]:
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
-    # return _get_allowed_set(str(bond.GetBondType()), BOND_TYPE) + [
+    # return _get_allowed_set(str(bond.GetBondType()), BOND_TYPE_STR) + [
     #     float(bond.IsInRing()),
     #     float(bond.GetIsConjugated()),
     #     float(bond.GetIsAromatic()),
@@ -532,19 +546,20 @@ def generate_preprocessed_data_chunk_RDKit(
     Generates preprocessed data from a chunk of the input data.
     """
     df_chunk["G"] = df_chunk.apply(
-        lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms), axis=1
+        lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms, x.reasubclasses), axis=1
     )
     G = nx.disjoint_union_all(df_chunk["G"].to_list())
 
     return G
 
 
-def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int) -> List[float]:
+def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int, reasubclasses: int) -> List[float]:
     """
     Generates the node features for each atom
     Args:
         atom (RDKit Atom): atom for the features calculation
-        atm_ring_length (int)
+        atm_ring_length (int): the size of the ring in which the atom is
+        reasubclasses (int): the reported reaction subclass
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
@@ -558,6 +573,7 @@ def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int) -> List[
         "aromaticity": list([float(atom.GetIsAromatic())]),
         "degree": _get_allowed_set(atom.GetTotalDegree(), TOTAL_DEGREE),
         "valence": _get_allowed_set(atom.GetTotalValence(), TOTAL_VALENCE),
+        "reasubclass": _get_allowed_set(reasubclasses, REASUBCLASSES),
     }
     return (
         features["atom_type"]
@@ -567,10 +583,11 @@ def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int) -> List[
         + features["aromaticity"]
         + features["degree"]
         + features["valence"]
+        + features["reasubclass"]
     )
 
 
-def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
+def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int], reasubclasses: int) -> nx.Graph:
     """
     This function takes an RDKit Mol object as input and returns its corresponding
     NetworkX graph with node and edge attributes.
@@ -580,6 +597,7 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
         soms (list): a list of the indices of atoms that are SoMs (This is
                     of course only relevant for training data. If there is no info
                     about which atom is a SoM, then the list is simply empty.)
+        reasubclasses (int): the reported reaction subclass
     Returns:
         NetworkX Graph with node and edge attributes
     """
@@ -598,7 +616,7 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
                     atm_ring_length = len(ring)
         G.add_node(
             atom_idx,  # node identifier
-            node_features=generate_node_features_RDKit(atom, atm_ring_length),
+            node_features=generate_node_features_RDKit(atom, atm_ring_length, reasubclasses),
             is_som=(atom_idx in soms),  # label
             # the next two elements are later used to assign the
             # predicted labels but are of course not used as features!
