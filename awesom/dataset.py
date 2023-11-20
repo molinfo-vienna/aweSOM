@@ -57,7 +57,7 @@ class SOM(InMemoryDataset):
 
         if KIT == "RDKIT":
             if file_extension == ".sdf":
-                df = PandasTools.LoadSDF(path, removeHs=True)
+                df = PandasTools.LoadSDF(path, removeHs=False)
             elif file_extension == ".smi":
                 df = pd.read_csv(path, names=["smiles"])
                 PandasTools.AddMoleculeColumnToFrame(df, "smiles")
@@ -70,9 +70,9 @@ class SOM(InMemoryDataset):
                 df["soms"] = "[]"
             df["soms"] = df["soms"].map(ast.literal_eval)
             #################################################################
-            df["reamainclasses"] = df["reamainclasses"].map(ast.literal_eval)
-            df["reaclasses"] = df["reaclasses"].map(ast.literal_eval)
-            df["reasubclasses"] = df["reasubclasses"].map(ast.literal_eval)
+            # df["reamainclasses"] = df["reamainclasses"].map(ast.literal_eval)
+            # df["reaclasses"] = df["reaclasses"].map(ast.literal_eval)
+            # df["reasubclasses"] = df["reasubclasses"].map(ast.literal_eval)
             #################################################################
 
             G = generate_preprocessed_data_RDKit(df, min(len(df), cpu_count()))
