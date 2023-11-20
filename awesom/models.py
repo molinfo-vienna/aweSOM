@@ -150,8 +150,9 @@ class GATv2(GNN):
         self,
         params,
         hyperparams,
+        class_weights,
     ) -> None:
-        super(GATv2, self).__init__(params, hyperparams)
+        super(GATv2, self).__init__(params, hyperparams, class_weights)
 
         self.save_hyperparameters()
 
@@ -178,7 +179,7 @@ class GATv2(GNN):
             self.classifier.append(torch.nn.Linear(in_channels, out_channels))
             in_channels = out_channels
 
-        self.final = torch.nn.Linear(in_channels, 1)
+        self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
 
         self.leaky_relu = torch.nn.LeakyReLU()
 
@@ -210,7 +211,7 @@ class GATv2(GNN):
             h = self.leaky_relu(h)
         h = self.final(h)
 
-        return torch.sigmoid(h)
+        return torch.softmax(h, dim=1)
 
     @classmethod
     def get_params(self, data, trial):
@@ -259,8 +260,9 @@ class GIN(GNN):
         self,
         params,
         hyperparams,
+        class_weights,
     ) -> None:
-        super(GIN, self).__init__(params, hyperparams)
+        super(GIN, self).__init__(params, hyperparams, class_weights)
 
         self.save_hyperparameters()
 
@@ -279,6 +281,7 @@ class GIN(GNN):
                     train_eps=True,
                 )
             )
+            in_channels = out_channels
 
         self.classifier = torch.nn.ModuleList()
         in_channels = (
@@ -288,7 +291,7 @@ class GIN(GNN):
             self.classifier.append(torch.nn.Linear(in_channels, out_channels))
             in_channels = out_channels
 
-        self.final = torch.nn.Linear(in_channels, 1)
+        self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
 
         self.leaky_relu = torch.nn.LeakyReLU()
         self.dropout = torch.nn.Dropout(p=hyperparams["dropout"])
@@ -321,7 +324,7 @@ class GIN(GNN):
             h = self.dropout(h)
         h = self.final(h)
 
-        return torch.sigmoid(h)
+        return torch.softmax(h, dim=1)
 
     @classmethod
     def get_params(self, data, trial):
