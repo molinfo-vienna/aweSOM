@@ -546,14 +546,15 @@ def generate_preprocessed_data_chunk_RDKit(
     Generates preprocessed data from a chunk of the input data.
     """
     df_chunk["G"] = df_chunk.apply(
-        lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms, x.reasubclasses), axis=1
+        lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms), axis=1
+        # lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms, x.reasubclasses), axis=1
     )
     G = nx.disjoint_union_all(df_chunk["G"].to_list())
 
     return G
 
-
-def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int, reasubclasses: int) -> List[float]:
+def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int) -> List[float]:
+# def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int, reasubclasses: int) -> List[float]:
     """
     Generates the node features for each atom
     Args:
@@ -573,7 +574,7 @@ def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int, reasubcl
         "aromaticity": list([float(atom.GetIsAromatic())]),
         "degree": _get_allowed_set(atom.GetTotalDegree(), TOTAL_DEGREE),
         "valence": _get_allowed_set(atom.GetTotalValence(), TOTAL_VALENCE),
-        "reasubclass": _get_allowed_set(reasubclasses, REASUBCLASSES),
+        # "reasubclass": _get_allowed_set(reasubclasses, REASUBCLASSES),
     }
     return (
         features["atom_type"]
@@ -583,11 +584,11 @@ def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int, reasubcl
         + features["aromaticity"]
         + features["degree"]
         + features["valence"]
-        + features["reasubclass"]
+        # + features["reasubclass"]
     )
 
-
-def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int], reasubclasses: int) -> nx.Graph:
+def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
+# def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int], reasubclasses: int) -> nx.Graph:
     """
     This function takes an RDKit Mol object as input and returns its corresponding
     NetworkX graph with node and edge attributes.
@@ -616,7 +617,8 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int], reasubclasses: 
                     atm_ring_length = len(ring)
         G.add_node(
             atom_idx,  # node identifier
-            node_features=generate_node_features_RDKit(atom, atm_ring_length, reasubclasses),
+            node_features=generate_node_features_RDKit(atom, atm_ring_length),
+            # node_features=generate_node_features_RDKit(atom, atm_ring_length, reasubclasses),
             is_som=(atom_idx in soms),  # label
             # the next two elements are later used to assign the
             # predicted labels but are of course not used as features!
