@@ -101,13 +101,17 @@ def run_train():
             callbacks.append(PatchedCallback(trial=trial, monitor="val/loss"))
             callbacks.append(ModelCheckpoint(filename=f"trial{trial._trial_id}"))
 
+            if args.model == "GATv2":
+                deterministic_behavior = False
+            else:
+                deterministic_behavior = True
             trainer = Trainer(
                 accelerator="auto",
                 max_epochs=args.epochs,
                 logger=tbl,
                 log_every_n_steps=1,
                 callbacks=callbacks,
-                deterministic=True,
+                deterministic=deterministic_behavior,
             )
 
             trainer.fit(
