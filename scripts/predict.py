@@ -6,24 +6,21 @@ import torch
 
 from lightning import Trainer, seed_everything
 from torchmetrics import MatthewsCorrCoef, AUROC
+from torch_geometric import seed_everything as geometric_seed_everything
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from torch_geometric.loader import DataLoader
 from sklearn.metrics import RocCurveDisplay
 
 from awesom.dataset import LabeledData, UnlabeledData
 from awesom.metrics_utils import compute_ranking
-from awesom.models import (
-    GATv2,
-    GIN,
-    GINE,
-    GINP,
-    MF,
-    Cheb,
-)
-
+from awesom.models import GNN
 
 def run_predict():
-    seed_everything(42, workers=True)
+    seed_everything(42)
+    geometric_seed_everything(42)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.set_float32_matmul_precision('medium')
 
     if not os.path.exists(args.outputFolder):
         os.makedirs(args.outputFolder)
@@ -44,21 +41,9 @@ def run_predict():
         for file in os.listdir(path):
             if file.endswith(".ckpt"):
                 path = os.path.join(path, file)
+        model = GNN.load_from_checkpoint(path)
 
-        if args.model == "GATv2":
-            model = GATv2.load_from_checkpoint(path)
-        elif args.model == "GIN":
-            model = GIN.load_from_checkpoint(path)
-        elif args.model == "GINE":
-            model = GINE.load_from_checkpoint(path)
-        elif args.model == "GINP":
-            model = GINP.load_from_checkpoint(path)
-        elif args.model == "MF":
-            model = MF.load_from_checkpoint(path)
-        elif args.model == "Cheb":
-            model = Cheb.load_from_checkpoint(path)
-
-        trainer = Trainer(accelerator="auto", logger=False)
+        trainer = Trainer(accelerator="auto", logger=False, precision="16-mixed")
         out = trainer.predict(
             model=model, dataloaders=DataLoader(data, batch_size=len(data))
         )

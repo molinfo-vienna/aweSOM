@@ -22,8 +22,12 @@ class GNN(LightningModule):
         params,
         hyperparams,
         class_weights,
+        architecture,
     ) -> None:
         super(GNN, self).__init__()
+
+        self.save_hyperparameters()
+        self.model = architecture(params, hyperparams, class_weights)
 
         self.loss_function = torch.nn.CrossEntropyLoss(
             weight=class_weights, reduction="mean"
@@ -54,21 +58,8 @@ class GNN(LightningModule):
             },
         }
 
-    def on_train_start(self):
-        self.logger.log_hyperparams(
-            self.hparams,
-            {
-                "train/loss": 0,
-                "val/loss": 0,
-                "train/auroc": 0,
-                "val/auroc": 0,
-                "train/mcc": 0,
-                "val/mcc": 0,
-            },
-        )
-
     def step(self, batch):
-        y_hat = self(batch, batch.batch)
+        y_hat = self.model(batch, batch.batch)
         loss = self.loss_function(y_hat, batch.y)
         return loss, y_hat
 
@@ -137,7 +128,7 @@ class GNN(LightningModule):
         return y_hat, batch.y, batch.mol_id, batch.atom_id
 
 
-class GATv2(GNN):
+class GATv2(torch.nn.Module):
     """The GATv2 operator from the “How Attentive are Graph Attention Networks?” paper,
     which fixes the static attention problem of the standard GATConv layer.
     Since the linear layers in the standard GAT are applied right after each other,
@@ -152,9 +143,7 @@ class GATv2(GNN):
         hyperparams,
         class_weights,
     ) -> None:
-        super(GATv2, self).__init__(params, hyperparams, class_weights)
-
-        self.save_hyperparameters()
+        super(GATv2, self).__init__()
 
         self.conv = torch.nn.ModuleList()
         in_channels = params["num_node_features"]
@@ -251,7 +240,7 @@ class GATv2(GNN):
         return params, hyperparams
 
 
-class GIN(GNN):
+class GIN(torch.nn.Module):
     """The graph isomorphism operator from the “How Powerful are Graph Neural Networks?” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINConv.html#torch_geometric.nn.conv.GINConv
     """
@@ -262,9 +251,7 @@ class GIN(GNN):
         hyperparams,
         class_weights,
     ) -> None:
-        super(GIN, self).__init__(params, hyperparams, class_weights)
-
-        self.save_hyperparameters()
+        super(GIN, self).__init__()
 
         self.conv = torch.nn.ModuleList()
         in_channels = params["num_node_features"]
@@ -360,15 +347,13 @@ class GIN(GNN):
         return params, hyperparams
 
 
-class GINE(GNN):
+class GINE(torch.nn.Module):
     """The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html#torch_geometric.nn.conv.GINEConv
     """
 
     def __init__(self, params, hyperparams, class_weights) -> None:
-        super(GINE, self).__init__(params, hyperparams, class_weights)
-
-        self.save_hyperparameters()
+        super(GINE, self).__init__()
 
         self.conv = torch.nn.ModuleList()
         in_channels = params["num_node_features"]
@@ -465,15 +450,13 @@ class GINE(GNN):
         return params, hyperparams
 
 
-class GINP(GNN):
+class GINP(torch.nn.Module):
     """The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html#torch_geometric.nn.conv.GINEConv
     """
 
     def __init__(self, params, hyperparams, class_weights) -> None:
-        super(GINP, self).__init__(params, hyperparams, class_weights)
-
-        self.save_hyperparameters()
+        super(GINP, self).__init__()
 
         self.conv = torch.nn.ModuleList()
         in_channels = params["num_node_features"]
@@ -548,7 +531,7 @@ class GINP(GNN):
         return params, hyperparams
     
 
-class MF(GNN):
+class MF(torch.nn.Module):
     """The graph neural network operator from the “Convolutional Networks on Graphs for Learning Molecular Fingerprints” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv
     """
@@ -559,9 +542,7 @@ class MF(GNN):
         hyperparams,
         class_weights,
     ) -> None:
-        super(MF, self).__init__(params, hyperparams, class_weights)
-
-        self.save_hyperparameters()
+        super(MF, self).__init__()
 
         self.conv = torch.nn.ModuleList()
         in_channels = params["num_node_features"]
@@ -633,7 +614,7 @@ class MF(GNN):
         return params, hyperparams
 
 
-class Cheb(GNN):
+class Cheb(torch.nn.Module):
     """The graph neural network operator from the “Convolutional Networks on Graphs for Learning Molecular Fingerprints” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv
     """
@@ -644,9 +625,7 @@ class Cheb(GNN):
         hyperparams,
         class_weights,
     ) -> None:
-        super(Cheb, self).__init__(params, hyperparams, class_weights)
-
-        self.save_hyperparameters()
+        super(Cheb, self).__init__()
 
         self.conv = torch.nn.ModuleList()
         in_channels = params["num_node_features"]

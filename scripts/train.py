@@ -14,6 +14,7 @@ from optuna.trial import TrialState
 from sklearn.model_selection import KFold
 from statistics import mean, stdev
 from torch_geometric import transforms as T
+from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric.loader import DataLoader
 from torchmetrics import MatthewsCorrCoef, AUROC
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
@@ -27,8 +28,8 @@ from awesom.models import (
     GINP,
     MF,
     Cheb,
+    GNN,
 )
-
 
 NFOLDS = 10
 BATCHSIZE = 64
@@ -44,12 +45,25 @@ class PatchedCallback(PyTorchLightningPruningCallback, Callback):
 
 
 def run_train():
-    seed_everything(42, workers=True)
+    seed_everything(42)
+    geometric_seed_everything(42)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.set_float32_matmul_precision('medium')
 
     data = SOM(root=args.inputFolder).shuffle()  # , transform=T.Distance(norm=False)
     class_weights = data.get_class_weights()
 
     print(f"Number of training graphs: {len(data)}")
+
+    model_dict = {
+        "GATv2": GATv2,
+        "GIN": GIN,
+        "GINE": GINE,
+        "GINP": GINP,
+        "MF": MF,
+        "Cheb": Cheb,
+    }
 
     aurocs = []
     mccs = []
@@ -64,28 +78,13 @@ def run_train():
     for fold_id, (train_idx, val_idx) in enumerate(fold.split(range(len(data)))):
         train_data = itemgetter(*train_idx)(data)
         val_data = itemgetter(*val_idx)(data)
-        train_loader = DataLoader(train_data, batch_size=BATCHSIZE)
-        val_loader = DataLoader(val_data, batch_size=BATCHSIZE)
+        train_loader = DataLoader(train_data, batch_size=len(data))
+        val_loader = DataLoader(val_data, batch_size=len(data))
 
         def objective(trial):
-            if args.model == "GATv2":
-                params, hyperparams = GATv2.get_params(data, trial)
-                model = GATv2(params, hyperparams, class_weights)
-            elif args.model == "GIN":
-                params, hyperparams = GIN.get_params(data, trial)
-                model = GIN(params, hyperparams, class_weights)
-            elif args.model == "GINE":
-                params, hyperparams = GINE.get_params(data, trial)
-                model = GINE(params, hyperparams, class_weights)
-            elif args.model == "GINP":
-                params, hyperparams = GINP.get_params(data, trial)
-                model = GINP(params, hyperparams, class_weights)
-            elif args.model == "MF":
-                params, hyperparams = MF.get_params(data, trial)
-                model = MF(params, hyperparams, class_weights)
-            elif args.model == "Cheb":
-                params, hyperparams = Cheb.get_params(data, trial)
-                model = Cheb(params, hyperparams, class_weights)
+            model_type = model_dict[args.model]
+            params, hyperparams = model_type.get_params(data, trial)
+            model = GNN(params, hyperparams, class_weights, model_type)
 
             tbl = TensorBoardLogger(
                 save_dir=os.path.join(
@@ -94,24 +93,19 @@ def run_train():
                 name=f"trial{trial._trial_id}",
                 default_hp_metric=False,
             )
-            callbacks = []
-            callbacks.append(
-                EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=10)
-            )
-            callbacks.append(PatchedCallback(trial=trial, monitor="val/loss"))
-            callbacks.append(ModelCheckpoint(filename=f"trial{trial._trial_id}"))
+            callbacks = [
+                EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=10),
+                PatchedCallback(trial=trial, monitor="val/loss"),
+                ModelCheckpoint(filename=f"trial{trial._trial_id}", monitor="val/loss", mode="min")
+            ]
 
-            if args.model == "GATv2":
-                deterministic_behavior = False
-            else:
-                deterministic_behavior = True
             trainer = Trainer(
                 accelerator="auto",
                 max_epochs=args.epochs,
                 logger=tbl,
                 log_every_n_steps=1,
                 callbacks=callbacks,
-                deterministic=deterministic_behavior,
+                precision="16-mixed",
             )
 
             trainer.fit(
@@ -154,26 +148,12 @@ def run_train():
         ##### Recompute validation metrics and log them into validation.txt #####
 
         # Load best models
-
         for file in os.listdir(path):
             if file.endswith(".ckpt"):
                 path = os.path.join(path, file)
-
-        if args.model == "GATv2":
-            model = GATv2.load_from_checkpoint(path)
-        elif args.model == "GIN":
-            model = GIN.load_from_checkpoint(path)
-        elif args.model == "GINE":
-            model = GINE.load_from_checkpoint(path)
-        elif args.model == "GINP":
-            model = GINP.load_from_checkpoint(path)
-        elif args.model == "MF":
-            model = MF.load_from_checkpoint(path)
-        elif args.model == "Cheb":
-            model = Cheb.load_from_checkpoint(path)
+        model = GNN.load_from_checkpoint(path)
 
         # Make predictions on validation split with best model
-
         trainer = Trainer(accelerator="auto", logger=False)
         out = trainer.predict(
             model=model, dataloaders=DataLoader(val_data, batch_size=len(val_data))
@@ -186,7 +166,6 @@ def run_train():
         y_hat_bin = torch.max(y_hat, dim=1).indices
 
         # Compute normal metrics
-
         mccs.append(mcc(y_hat_bin, y).item())
         precisions.append(precision(y_hat_bin, y).item())
         recalls.append(recall(y_hat_bin, y).item())
@@ -241,7 +220,7 @@ def run_train():
         mol_aurocs.append(mean(per_molecule_aurocs))
         mol_r_precisions.append(mean(per_molecule_r_precisions))
     
-    # Write the normal and Porokhin's metrics to a text file
+    # Write metrics to a text file
     with open(os.path.join(args.logFolder, "validation.txt"), "w") as f:
         f.write(f"MCC: {round(mean(mccs), 2)} +/- {round(stdev(mccs), 2)}\n")
         f.write(f"Precision: {round(mean(precisions), 2)} +/- {round(stdev(precisions), 2)}\n")
