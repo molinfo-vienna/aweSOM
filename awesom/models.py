@@ -1,5 +1,6 @@
 import torch
 from torch_geometric.nn import (
+    BatchNorm,
     GATv2Conv,
     GINConv,
     GINEConv,
@@ -13,7 +14,7 @@ from torchmetrics import AUROC, MatthewsCorrCoef
 from torch_geometric.nn.norm import LayerNorm
 
 
-__all__ = ["GNN", "GATv2", "GIN", "GINE", "GINP", "MF", "Cheb"]
+__all__ = ["GNN", "GATv2", "GIN", "GINE", "GINED", "MF", "Cheb"]
 
 
 class GNN(LightningModule):
@@ -63,6 +64,14 @@ class GNN(LightningModule):
         loss = self.loss_function(y_hat, batch.y)
         return loss, y_hat
 
+    def on_train_start(self) -> None:
+        self.logger.log_hyperparams(self.hparams, {"train/loss": 1, 
+                                                   "train/auroc": 0,
+                                                   "train/mcc": 0,
+                                                   "val/loss": 1, 
+                                                   "val/auroc": 0,
+                                                   "val/mcc": 0})
+
     def training_step(self, batch, batch_idx):
         loss, y_hat = self.step(batch)
         self.train_auroc(y_hat, batch.y)
@@ -73,7 +82,6 @@ class GNN(LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            logger=True,
             batch_size=len(batch),
         )
         self.log(
@@ -82,7 +90,6 @@ class GNN(LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            logger=True,
             batch_size=len(batch),
         )
         self.log(
@@ -90,7 +97,6 @@ class GNN(LightningModule):
             self.train_mcc,
             on_step=False,
             on_epoch=True,
-            logger=True,
             batch_size=len(batch),
         )
         return loss
@@ -119,7 +125,6 @@ class GNN(LightningModule):
             self.val_mcc,
             on_step=False,
             on_epoch=True,
-            logger=True,
             batch_size=len(batch),
         )
 
@@ -450,36 +455,39 @@ class GINE(torch.nn.Module):
         return params, hyperparams
 
 
-class GINP(torch.nn.Module):
+class GINED(torch.nn.Module):
     """The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html#torch_geometric.nn.conv.GINEConv
     """
 
     def __init__(self, params, hyperparams, class_weights) -> None:
-        super(GINP, self).__init__()
+        super(GINED, self).__init__()
+
+        self.activation = torch.nn.LeakyReLU()
+        self.dropout = torch.nn.Dropout(p=hyperparams["dropout"])
 
         self.conv = torch.nn.ModuleList()
+        self.batch_norm = torch.nn.ModuleList()
         in_channels = params["num_node_features"]
-        for out_channels in hyperparams["size_conv_layers"]:
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["n_conv_layers"]):
             self.conv.append(
                 GINEConv(
                     torch.nn.Sequential(
                         torch.nn.Linear(in_channels, out_channels),
-                        LayerNorm(
-                            out_channels,
-                        ),
-                        torch.nn.LeakyReLU(),
+                        self.activation,
+                        BatchNorm(out_channels),
+                        torch.nn.Linear(out_channels, out_channels),
                     ),
                     train_eps=True,
                     edge_dim=params["num_edge_features"],
                 )
             )
-            in_channels = out_channels
+            self.batch_norm.append(BatchNorm(out_channels))
+            in_channels += out_channels
 
-        in_channels = (
-            sum(hyperparams["size_conv_layers"]) + hyperparams["size_conv_layers"][-1]
-        )
-        self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
+        self.final = torch.nn.Linear(out_channels * 2, class_weights.shape[0])
 
     def forward(
         self,
@@ -487,23 +495,25 @@ class GINP(torch.nn.Module):
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
         # Compute node intermediate embeddings
-        hs = []
         x = data.x
-        for layer in self.conv:
-            h = layer(x, data.edge_index, data.edge_attr)
-            x = h
-            hs.append(h)
+        for conv, batch_norm in zip(self.conv, self.batch_norm):
+            h = conv(x, data.edge_index, data.edge_attr)
+            h = self.activation(h)
+            h = batch_norm(h)
+            x = torch.cat((x,h), dim=1)
+            x = self.dropout(x)
 
         # Pooling
         h_pool = global_add_pool(h, batch)
         num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
-        h_pool_ = torch.repeat_interleave(h_pool, num_atoms_per_mol, dim=0)
+        h_pool_expanded = torch.repeat_interleave(h_pool, num_atoms_per_mol, dim=0)
 
-        # Concatenate embeddings
-        h = torch.cat((*hs, h_pool_), dim=1)
+        # Concatenate embeddings and pooled representation
+        h = torch.cat((h, h_pool_expanded), dim=1)
 
         # Classify
         h = self.final(h)
+
         return torch.softmax(h, dim=1)
 
     @classmethod
@@ -511,10 +521,8 @@ class GINP(torch.nn.Module):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         n_conv_layers = trial.suggest_int("n_conv_layers", 1, 5)
-        size_conv_layers = [
-            trial.suggest_int(f"size_conv_layers_{i}", 64, 512)
-            for i in range(n_conv_layers)
-        ]
+        size_conv_layers = trial.suggest_int(f"size_conv_layers", 32, 512, log=True)
+        dropout = trial.suggest_float("dropout", 0.1, 0.3)
 
         params = dict(
             num_node_features=data.num_node_features,
@@ -526,6 +534,7 @@ class GINP(torch.nn.Module):
             weight_decay=weight_decay,
             n_conv_layers=n_conv_layers,
             size_conv_layers=size_conv_layers,
+            dropout=dropout,
         )
 
         return params, hyperparams

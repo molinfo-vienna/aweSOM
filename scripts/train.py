@@ -25,7 +25,7 @@ from awesom.models import (
     GATv2,
     GIN,
     GINE,
-    GINP,
+    GINED,
     MF,
     Cheb,
     GNN,
@@ -60,7 +60,7 @@ def run_train():
         "GATv2": GATv2,
         "GIN": GIN,
         "GINE": GINE,
-        "GINP": GINP,
+        "GINED": GINED,
         "MF": MF,
         "Cheb": Cheb,
     }
@@ -88,13 +88,13 @@ def run_train():
 
             tbl = TensorBoardLogger(
                 save_dir=os.path.join(
-                    os.path.join(args.logFolder, f"fold{fold_id}"), "logs"
+                    os.path.join(args.logFolder, f"fold{fold_id}"), "logs",
                 ),
                 name=f"trial{trial._trial_id}",
                 default_hp_metric=False,
             )
             callbacks = [
-                EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=10),
+                EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=30),
                 PatchedCallback(trial=trial, monitor="val/loss"),
                 ModelCheckpoint(filename=f"trial{trial._trial_id}", monitor="val/loss", mode="min")
             ]
