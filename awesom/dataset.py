@@ -191,9 +191,10 @@ class SOM(InMemoryDataset):
 
     def get_class_weights(self):
         size, nosom, som = self.get_class_distribution()
-        return torch.tensor(
-            [size / (2 * nosom), (size / (2 * som))], dtype=torch.float
-        ).cuda()
+        # return torch.tensor(
+        #     [size / (2 * nosom), size / (2 * som)], dtype=torch.float
+        # ).cuda()
+        return {'0': size / (2 * nosom), '1': size / (2 * som)}
 
 
 class LabeledData(SOM):

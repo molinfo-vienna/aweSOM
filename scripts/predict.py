@@ -3,6 +3,7 @@ import csv
 import matplotlib.pyplot as plt
 import os
 import torch
+import yaml
 
 from lightning import Trainer, seed_everything
 from torchmetrics import MatthewsCorrCoef, AUROC
@@ -39,12 +40,17 @@ def run_predict():
 
     y_hats = []
     for i, path in enumerate(best_model_paths):
-        for file in os.listdir(path):
+        for file in os.listdir(os.path.join(path, "checkpoints")):
             if file.endswith(".ckpt"):
-                path = os.path.join(path, file)
+                checkpoint_path = os.path.join(os.path.join(path, "checkpoints"), file)
+        for file in os.listdir(path):
+            if file.endswith(".yaml"):
+                hparams_file = os.path.join(path, file)
+    
+        with open(hparams_file, 'r') as f:
+            best_threshold = yaml.safe_load(f)["threshold"]
 
-        model = GNN.load_from_checkpoint(path)
-        model.eval()
+        model = GNN.load_from_checkpoint(checkpoint_path, threshold=best_threshold)
 
         trainer = Trainer(accelerator="auto", logger=False, precision="16-mixed")
         out = trainer.predict(
@@ -59,7 +65,13 @@ def run_predict():
 
     y_hats = torch.stack(y_hats, dim=0)
     y_hat_avg = torch.mean(y_hats, dim=0)
-    y_hat_bin = torch.max(y_hat_avg, dim=1).indices
+
+    # Use this to compute binary predictions when using class weights
+    # y_hat_bin = torch.max(y_hat_avg, dim=1).indices
+
+    # Use this to compute binary predictions when using threshold moving
+    best_threshold = model.hparams.threshold
+    y_hat_bin = (y_hat_avg[:,1] > best_threshold).to(int)
 
     # y_hats_bin = torch.stack([torch.max(y_hat, dim=1).indices for y_hat in y_hats], dim=0)
     # y_hat_voted = torch.sum(y_hats_bin, dim=0)  >= y_hats_bin.shape[0]/2
@@ -92,8 +104,8 @@ def run_predict():
     if args.trueLabels == "True":
         mcc = MatthewsCorrCoef(task="binary")
         auroc = AUROC(task="multiclass", num_classes=2)
-        precision = BinaryPrecision(threshold=0.5)
-        recall = BinaryRecall(threshold=0.5)
+        precision = BinaryPrecision()
+        recall = BinaryRecall()
 
         with open(os.path.join(args.outputFolder, "results.txt"), "w") as f:
             f.write(f"AUROC: {round(auroc(y_hat_avg, y).item(), 2)}\n")
