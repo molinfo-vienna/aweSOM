@@ -11,12 +11,13 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from operator import itemgetter
 from optuna.integration import PyTorchLightningPruningCallback
 from optuna.trial import TrialState
+from pytorch_lightning.core.saving import save_hparams_to_yaml
 from sklearn.model_selection import KFold
 from statistics import mean, stdev
 from torch_geometric import transforms as T
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric.loader import DataLoader
-from torchmetrics import MatthewsCorrCoef, AUROC
+from torchmetrics import MatthewsCorrCoef, AUROC, ROC
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
 
 from awesom.dataset import SOM
@@ -40,10 +41,24 @@ NFOLDS = 10
 BATCHSIZE = 64
 
 mcc = MatthewsCorrCoef(task="binary")
-auroc = AUROC(task="multiclass", num_classes=2)
-precision = BinaryPrecision(threshold=0.5)
-recall = BinaryRecall(threshold=0.5)
+auroc = AUROC(task="binary")
+precision = BinaryPrecision()
+recall = BinaryRecall()
+roc = ROC(task="binary")
 
+model_dict = {
+    "M1": M1,
+    "M2": M2,
+    "M3": M3,
+    "M4": M4,
+    "M5": M5,
+    "M6": M6,
+    "M7": M7,
+    "GINE": GINE,
+    "GINED": GINED,
+    "MF": MF,
+    "Cheb": Cheb,
+}
 
 class PatchedCallback(PyTorchLightningPruningCallback, Callback):
     pass
@@ -57,23 +72,7 @@ def run_train():
     torch.set_float32_matmul_precision('medium')
 
     data = SOM(root=args.inputFolder, transform=T.ToUndirected()).shuffle()  # , transform=T.Distance(norm=False)
-    class_weights = data.get_class_weights()
-
     print(f"Number of training graphs: {len(data)}")
-
-    model_dict = {
-        "M1": M1,
-        "M2": M2,
-        "M3": M3,
-        "M4": M4,
-        "M5": M5,
-        "M6": M6,
-        "M7": M7,
-        "GINE": GINE,
-        "GINED": GINED,
-        "MF": MF,
-        "Cheb": Cheb,
-    }
 
     aurocs = []
     mccs = []
@@ -94,7 +93,12 @@ def run_train():
         def objective(trial):
             model_type = model_dict[args.model]
             params, hyperparams = model_type.get_params(data, trial)
-            model = GNN(params, hyperparams, class_weights, model_type)
+            model = GNN(params=params, 
+                        hyperparams=hyperparams, 
+                        class_weights=data.get_class_weights(), 
+                        architecture=args.model, 
+                        threshold=0.5
+            )
 
             tbl = TensorBoardLogger(
                 save_dir=os.path.join(
@@ -151,20 +155,21 @@ def run_train():
         for key, value in study.best_trial.params.items():
             print("   {}: {}".format(key, value))
 
-        path = f"{args.outputFolder}/fold{fold_id}/logs/trial{study.best_trial._trial_id}/version_0/checkpoints/"
+        path = f"{args.outputFolder}/fold{fold_id}/logs/trial{study.best_trial._trial_id}/version_0/"
         with open(os.path.join(args.outputFolder, "best_model_paths.txt"), "a") as f:
             f.write(path + "\n")
 
         ##### Recompute validation metrics and log them into validation.txt #####
 
         # Load best models
-        for file in os.listdir(path):
+        for file in os.listdir(os.path.join(path, "checkpoints")):
             if file.endswith(".ckpt"):
-                path = os.path.join(path, file)
-        model = GNN.load_from_checkpoint(path)
+                checkpoint_path = os.path.join(os.path.join(path, "checkpoints"), file)
+        for file in os.listdir(path):
+            if file.endswith(".yaml"):
+                hparams_file = os.path.join(path, file)
 
-        # disable randomness, dropout, etc...
-        model.eval()
+        model = GNN.load_from_checkpoint(checkpoint_path)
 
         # Make predictions on validation split with best model
         trainer = Trainer(accelerator="auto", logger=False)
@@ -175,14 +180,23 @@ def run_train():
         y = out[0][1]
         mol_id = out[0][2]
         atom_id = out[0][3]
-        
-        y_hat_bin = torch.max(y_hat, dim=1).indices
 
+        # Use this to compute binary predictions when using class weights
+        # y_hat_bin = torch.max(y_hat, dim=1).indices
+
+        # Use this to compute binary predictions when using threshold moving
+        fpr, tpr, thresholds = roc(y_hat[:, 1], y)
+        best_threshold = thresholds[torch.argmax(tpr-fpr)]
+        y_hat_bin = (y_hat[:, 1] > best_threshold).to(int)
+        # Overwrite threshold in hparams.yaml to be able to load it during inference
+        model.hparams.__setitem__("threshold", best_threshold.item())
+        save_hparams_to_yaml(hparams_file, model.hparams)
+        
         # Compute normal metrics
         mccs.append(mcc(y_hat_bin, y).item())
         precisions.append(precision(y_hat_bin, y).item())
         recalls.append(recall(y_hat_bin, y).item())
-        aurocs.append(auroc(y_hat, y).item())
+        aurocs.append(auroc(y_hat_bin, y).item())
 
         # Compute the atom ranking for the current validation fold
         # and write the detailed, per atom results into validation_fold{fold_id}.csv
@@ -221,11 +235,12 @@ def run_train():
             mask = torch.where(mol_id == id)[0]
             masked_y = y[mask]
             masked_y_hat = y_hat[mask]
+            masked_y_hat_bin = y_hat_bin[mask]
             masked_sorted_y = torch.index_select(masked_y, dim=0, index=torch.sort(masked_y_hat[:, 1], descending=True)[1])
             num_soms_in_current_mol = torch.sum(masked_y).item()
             if torch.sum(masked_sorted_y[:2]).item() > 0:
                 top2_correctness_rate += 1 
-            per_molecule_aurocs.append(auroc(masked_y_hat, masked_y).item())
+            per_molecule_aurocs.append(auroc(masked_y_hat_bin, masked_y).item())
             per_molecule_r_precisions.append(torch.sum(masked_sorted_y[:num_soms_in_current_mol]).item() / num_soms_in_current_mol)
         top2_correctness_rate /= len(set(mol_id.tolist()))
         top2s.append(top2_correctness_rate)

@@ -26,25 +26,36 @@ class GNN(LightningModule):
         hyperparams,
         class_weights,
         architecture,
+        threshold,
     ) -> None:
         super(GNN, self).__init__()
 
         self.save_hyperparameters()
-        self.model = architecture(params, hyperparams, class_weights)
 
-        self.loss_function = torch.nn.CrossEntropyLoss(
-            weight=class_weights, reduction="mean"
-        )
+        model_dict = {
+            "M1": M1,
+            "M2": M2,
+            "M3": M3,
+            "M4": M4,
+            "M5": M5,
+            "M6": M6,
+            "M7": M7,
+            "GINE": GINE,
+            "GINED": GINED,
+            "MF": MF,
+            "Cheb": Cheb,
+        }
+
+        cw = torch.tensor([weight for weight in class_weights.values()], dtype=torch.float).cuda()
+        self.model = model_dict[architecture](params, hyperparams, cw)
+        self.loss_function = torch.nn.CrossEntropyLoss(weight=None, reduction="mean")
+        self.learning_rate = hyperparams["learning_rate"]
+        self.weight_decay = hyperparams["weight_decay"]
 
         self.train_auroc = AUROC(task="multiclass", num_classes=2)
         self.val_auroc = AUROC(task="multiclass", num_classes=2)
-        self.train_mcc = MatthewsCorrCoef(
-            task="multiclass", num_classes=2, threshold=0.5
-        )
-        self.val_mcc = MatthewsCorrCoef(task="multiclass", num_classes=2, threshold=0.5)
-
-        self.learning_rate = hyperparams["learning_rate"]
-        self.weight_decay = hyperparams["weight_decay"]
+        self.train_mcc = MatthewsCorrCoef(task="multiclass", num_classes=2)
+        self.val_mcc = MatthewsCorrCoef(task="multiclass", num_classes=2)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
