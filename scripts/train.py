@@ -22,13 +22,18 @@ from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from awesom.dataset import SOM
 from awesom.metrics_utils import compute_ranking
 from awesom.models import (
-    GATv2,
-    GIN,
+    GNN,
+    M1,
+    M2,
+    M3,
+    M4,
+    M5,
+    M6,
+    M7,
     GINE,
     GINED,
     MF,
     Cheb,
-    GNN,
 )
 
 NFOLDS = 10
@@ -51,14 +56,19 @@ def run_train():
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision('medium')
 
-    data = SOM(root=args.inputFolder).shuffle()  # , transform=T.Distance(norm=False)
+    data = SOM(root=args.inputFolder, transform=T.ToUndirected()).shuffle()  # , transform=T.Distance(norm=False)
     class_weights = data.get_class_weights()
 
     print(f"Number of training graphs: {len(data)}")
 
     model_dict = {
-        "GATv2": GATv2,
-        "GIN": GIN,
+        "M1": M1,
+        "M2": M2,
+        "M3": M3,
+        "M4": M4,
+        "M5": M5,
+        "M6": M6,
+        "M7": M7,
         "GINE": GINE,
         "GINED": GINED,
         "MF": MF,
@@ -88,7 +98,7 @@ def run_train():
 
             tbl = TensorBoardLogger(
                 save_dir=os.path.join(
-                    os.path.join(args.logFolder, f"fold{fold_id}"), "logs",
+                    os.path.join(args.outputFolder, f"fold{fold_id}"), "logs",
                 ),
                 name=f"trial{trial._trial_id}",
                 default_hp_metric=False,
@@ -114,10 +124,10 @@ def run_train():
 
             return trainer.callback_metrics["val/loss"].item()
 
-        if not os.path.exists(os.path.join(args.logFolder, f"fold{fold_id}")):
-            os.makedirs(os.path.join(args.logFolder, f"fold{fold_id}"))
+        if not os.path.exists(os.path.join(args.outputFolder, f"fold{fold_id}")):
+            os.makedirs(os.path.join(args.outputFolder, f"fold{fold_id}"))
 
-        storage = "sqlite:///" + args.logFolder + f"/fold{fold_id}" + "/storage.db"
+        storage = "sqlite:///" + args.outputFolder + f"/fold{fold_id}" + "/storage.db"
         pruner = optuna.pruners.MedianPruner(n_min_trials=5, n_warmup_steps=5000)
         study = optuna.create_study(
             study_name=f"{args.model}_study",
@@ -141,8 +151,8 @@ def run_train():
         for key, value in study.best_trial.params.items():
             print("   {}: {}".format(key, value))
 
-        path = f"{args.logFolder}/fold{fold_id}/logs/trial{study.best_trial._trial_id}/version_0/checkpoints/"
-        with open(os.path.join(args.logFolder, "best_model_paths.txt"), "a") as f:
+        path = f"{args.outputFolder}/fold{fold_id}/logs/trial{study.best_trial._trial_id}/version_0/checkpoints/"
+        with open(os.path.join(args.outputFolder, "best_model_paths.txt"), "a") as f:
             f.write(path + "\n")
 
         ##### Recompute validation metrics and log them into validation.txt #####
@@ -153,6 +163,9 @@ def run_train():
                 path = os.path.join(path, file)
         model = GNN.load_from_checkpoint(path)
 
+        # disable randomness, dropout, etc...
+        model.eval()
+
         # Make predictions on validation split with best model
         trainer = Trainer(accelerator="auto", logger=False)
         out = trainer.predict(
@@ -162,7 +175,7 @@ def run_train():
         y = out[0][1]
         mol_id = out[0][2]
         atom_id = out[0][3]
-
+        
         y_hat_bin = torch.max(y_hat, dim=1).indices
 
         # Compute normal metrics
@@ -174,7 +187,7 @@ def run_train():
         # Compute the atom ranking for the current validation fold
         # and write the detailed, per atom results into validation_fold{fold_id}.csv
         ranking = compute_ranking(y_hat, mol_id)
-        with open(os.path.join(args.logFolder, f"validation_fold{fold_id}.csv"), "w") as f:
+        with open(os.path.join(args.outputFolder, f"validation_fold{fold_id}.csv"), "w") as f:
             writer = csv.writer(f)
             writer.writerow(
                 (
@@ -197,31 +210,30 @@ def run_train():
                 writer.writerow(row)
     
         # Compute weird metrics from Porokhin's GNN-SOM paper for comparison's sake...
-        ranked_y_hat_bin = torch.index_select(y_hat_bin, 0, ranking)
+        sorted_y = torch.index_select(y, dim=0, index=torch.sort(y_hat[:, 1], descending=True)[1])
         total_num_soms_in_validation_split = torch.sum(y).item()
-        atom_r_precisions.append(torch.sum(ranked_y_hat_bin[:total_num_soms_in_validation_split]).item() / total_num_soms_in_validation_split)
+        atom_r_precisions.append(torch.sum(sorted_y[:total_num_soms_in_validation_split]).item() / total_num_soms_in_validation_split)
 
         top2_correctness_rate = 0
         per_molecule_aurocs = []
         per_molecule_r_precisions = []
-        for mid in list(dict.fromkeys(mol_id.tolist())):  # This is a somewhat complicated way to get an ordered set, but it works
-            mask = torch.where(mol_id == mid)[0]
-            masked_ranking = ranking[mask]
+        for id in list(dict.fromkeys(mol_id.tolist())):  # This is a somewhat complicated way to get an ordered set, but it works
+            mask = torch.where(mol_id == id)[0]
             masked_y = y[mask]
             masked_y_hat = y_hat[mask]
-            masked_y_hat_bin = y_hat_bin[mask]
-            masked_ranked_y_hat_bin = torch.index_select(masked_y_hat_bin, 0, masked_ranking)
+            masked_sorted_y = torch.index_select(masked_y, dim=0, index=torch.sort(masked_y_hat[:, 1], descending=True)[1])
             num_soms_in_current_mol = torch.sum(masked_y).item()
-            top2_correctness_rate += 1 if torch.sum(masked_ranked_y_hat_bin[:2]).item() > 0 else 0
+            if torch.sum(masked_sorted_y[:2]).item() > 0:
+                top2_correctness_rate += 1 
             per_molecule_aurocs.append(auroc(masked_y_hat, masked_y).item())
-            per_molecule_r_precisions.append(torch.sum(masked_ranked_y_hat_bin[:num_soms_in_current_mol]).item() / num_soms_in_current_mol)
+            per_molecule_r_precisions.append(torch.sum(masked_sorted_y[:num_soms_in_current_mol]).item() / num_soms_in_current_mol)
         top2_correctness_rate /= len(set(mol_id.tolist()))
         top2s.append(top2_correctness_rate)
         mol_aurocs.append(mean(per_molecule_aurocs))
         mol_r_precisions.append(mean(per_molecule_r_precisions))
     
     # Write metrics to a text file
-    with open(os.path.join(args.logFolder, "validation.txt"), "w") as f:
+    with open(os.path.join(args.outputFolder, "validation.txt"), "w") as f:
         f.write(f"MCC: {round(mean(mccs), 2)} +/- {round(stdev(mccs), 2)}\n")
         f.write(f"Precision: {round(mean(precisions), 2)} +/- {round(stdev(precisions), 2)}\n")
         f.write(f"Recall: {round(mean(recalls), 2)} +/- {round(stdev(recalls), 2)}\n")
@@ -243,11 +255,11 @@ if __name__ == "__main__":
         help="The folder where the input data is stored.",
     )
     parser.add_argument(
-        "-l",
-        "--logFolder",
+        "-o",
+        "--outputFolder",
         type=str,
         required=True,
-        help="The name of the log folder.",
+        help="The name of the folder where the model's checkpoints and the validation metrics will be stored.",
     )
     parser.add_argument(
         "-m",

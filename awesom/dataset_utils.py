@@ -19,15 +19,14 @@ from CDPL.Chem import Atom as CDPKitAtom
 from CDPL.Chem import Bond as CDPKitBond
 
 
-ELEM_LIST = [6, 7, 8, 9, 14, 15, 16, 17, 35, 53, "OTHER"]
-HYBRIDIZATION_TYPE = ["SP", "SP2", "SP3", "OTHER"]
-FORMAL_CHARGE = [-1, 0, 1, "OTHER"]
-RING_SIZE = [0, 3, 4, 5, 6, 7, 8, "OTHER"]
+ELEM_LIST = [6, 7, 8, 9, 15, 16, 17, 35, 53, "OTHER"]
 TOTAL_DEGREE = [1, 2, 3, 4, "OTHER"]
+FORMAL_CHARGE = [-1, 0, 1, "OTHER"]
+HYBRIDIZATION_TYPE = ["SP", "SP2", "SP3", "OTHER"]
+RING_SIZE = [0, 3, 4, 5, 6, 7, 8, "OTHER"]
 TOTAL_VALENCE = [1, 2, 3, 4, 5, 6, "OTHER"]
-RING_COUNT = [0, 1, 2, 3, 4, 5, "OTHER"]
 
-# BOND_TYPE_STR = ["SINGLE", "DOUBLE", "TRIPLE", "OTHER"]
+BOND_TYPE_STR = ["SINGLE", "DOUBLE", "TRIPLE", "AROMATIC", "OTHER"]
 # BOND_TYPE_INT = [1, 2, 3, "OTHER"]
 
 REAMAINCLASSES = [i for i in range(4)]  # 3 total
@@ -494,15 +493,9 @@ def generate_bond_features_RDKit(bond: RDKitBond) -> list[float]:
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
-    # return _get_allowed_set(str(bond.GetBondType()), BOND_TYPE_STR) + [
-    #     float(bond.IsInRing()),
-    #     float(bond.GetIsConjugated()),
-    #     float(bond.GetIsAromatic()),
-    # ]
-    return [
+    return _get_allowed_set(str(bond.GetBondType()), BOND_TYPE_STR) + [
         float(bond.IsInRing()),
         float(bond.GetIsConjugated()),
-        float(bond.GetIsAromatic()),
     ]
 
 
@@ -566,24 +559,24 @@ def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int) -> List[
     """
     features = {
         "atom_type": _get_allowed_set(atom.GetAtomicNum(), ELEM_LIST),
-        "formal_charge": _get_allowed_set(atom.GetFormalCharge(), FORMAL_CHARGE),
-        "hybridization_state": _get_allowed_set(
-            str(atom.GetHybridization()), HYBRIDIZATION_TYPE
-        ),
-        "ring_size": _get_allowed_set(atm_ring_length, RING_SIZE),
-        "aromaticity": list([float(atom.GetIsAromatic())]),
-        "degree": _get_allowed_set(atom.GetTotalDegree(), TOTAL_DEGREE),
-        "valence": _get_allowed_set(atom.GetTotalValence(), TOTAL_VALENCE),
+        # "aromaticity": list([float(atom.GetIsAromatic())]),
+        # "degree": _get_allowed_set(atom.GetTotalDegree(), TOTAL_DEGREE),
+        # "formal_charge": _get_allowed_set(atom.GetFormalCharge(), FORMAL_CHARGE),
+        # "hybridization_state": _get_allowed_set(
+        #     str(atom.GetHybridization()), HYBRIDIZATION_TYPE
+        # ),
+        # "ring_size": _get_allowed_set(atm_ring_length, RING_SIZE),
+        # "valence": _get_allowed_set(atom.GetTotalValence(), TOTAL_VALENCE),
         # "reasubclass": _get_allowed_set(reasubclasses, REASUBCLASSES),
     }
     return (
         features["atom_type"]
-        + features["formal_charge"]
-        + features["hybridization_state"]
-        + features["ring_size"]
-        + features["aromaticity"]
-        + features["degree"]
-        + features["valence"]
+        # + features["aromaticity"]
+        # + features["degree"]
+        # + features["formal_charge"]
+        # + features["hybridization_state"]
+        # + features["ring_size"]
+        # + features["valence"]
         # + features["reasubclass"]
     )
 
@@ -604,15 +597,12 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
     """
     G = nx.Graph()
 
-    # Get ring info
-    rings = mol.GetRingInfo().AtomRings()
-
     # Assign each atom its features and make it a node of G
     for atom_idx in range(mol.GetNumAtoms()):
         atom = mol.GetAtomWithIdx(atom_idx)
         atm_ring_length = 0
         if atom.IsInRing():
-            for ring in rings:
+            for ring in mol.GetRingInfo().AtomRings():
                 if atom_idx in ring:
                     atm_ring_length = len(ring)
         G.add_node(

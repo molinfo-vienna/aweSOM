@@ -7,6 +7,7 @@ import torch
 from lightning import Trainer, seed_everything
 from torchmetrics import MatthewsCorrCoef, AUROC
 from torch_geometric import seed_everything as geometric_seed_everything
+from torch_geometric import transforms as T
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from torch_geometric.loader import DataLoader
 from sklearn.metrics import RocCurveDisplay
@@ -26,14 +27,14 @@ def run_predict():
         os.makedirs(args.outputFolder)
 
     if args.trueLabels == "False":
-        data = UnlabeledData(root=args.inputFolder)
+        data = UnlabeledData(root=args.inputFolder, transform=T.ToUndirected())
     else:
-        data = LabeledData(root=args.inputFolder)
+        data = LabeledData(root=args.inputFolder, transform=T.ToUndirected())
 
     print(f"Number of molecules: {len(data)}")
 
     best_model_paths = []
-    with open(os.path.join(args.logFolder, "best_model_paths.txt"), "r") as f:
+    with open(os.path.join(args.modelFolder, "best_model_paths.txt"), "r") as f:
         best_model_paths = f.read().splitlines()
 
     y_hats = []
@@ -41,7 +42,9 @@ def run_predict():
         for file in os.listdir(path):
             if file.endswith(".ckpt"):
                 path = os.path.join(path, file)
+
         model = GNN.load_from_checkpoint(path)
+        model.eval()
 
         trainer = Trainer(accelerator="auto", logger=False, precision="16-mixed")
         out = trainer.predict(
@@ -115,18 +118,11 @@ if __name__ == "__main__":
         help="The folder where the input data is stored.",
     )
     parser.add_argument(
-        "-l",
-        "--logFolder",
+        "-m",
+        "--modelFolder",
         type=str,
         required=True,
         help="The folder where the model's checkpoints are stored.",
-    )
-    parser.add_argument(
-        "-m",
-        "--model",
-        type=str,
-        required=True,
-        help="The desired model architecture.",
     )
     parser.add_argument(
         "-t",
