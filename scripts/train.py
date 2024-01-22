@@ -31,10 +31,10 @@ from awesom.models import (
     M5,
     M6,
     M7,
-    GINE,
-    GINED,
-    MF,
-    Cheb,
+    M8,
+    M9,
+    M10,
+    M11,
 )
 
 NFOLDS = 10
@@ -54,10 +54,10 @@ model_dict = {
     "M5": M5,
     "M6": M6,
     "M7": M7,
-    "GINE": GINE,
-    "GINED": GINED,
-    "MF": MF,
-    "Cheb": Cheb,
+    "M8": M8,
+    "M9": M9,
+    "M10": M10,
+    "M11": M11,
 }
 
 class PatchedCallback(PyTorchLightningPruningCallback, Callback):
@@ -119,7 +119,6 @@ def run_train():
                 logger=tbl,
                 log_every_n_steps=1,
                 callbacks=callbacks,
-                precision="16-mixed",
             )
 
             trainer.fit(
@@ -182,21 +181,15 @@ def run_train():
         atom_id = out[0][3]
 
         # Use this to compute binary predictions when using class weights
-        # y_hat_bin = torch.max(y_hat, dim=1).indices
+        y_hat_bin = torch.max(y_hat, dim=1).indices
 
         # Use this to compute binary predictions when using threshold moving
-        fpr, tpr, thresholds = roc(y_hat[:, 1], y)
-        best_threshold = thresholds[torch.argmax(tpr-fpr)]
-        y_hat_bin = (y_hat[:, 1] > best_threshold).to(int)
+        # fpr, tpr, thresholds = roc(y_hat[:, 1], y)
+        # best_threshold = thresholds[torch.argmax(tpr-fpr)]
+        # y_hat_bin = (y_hat[:, 1] > best_threshold).to(int)
         # Overwrite threshold in hparams.yaml to be able to load it during inference
-        model.hparams.__setitem__("threshold", best_threshold.item())
-        save_hparams_to_yaml(hparams_file, model.hparams)
-        
-        # Compute normal metrics
-        mccs.append(mcc(y_hat_bin, y).item())
-        precisions.append(precision(y_hat_bin, y).item())
-        recalls.append(recall(y_hat_bin, y).item())
-        aurocs.append(auroc(y_hat_bin, y).item())
+        # model.hparams.__setitem__("threshold", best_threshold.item())
+        # save_hparams_to_yaml(hparams_file, model.hparams)
 
         # Compute the atom ranking for the current validation fold
         # and write the detailed, per atom results into validation_fold{fold_id}.csv
@@ -222,6 +215,12 @@ def run_train():
                 atom_id.tolist(),
             ):
                 writer.writerow(row)
+
+        # Compute normal metrics
+        mccs.append(mcc(y_hat_bin, y).item())
+        precisions.append(precision(y_hat_bin, y).item())
+        recalls.append(recall(y_hat_bin, y).item())
+        aurocs.append(auroc(y_hat[:, 1], y).item())
     
         # Compute weird metrics from Porokhin's GNN-SOM paper for comparison's sake...
         sorted_y = torch.index_select(y, dim=0, index=torch.sort(y_hat[:, 1], descending=True)[1])
@@ -235,12 +234,11 @@ def run_train():
             mask = torch.where(mol_id == id)[0]
             masked_y = y[mask]
             masked_y_hat = y_hat[mask]
-            masked_y_hat_bin = y_hat_bin[mask]
             masked_sorted_y = torch.index_select(masked_y, dim=0, index=torch.sort(masked_y_hat[:, 1], descending=True)[1])
             num_soms_in_current_mol = torch.sum(masked_y).item()
             if torch.sum(masked_sorted_y[:2]).item() > 0:
                 top2_correctness_rate += 1 
-            per_molecule_aurocs.append(auroc(masked_y_hat_bin, masked_y).item())
+            per_molecule_aurocs.append(auroc(masked_y_hat[:,1], masked_y).item())
             per_molecule_r_precisions.append(torch.sum(masked_sorted_y[:num_soms_in_current_mol]).item() / num_soms_in_current_mol)
         top2_correctness_rate /= len(set(mol_id.tolist()))
         top2s.append(top2_correctness_rate)
@@ -258,6 +256,7 @@ def run_train():
         f.write(f"Atomic R-Precision: {round(mean(atom_r_precisions), 2)} +/- {round(stdev(atom_r_precisions), 2)}\n")
         f.write(f"Atomic AUROC: {round(mean(aurocs), 2)} +/- {round(stdev(aurocs), 2)}\n")
     
+    return None
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Training and testing the model.")
