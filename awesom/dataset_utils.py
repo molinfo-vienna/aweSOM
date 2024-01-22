@@ -25,13 +25,19 @@ FORMAL_CHARGE = [-1, 0, 1, "OTHER"]
 HYBRIDIZATION_TYPE = ["SP", "SP2", "SP3", "OTHER"]
 RING_SIZE = [0, 3, 4, 5, 6, 7, 8, "OTHER"]
 TOTAL_VALENCE = [1, 2, 3, 4, 5, 6, "OTHER"]
+NUM_H_NEIGHBORS = [0, 1, 2, 3, "OTHER"]
 
 BOND_TYPE_STR = ["SINGLE", "DOUBLE", "TRIPLE", "AROMATIC", "OTHER"]
-# BOND_TYPE_INT = [1, 2, 3, "OTHER"]
+BOND_TYPE_INT = [1, 2, 3, "OTHER"]
 
-REAMAINCLASSES = [i for i in range(4)]  # 3 total
-REACLASSES = [i for i in range(22)]  # 21 total
-REASUBCLASSES = [i for i in range(156)]  # 93 total
+CLASS1 = [i for i in range(4)]  # 3 total
+CLASS2 = [i for i in range(22)]  # 21 total
+CLASS3 = [1, 2, 3, 4, 5, 11, 12, 14, 15, 17, 18, 19, 23, 24, 26, 27, 28, 29,
+          30, 31, 32, 33, 34, 35, 36, 38, 39, 40, 41, 42, 44, 45, 46, 47, 48,
+          49, 50, 51, 57, 58, 59, 60, 61, 62, 64, 65, 66, 70, 71, 72, 73, 75,
+          77, 78, 79, 80, 81, 82, 84, 85, 87, 88, 89, 90, 92, 93, 94, 95, 98,
+          99, 100, 103, 104, 105, 107, 108, 110, 111, 112, 113, 115, 116,
+          117, 118, 119, 121, 122, 123, 125, 126, 127, 129, 155]  # 93 total
 
 ################ General Utilities ################
 
@@ -238,10 +244,6 @@ def generate_bond_features_CDPKit(bond: CDPKitBond, mol: CDPKitMol) -> list[floa
         (list[float]): one-hot encoded atom feature list
     """
     # return _get_allowed_set(Chem.getOrder(bond), BOND_TYPE_INT) + [
-    #     float(Chem.getRingFlag(bond)),
-    #     float(_is_conjugated(bond, mol)),
-    #     float(Chem.getAromaticityFlag(bond)),
-    # ]
     return [
         float(Chem.getRingFlag(bond)),
         float(_is_conjugated(bond, mol)),
@@ -430,7 +432,9 @@ def load_mol_input(dir: str, labels: bool, indices: List[int]) -> Tuple[List[nx.
             ForceField.calcMMFF94AtomCharges(
                 mol, False, False
             )  # calculate MMFF94 atom charges (tolerant mode) set corresponding property for all atoms
-            Chem.makeHydrogenDeplete(mol)  # remove explicit hydrogens
+
+            # Chem.makeHydrogenDeplete(mol)  # remove explicit hydrogens
+
             Chem.perceiveComponents(mol, True)
 
             G = mol_to_nx_CDPKit(Chem.getName(mol), mol, soms)
@@ -540,20 +544,20 @@ def generate_preprocessed_data_chunk_RDKit(
     """
     df_chunk["G"] = df_chunk.apply(
         lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms), axis=1
-        # lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms, x.reasubclasses), axis=1
+        # lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms, x.class3), axis=1
     )
     G = nx.disjoint_union_all(df_chunk["G"].to_list())
 
     return G
 
 def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int) -> List[float]:
-# def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int, reasubclasses: int) -> List[float]:
+# def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int, class3: int) -> List[float]:
     """
     Generates the node features for each atom
     Args:
         atom (RDKit Atom): atom for the features calculation
         atm_ring_length (int): the size of the ring in which the atom is
-        reasubclasses (int): the reported reaction subclass
+        class3 (int): the reported reaction subclass
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
@@ -561,27 +565,29 @@ def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int) -> List[
         "atom_type": _get_allowed_set(atom.GetAtomicNum(), ELEM_LIST),
         # "aromaticity": list([float(atom.GetIsAromatic())]),
         # "degree": _get_allowed_set(atom.GetTotalDegree(), TOTAL_DEGREE),
-        # "formal_charge": _get_allowed_set(atom.GetFormalCharge(), FORMAL_CHARGE),
+        "formal_charge": _get_allowed_set(atom.GetFormalCharge(), FORMAL_CHARGE),
         # "hybridization_state": _get_allowed_set(
         #     str(atom.GetHybridization()), HYBRIDIZATION_TYPE
         # ),
         # "ring_size": _get_allowed_set(atm_ring_length, RING_SIZE),
         # "valence": _get_allowed_set(atom.GetTotalValence(), TOTAL_VALENCE),
-        # "reasubclass": _get_allowed_set(reasubclasses, REASUBCLASSES),
+        # "num_h_neighbors": _get_allowed_set(atom.GetTotalNumHs(), NUM_H_NEIGHBORS),
+        # "class3": _get_allowed_set(class3, CLASS3),
     }
     return (
         features["atom_type"]
         # + features["aromaticity"]
         # + features["degree"]
-        # + features["formal_charge"]
+        + features["formal_charge"]
         # + features["hybridization_state"]
         # + features["ring_size"]
         # + features["valence"]
-        # + features["reasubclass"]
+        # + features["num_h_neighbors"]
+        # + features["class3"]
     )
 
 def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
-# def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int], reasubclasses: int) -> nx.Graph:
+# def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int], class3: int) -> nx.Graph:
     """
     This function takes an RDKit Mol object as input and returns its corresponding
     NetworkX graph with node and edge attributes.
@@ -591,7 +597,7 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
         soms (list): a list of the indices of atoms that are SoMs (This is
                     of course only relevant for training data. If there is no info
                     about which atom is a SoM, then the list is simply empty.)
-        reasubclasses (int): the reported reaction subclass
+        class3 (int): the reported reaction subclass
     Returns:
         NetworkX Graph with node and edge attributes
     """
@@ -608,7 +614,7 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
         G.add_node(
             atom_idx,  # node identifier
             node_features=generate_node_features_RDKit(atom, atm_ring_length),
-            # node_features=generate_node_features_RDKit(atom, atm_ring_length, reasubclasses),
+            # node_features=generate_node_features_RDKit(atom, atm_ring_length, class3),
             is_som=(atom_idx in soms),  # label
             # the next two elements are later used to assign the
             # predicted labels but are of course not used as features!
