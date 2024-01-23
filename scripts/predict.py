@@ -1,187 +1,183 @@
 import argparse
-import logging
+import csv
+import matplotlib.pyplot as plt
 import os
-import pandas as pd
-import shutil
-import sys
 import torch
+import yaml
 
+from lightning import Trainer, seed_everything
+from torchmetrics import MatthewsCorrCoef, AUROC
+from torch_geometric import seed_everything as geometric_seed_everything
+from torch_geometric import transforms as T
+from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from torch_geometric.loader import DataLoader
-from typing import Any, Dict, List, Tuple
+from sklearn.metrics import RocCurveDisplay
+from statistics import mean
 
-from awesom.graph_neural_nets import (
-    GATv2,
-    GIN,
-    GINE,
-)
-from awesom.pyg_dataset_creator import SOM
-from awesom.utils import seed_everything, save_predict
+from awesom.dataset import LabeledData, UnlabeledData
+from awesom.metrics_utils import compute_ranking
+from awesom.models import GNN
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-BATCHSIZE = 64
+
+mcc = MatthewsCorrCoef(task="binary")
+auroc = AUROC(task="binary")
+precision = BinaryPrecision()
+recall = BinaryRecall()
+
+
+def run_predict():
+    seed_everything(42)
+    geometric_seed_everything(42)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.set_float32_matmul_precision('medium')
+
+    if not os.path.exists(args.outputFolder):
+        os.makedirs(args.outputFolder)
+
+    if args.trueLabels == "False":
+        data = UnlabeledData(root=args.inputFolder, transform=T.ToUndirected())
+    else:
+        data = LabeledData(root=args.inputFolder, transform=T.ToUndirected())
+
+    print(f"Number of molecules: {len(data)}")
+
+    best_model_paths = []
+    with open(os.path.join(args.modelFolder, "best_model_paths.txt"), "r") as f:
+        best_model_paths = f.read().splitlines()
+
+    y_hats = []
+    for i, path in enumerate(best_model_paths):
+
+        # get checkpoints
+        for file in os.listdir(os.path.join(path, "checkpoints")):
+            if file.endswith(".ckpt"):
+                checkpoint_path = os.path.join(os.path.join(path, "checkpoints"), file)
+        # get best threshold from haparams.yaml
+        for file in os.listdir(path):
+            if file.endswith(".yaml"):
+                hparams_file = os.path.join(path, file)
+        with open(hparams_file, 'r') as f:
+            best_threshold = yaml.safe_load(f)["threshold"]
+
+        model = GNN.load_from_checkpoint(checkpoint_path, threshold=best_threshold)
+
+        trainer = Trainer(accelerator="auto", logger=False)
+        out = trainer.predict(
+            model=model, dataloaders=DataLoader(data, batch_size=len(data))
+        )
+        y_hat = out[0][0]
+        y_hats.append(y_hat)
+        if i == 0:
+            y = out[0][1]
+            mol_id = out[0][2]
+            atom_id = out[0][3]
+
+    y_hats = torch.stack(y_hats, dim=0)
+    y_hat_avg = torch.mean(y_hats, dim=0)
+
+    # Use this to compute binary predictions when using class weights
+    y_hat_bin = torch.max(y_hat_avg, dim=1).indices
+
+    # Use this to compute binary predictions when using threshold moving
+    # best_threshold = model.hparams.threshold
+    # y_hat_bin = (y_hat_avg[:,1] > best_threshold).to(int)
+
+    ranking = compute_ranking(y_hat_avg, mol_id)
+    with open(os.path.join(args.outputFolder, "results.csv"), "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            (
+                "averaged_probabilities",
+                "ranking",
+                "predicted_labels",
+                "true_labels",
+                "mol_id",
+                "atom_id",
+            )
+        )
+        for row in zip(
+            y_hat_avg[:, 1].tolist(),
+            ranking.tolist(),
+            torch.max(y_hat_avg, dim=1).indices.tolist(),
+            y.tolist(),
+            mol_id.tolist(),
+            atom_id.tolist(),
+        ):
+            writer.writerow(row)
+
+    if args.trueLabels == "True":
+
+        # Compute weird metrics from Porokhin's GNN-SOM paper for comparison's sake...
+        sorted_y = torch.index_select(y, dim=0, index=torch.sort(y_hat[:, 1], descending=True)[1])
+        total_num_soms = torch.sum(y).item()
+        atom_r_precision = torch.sum(sorted_y[:total_num_soms]).item() / total_num_soms
+
+        top2_correctness_rate = 0
+        per_molecule_aurocs = []
+        per_molecule_r_precisions = []
+        for id in list(dict.fromkeys(mol_id.tolist())):  # This is a somewhat complicated way to get an ordered set, but it works
+            mask = torch.where(mol_id == id)[0]
+            masked_y = y[mask]
+            masked_y_hat = y_hat[mask]
+            masked_sorted_y = torch.index_select(masked_y, dim=0, index=torch.sort(masked_y_hat[:, 1], descending=True)[1])
+            num_soms_in_current_mol = torch.sum(masked_y).item()
+            if torch.sum(masked_sorted_y[:2]).item() > 0:
+                top2_correctness_rate += 1 
+            per_molecule_aurocs.append(auroc(masked_y_hat[:,1], masked_y).item())
+            per_molecule_r_precisions.append(torch.sum(masked_sorted_y[:num_soms_in_current_mol]).item() / num_soms_in_current_mol)
+        top2_correctness_rate /= len(set(mol_id.tolist()))
+        mol_auroc = mean(per_molecule_aurocs)
+        mol_r_precision = mean(per_molecule_r_precisions)
+
+        with open(os.path.join(args.outputFolder, "results.txt"), "w") as f:
+            f.write(f"MCC: {round(mcc(y_hat_bin, y).item(), 2)}\n")
+            f.write(f"Precision: {round(precision(y_hat_bin, y).item(), 2)}\n")
+            f.write(f"Recall: {round(recall(y_hat_bin, y).item(), 2)}\n")
+            f.write(f"Molecular R-Precision: {round(mol_r_precision, 2)}\n")
+            f.write(f"Molecular AUROC:  {round(mol_auroc, 2)}\n")
+            f.write(f"Top-2 Correctness Rate: {round(top2_correctness_rate, 2)}\n")
+            f.write(f"Atomic R-Precision: {round(atom_r_precision, 2)}\n")
+            f.write(f"Atomic AUROC: {round(auroc(y_hat_avg[:, 1], y).item(), 2)}\n")
+
+        RocCurveDisplay.from_predictions(y, y_hat_avg[:, 1])
+        plt.savefig(str(os.path.join(args.outputFolder, "roc.png")), dpi=300)
+
+    return None
 
 
 if __name__ == "__main__":
-    seed_everything(42)
-
-    parser = argparse.ArgumentParser("Predicting SoMs...")
+    parser = argparse.ArgumentParser("Predicting SoMs for unseen data.")
 
     parser.add_argument(
         "-i",
-        "--inputDirectory",
+        "--inputFolder",
         type=str,
         required=True,
-        help="The directory where the input data is stored.",
-    )
-    parser.add_argument(
-        "-o",
-        "--outputDirectory",
-        type=str,
-        required=True,
-        help="The directory where the output will be written.",
+        help="The folder where the input data is stored.",
     )
     parser.add_argument(
         "-m",
-        "--modelsDirectory",
+        "--modelFolder",
         type=str,
         required=True,
-        help="The directory where the trained models and the csv file containing \
-            the trained models' hyperparameters and performance is stored.",
+        help="The folder where the model's checkpoints are stored.",
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbosityLevel",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        default="INFO",
-        help="Set the verbosity level of the logger - default is on INFO.",
+        "-t",
+        "--trueLabels",
+        type=str,
+        required=True,
+        default="False",
+        help="Whether or not your input data has true labels. If set to true, predict.py will compute classification metrics MCC, AUROC, precision and recall.",
+    )
+    parser.add_argument(
+        "-o",
+        "--outputFolder",
+        type=str,
+        required=True,
+        help="The folder where the output will be written.",
     )
 
     args = parser.parse_args()
-
-    if os.path.exists(args.outputDirectory):
-        overwrite = input(f"{args.outputDirectory} already exists. Overwrite? [y/n] \n")
-        if overwrite == "y":
-            shutil.rmtree(args.outputDirectory)
-            os.makedirs(args.outputDirectory)
-        if overwrite == "n":
-            sys.exit()
-    else:
-        os.makedirs(args.outputDirectory)
-
-    logging.basicConfig(
-        filename=os.path.join(args.outputDirectory, "logfile_predict.log"),
-        level=getattr(logging, args.verbosityLevel),
-        format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
-    )
-
-    # Create/Load Custom PyTorch Geometric Dataset
-    logging.info("Loading data")
-    dataset = SOM(root=args.inputDirectory)
-    logging.info("Data successfully loaded!")
-
-    # Print dataset info
-    print(f"Number of molecules: {len(dataset)}")
-    print(f"Number of node features: {dataset.num_node_features}")
-    print(f"Number of edge features: {dataset.num_edge_features}")
-    print(f"Number of classes: {dataset.num_classes}")
-
-    print("Start predicting...")
-    logging.info("Start predicting...")
-
-    targets: Dict[Tuple[Any, Any], List[float]] = {}
-    predictions: Dict[Tuple[Any, Any], List[float]] = {}
-    opt_thresholds: List[float] = []
-
-    # Load data
-    loader = DataLoader(dataset, batch_size=BATCHSIZE, shuffle=True)
-
-    tmp = pd.read_csv(os.path.join(args.modelsDirectory, "results_individual.csv"))
-
-    for i in range(len(tmp)):
-        # Read metadata
-        info: Dict[str, Any] = {}
-        with open(
-            os.path.join(os.path.join(args.modelsDirectory, str(i + 1)), "info.txt")
-        ) as f:
-            for line in f:
-                (key, val) = line.split()
-                if key == "model":
-                    info[key] = str(val)
-                else:
-                    info[key] = float(val)
-
-        size_conv_layers = [value for (key, value) in info.items() if key.startswith("size_conv_layers")]
-        size_classify_layers = [value for (key, value) in info.items() if key.startswith("size_classify_layers")]
-
-        # Initialize model
-        model: torch.nn.Module
-        if info["model"] == "GATv2":
-            model = GATv2(
-                in_channels=dataset.num_features,
-                edge_dim=dataset.num_edge_features,
-                heads=int(info["heads"]),
-                negative_slope=info["negative_slope"],
-                dropout=info["dropout"],
-                size_conv_layers=int(info["size_conv_layers"]),
-                size_classify_layers=int(info["size_classify_layers"]),
-            ).to(DEVICE)
-        elif info["model"] == "GIN":
-            model = GIN(
-                in_channels=dataset.num_features,
-                dropout=info["dropout"],
-                size_conv_layers=int(info["size_conv_layers"]),
-                size_classify_layers=int(info["size_classify_layers"]),
-            ).to(DEVICE)
-        elif info["model"] == "GINE":
-            model = GINE(
-                in_channels=dataset.num_features,
-                edge_dim=dataset.num_edge_features,
-                dropout=info["dropout"],
-                size_conv_layers=int(info["size_conv_layers"]),
-                size_classify_layers=int(info["size_classify_layers"]),
-            ).to(DEVICE)
-
-        # Load saved state dictionary
-        model.load_state_dict(
-            torch.load(
-                os.path.join(
-                    os.path.join(args.modelsDirectory, str(i + 1)), "model.pt"
-                ),
-                map_location=DEVICE,
-            )
-        )
-
-        y_preds = []
-        y_trues = []
-        mol_ids = []
-        atom_ids = []
-
-        model.eval()
-        for data in loader:
-            data = data.to(DEVICE)
-            if info["model"] in {"GIN"}:
-                output = model(data.x, data.edge_index, data.batch)
-            else:
-                output = model(data.x, data.edge_index, data.edge_attr, data.batch)
-            y_preds.extend(output[:, 0].tolist())
-            y_trues.extend(data.y.tolist())
-            mol_ids.extend(data.mol_id.tolist())
-            atom_ids.extend(data.atom_id.tolist())
-
-        for index, molid_atomid_tuple in enumerate(zip(mol_ids, atom_ids)):
-            predictions.setdefault(molid_atomid_tuple, []).append(y_preds[index])
-            targets[molid_atomid_tuple] = y_trues[index]
-
-        opt_thresholds.append(tmp["opt_threshold"][i])
-
-    logging.info("Saving results...")
-    save_predict(
-        args.outputDirectory,
-        targets,
-        predictions,
-        opt_thresholds,
-    )
-
-    print("Predicting succesful!")
-    logging.info("Predicting succesful!")
+    run_predict()
