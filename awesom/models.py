@@ -7,16 +7,13 @@ from torch_geometric.nn import (
     MFConv,
     ChebConv,
     global_add_pool,
-    global_max_pool,
 )
 from typing import List, Optional, Tuple, Union
 from lightning import LightningModule
 from torchmetrics import AUROC, MatthewsCorrCoef
-from torch_geometric.nn.norm import LayerNorm
-from torch_geometric import transforms as T
 
-
-__all__ = ["GNN", "M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10", "M11"]
+# from torch_geometric.nn.norm import LayerNorm
+# from torch_geometric import transforms as T
 
 
 class GNN(LightningModule):
@@ -46,7 +43,9 @@ class GNN(LightningModule):
             "M11": M11,
         }
 
-        self.cw = torch.tensor([weight for weight in class_weights.values()], dtype=torch.float).cuda()
+        self.cw = torch.tensor(
+            [weight for weight in class_weights.values()], dtype=torch.float
+        ).cuda()
         self.model = model_dict[architecture](params, hyperparams, self.cw)
         self.loss_function = torch.nn.CrossEntropyLoss(weight=self.cw, reduction="mean")
         self.learning_rate = hyperparams["learning_rate"]
@@ -78,12 +77,17 @@ class GNN(LightningModule):
         return loss, y_hat
 
     def on_train_start(self) -> None:
-        self.logger.log_hyperparams(self.hparams, {"train/loss": 1, 
-                                                   "train/auroc": 0,
-                                                   "train/mcc": 0,
-                                                   "val/loss": 1, 
-                                                   "val/auroc": 0,
-                                                   "val/mcc": 0})
+        self.logger.log_hyperparams(
+            self.hparams,
+            {
+                "train/loss": 1,
+                "train/auroc": 0,
+                "train/mcc": 0,
+                "val/loss": 1,
+                "val/auroc": 0,
+                "val/mcc": 0,
+            },
+        )
 
     def training_step(self, batch, batch_idx):
         loss, y_hat = self.step(batch)
@@ -144,7 +148,6 @@ class GNN(LightningModule):
 
 
 class M1(torch.nn.Module):
-
     def __init__(self, params, hyperparams, class_weights) -> None:
         super(M1, self).__init__()
 
@@ -179,11 +182,10 @@ class M1(torch.nn.Module):
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
-
         x = data.x
         for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
             x = conv(x, data.edge_index, data.edge_attr)
-            if i < len(self.conv)-1:
+            if i < len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
 
@@ -196,7 +198,7 @@ class M1(torch.nn.Module):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int(f"size_conv_layers", 32, 512, log=True)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
 
         params = dict(
             num_node_features=data.num_node_features,
@@ -214,7 +216,6 @@ class M1(torch.nn.Module):
 
 
 class M2(torch.nn.Module):
-
     def __init__(self, params, hyperparams, class_weights) -> None:
         super(M2, self).__init__()
 
@@ -248,15 +249,17 @@ class M2(torch.nn.Module):
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
-
         x = data.x
         for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
             x = conv(x, data.edge_index)
-            if i < len(self.conv)-1:
+            if i < len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
 
-        torch.save(x, "/data/shared/private/rjacob/awesom/experiments/yaQSAR/RDKIT/M2/play/x.pt")
+        torch.save(
+            x,
+            "/data/shared/private/rjacob/awesom/experiments/yaQSAR/RDKIT/M2/play/x.pt",
+        )
 
         x = self.final(x)
 
@@ -267,7 +270,7 @@ class M2(torch.nn.Module):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int(f"size_conv_layers", 32, 512, log=True)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
 
         params = dict(
             num_node_features=data.num_node_features,
@@ -285,7 +288,6 @@ class M2(torch.nn.Module):
 
 
 class M3(torch.nn.Module):
-
     def __init__(self, params, hyperparams, class_weights) -> None:
         super(M3, self).__init__()
 
@@ -313,14 +315,15 @@ class M3(torch.nn.Module):
             self.batch_norm.append(BatchNorm(out_channels))
             in_channels = out_channels
 
-        self.final = torch.nn.Linear(out_channels * hyperparams["num_conv_layers"], class_weights.shape[0])
+        self.final = torch.nn.Linear(
+            out_channels * hyperparams["num_conv_layers"], class_weights.shape[0]
+        )
 
     def forward(
         self,
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
-
         # Compute node intermediate embeddings
         h = []
         x = data.x
@@ -329,7 +332,7 @@ class M3(torch.nn.Module):
             x = batch_norm(x)
             x = self.activation(x)
             h.append(x)
-            
+
         # Concatenate embeddings (jumping knowledge)
         h = torch.cat(h, dim=1)
 
@@ -343,7 +346,7 @@ class M3(torch.nn.Module):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int(f"size_conv_layers", 32, 512, log=True)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
 
         params = dict(
             num_node_features=data.num_node_features,
@@ -358,10 +361,9 @@ class M3(torch.nn.Module):
         )
 
         return params, hyperparams
-    
+
 
 class M4(torch.nn.Module):
-
     def __init__(self, params, hyperparams, class_weights) -> None:
         super(M4, self).__init__()
 
@@ -396,14 +398,13 @@ class M4(torch.nn.Module):
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
-
         # Compute node intermediate embeddings
         x = data.x
         for conv, batch_norm in zip(self.conv, self.batch_norm):
             h = conv(x, data.edge_index, data.edge_attr)
             h = batch_norm(h)
             h = self.activation(h)
-            x = torch.cat((h,data.x), dim=1)
+            x = torch.cat((h, data.x), dim=1)
 
         # Classify
         x = self.final(x)
@@ -415,7 +416,7 @@ class M4(torch.nn.Module):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int(f"size_conv_layers", 32, 512, log=True)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
 
         params = dict(
             num_node_features=data.num_node_features,
@@ -433,7 +434,6 @@ class M4(torch.nn.Module):
 
 
 class M5(torch.nn.Module):
-
     def __init__(self, params, hyperparams, class_weights) -> None:
         super(M5, self).__init__()
 
@@ -468,7 +468,6 @@ class M5(torch.nn.Module):
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
-
         # Convolutions
         x = data.x
         for conv, batch_norm in zip(self.conv, self.batch_norm):
@@ -498,7 +497,7 @@ class M5(torch.nn.Module):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int(f"size_conv_layers", 32, 512, log=True)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
 
         params = dict(
             num_node_features=data.num_node_features,
@@ -516,7 +515,6 @@ class M5(torch.nn.Module):
 
 
 class M6(torch.nn.Module):
-
     def __init__(self, params, hyperparams, class_weights) -> None:
         super(M6, self).__init__()
 
@@ -550,7 +548,7 @@ class M6(torch.nn.Module):
                 BatchNorm(class_weights.shape[0]),
                 self.activation,
                 torch.nn.Linear(class_weights.shape[0], class_weights.shape[0]),
-                ),
+            ),
             train_eps=True,
             edge_dim=params["num_edge_features"],
         )
@@ -560,11 +558,10 @@ class M6(torch.nn.Module):
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
-
         x = data.x
         for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
             x = conv(x, data.edge_index, data.edge_attr)
-            if i < len(self.conv)-1:
+            if i < len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
 
@@ -577,7 +574,7 @@ class M6(torch.nn.Module):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int(f"size_conv_layers", 32, 512, log=True)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
 
         params = dict(
             num_node_features=data.num_node_features,
@@ -602,6 +599,7 @@ class M7(torch.nn.Module):
     In contrast, in GATv2, every node can attend to any other node.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html#torch_geometric.nn.conv.GATv2Conv
     """
+
     def __init__(self, params, hyperparams, class_weights) -> None:
         super(M7, self).__init__()
 
@@ -625,7 +623,7 @@ class M7(torch.nn.Module):
             )
             in_channels = out_channels * hyperparams["heads"]
             self.batch_norm.append(BatchNorm(in_channels))
-            
+
         self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
 
     def forward(
@@ -633,11 +631,10 @@ class M7(torch.nn.Module):
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
-
         x = data.x
         for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
             x = conv(x, data.edge_index, data.edge_attr)
-            if i < len(self.conv)-1:
+            if i < len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
 
@@ -650,7 +647,7 @@ class M7(torch.nn.Module):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int(f"size_conv_layers", 32, 512, log=True)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
         heads = trial.suggest_int("heads", 2, 8)
         negative_slope = trial.suggest_float("negative_slope", 0.1, 0.9)
 
@@ -666,7 +663,6 @@ class M7(torch.nn.Module):
             size_conv_layers=size_conv_layers,
             heads=heads,
             negative_slope=negative_slope,
-
         )
 
         return params, hyperparams
@@ -677,6 +673,7 @@ class M8(torch.nn.Module):
     “Convolutional Neural Networks on Graphs with Fast Localized Spectral Filtering” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.ChebConv.html
     """
+
     def __init__(self, params, hyperparams, class_weights) -> None:
         super(M8, self).__init__()
 
@@ -692,12 +689,12 @@ class M8(torch.nn.Module):
                 ChebConv(
                     in_channels=in_channels,
                     out_channels=out_channels,
-                    K=hyperparams["filter_size"]
+                    K=hyperparams["filter_size"],
                 )
             )
             in_channels = out_channels
             self.batch_norm.append(BatchNorm(in_channels))
-            
+
         self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
 
     def forward(
@@ -705,11 +702,10 @@ class M8(torch.nn.Module):
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
-
         x = data.x
         for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
             x = conv(x, data.edge_index)
-            if i < len(self.conv)-1:
+            if i < len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
 
@@ -722,7 +718,7 @@ class M8(torch.nn.Module):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int(f"size_conv_layers", 32, 512, log=True)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
         filter_size = trial.suggest_int("filter_size", 1, 10)
 
         params = dict(
@@ -766,7 +762,7 @@ class M9(torch.nn.Module):
             )
             in_channels = out_channels
             self.batch_norm.append(BatchNorm(in_channels))
-            
+
         self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
 
     def forward(
@@ -774,24 +770,23 @@ class M9(torch.nn.Module):
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
-
         x = data.x
         for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
             x = conv(x, data.edge_index)
-            if i < len(self.conv)-1:
+            if i < len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
 
         x = self.final(x)
 
         return torch.softmax(x, dim=1)
-    
+
     @classmethod
     def get_params(self, data, trial):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int(f"size_conv_layers", 32, 512, log=True)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
         max_degree = trial.suggest_int("max_degree", 1, 6)
 
         params = dict(
@@ -811,7 +806,6 @@ class M9(torch.nn.Module):
 
 
 class M10(torch.nn.Module):
-
     def __init__(self, params, hyperparams, class_weights) -> None:
         super(M10, self).__init__()
 
@@ -846,7 +840,6 @@ class M10(torch.nn.Module):
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
-
         # Compute node intermediate embeddings
         x = data.x
         for conv, batch_norm in zip(self.conv, self.batch_norm):
@@ -873,7 +866,7 @@ class M10(torch.nn.Module):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int(f"size_conv_layers", 32, 512, log=True)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
 
         params = dict(
             num_node_features=data.num_node_features,
@@ -891,7 +884,6 @@ class M10(torch.nn.Module):
 
 
 class M11(torch.nn.Module):
-
     def __init__(self, params, hyperparams, class_weights) -> None:
         super(M11, self).__init__()
 
@@ -931,13 +923,11 @@ class M11(torch.nn.Module):
         self.activation = torch.nn.LeakyReLU()
         self.dropout = torch.nn.Dropout(p=0.2)
 
-
     def forward(
         self,
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
-
         # Convolutions
         x = data.x
         for conv, batch_norm in zip(self.conv, self.batch_norm):
@@ -967,9 +957,9 @@ class M11(torch.nn.Module):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int(f"size_conv_layers", 32, 512, log=True)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
         num_linear_layers = trial.suggest_int("num_linear_layers", 1, 5)
-        size_linear_layers = trial.suggest_int(f"size_linear_layers", 32, 512, log=True)
+        size_linear_layers = trial.suggest_int("size_linear_layers", 32, 512, log=True)
 
         params = dict(
             num_node_features=data.num_node_features,
