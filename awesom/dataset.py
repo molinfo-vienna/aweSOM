@@ -1,5 +1,6 @@
 import ast
-import networkx as nx
+
+# import networkx as nx
 import numpy as np
 import os
 import pandas as pd
@@ -8,7 +9,8 @@ import torch
 from multiprocessing import cpu_count
 from rdkit.Chem import PandasTools
 from torch_geometric.data import InMemoryDataset, Data
-from torch_geometric.utils import add_remaining_self_loops
+
+# from torch_geometric.utils import add_remaining_self_loops
 from typing import List
 
 from awesom.dataset_utils import (
@@ -18,10 +20,8 @@ from awesom.dataset_utils import (
 )
 
 
-__all__ = ["SOM", "LabeledData", "UnlabeledData"]
-
-
 KIT = "RDKIT"
+
 
 class SOM(InMemoryDataset):
     """Creates a PyTorch Geometric Dataset from data.sdf.
@@ -63,8 +63,8 @@ class SOM(InMemoryDataset):
                 PandasTools.AddMoleculeColumnToFrame(df, "smiles")
             else:
                 raise NotImplementedError(f"Invalid file extension: {file_extension}")
-            
-            if 'ID' not in df:
+
+            if "ID" not in df:
                 df["ID"] = df.index
             if not labels:
                 df["soms"] = "[]"
@@ -83,7 +83,7 @@ class SOM(InMemoryDataset):
             G = generate_preprocessed_data_CDPKit(
                 path, file_length, min(file_length, cpu_count()), labels
             )
-        
+
         else:
             raise IOError("Error: invalid chemistry toolkit name")
 
@@ -129,7 +129,6 @@ class SOM(InMemoryDataset):
         data_list = []
 
         for mol_id in torch.unique(mol_ids).tolist():
-
             try:
                 mask = mol_ids == mol_id
 
@@ -195,7 +194,7 @@ class SOM(InMemoryDataset):
         # return torch.tensor(
         #     [size / (2 * nosom), size / (2 * som)], dtype=torch.float
         # ).cuda()
-        return {'0': size / (2 * nosom), '1': size / (2 * som)}
+        return {"0": size / (2 * nosom), "1": size / (2 * som)}
 
 
 class LabeledData(SOM):
