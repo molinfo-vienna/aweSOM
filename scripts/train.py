@@ -3,14 +3,15 @@ import optuna
 import os
 import torch
 
-from lightning import Trainer, Callback, seed_everything
+from lightning import Trainer, Callback
+from lightning import seed_everything as lightning_seed_everything
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from operator import itemgetter
 from optuna.integration import PyTorchLightningPruningCallback
 from optuna.trial import TrialState
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 from torch_geometric import transforms as T
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric.loader import DataLoader
@@ -32,9 +33,6 @@ from awesom import (
     ValidationMetrics,
 )
 
-NFOLDS = 10
-BATCHSIZE = 64
-
 model_dict = {
     "M1": M1,
     "M2": M2,
@@ -55,25 +53,23 @@ class PatchedCallback(PyTorchLightningPruningCallback, Callback):
 
 
 def run_train():
-    seed_everything(42)
-    geometric_seed_everything(42)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    # lightning_seed_everything(42)
+    # geometric_seed_everything(42)
+    torch.backends.cudnn.deterministic = False
+    torch.backends.cudnn.benchmark = True
     torch.set_float32_matmul_precision("medium")
 
-    data = SOM(
-        root=args.inputFolder, transform=T.ToUndirected()
-    ).shuffle()  # , transform=T.Distance(norm=False)
-    print(f"Number of training graphs: {len(data)}")
+    data = SOM(root=args.inputFolder, transform=T.ToUndirected())  # , transform=T.Distance(norm=False)
+    train_data, val_data = train_test_split(data, test_size=1/9, random_state=42)
+    print(f"Number of training instances: {len(train_data)}")
+    print(f"Number of validation instances: {len(val_data)}")
 
     validation_outputs = {}
 
-    fold = KFold(n_splits=NFOLDS, shuffle=True, random_state=42)
-    for fold_id, (train_idx, val_idx) in enumerate(fold.split(range(len(data)))):
-        train_data = itemgetter(*train_idx)(data)
-        val_data = itemgetter(*val_idx)(data)
-        train_loader = DataLoader(train_data, batch_size=len(data))
-        val_loader = DataLoader(val_data, batch_size=len(data))
+    for mid in range(args.ensembleSize):
+
+        train_loader = DataLoader(train_data, batch_size=len(train_data), shuffle=True)
+        val_loader = DataLoader(val_data, batch_size=len(val_data), shuffle=True)
 
         def objective(trial):
             model_type = model_dict[args.model]
@@ -88,7 +84,7 @@ def run_train():
 
             tbl = TensorBoardLogger(
                 save_dir=os.path.join(
-                    os.path.join(args.outputFolder, f"fold{fold_id}"),
+                    os.path.join(args.outputFolder, f"m{mid}"),
                     "logs",
                 ),
                 name=f"trial{trial._trial_id}",
@@ -116,11 +112,11 @@ def run_train():
 
             return trainer.callback_metrics["val/loss"].item()
 
-        if not os.path.exists(os.path.join(args.outputFolder, f"fold{fold_id}")):
-            os.makedirs(os.path.join(args.outputFolder, f"fold{fold_id}"))
+        if not os.path.exists(os.path.join(args.outputFolder, f"m{mid}")):
+            os.makedirs(os.path.join(args.outputFolder, f"m{mid}"))
 
-        storage = "sqlite:///" + args.outputFolder + f"/fold{fold_id}" + "/storage.db"
-        pruner = optuna.pruners.MedianPruner(n_min_trials=5, n_warmup_steps=5000)
+        storage = "sqlite:///" + args.outputFolder + f"/m{mid}" + "/storage.db"
+        pruner = optuna.pruners.MedianPruner(n_min_trials=5, n_warmup_steps=100)
         study = optuna.create_study(
             study_name=f"{args.model}_study",
             direction="minimize",
@@ -128,7 +124,7 @@ def run_train():
             storage=storage,
             load_if_exists=True,
         )
-        study.optimize(objective, n_trials=args.numberTrials, gc_after_trial=True)
+        study.optimize(objective, n_trials=args.numberOptunaTrials, gc_after_trial=True)
 
         pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
         complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
@@ -143,7 +139,7 @@ def run_train():
         for key, value in study.best_trial.params.items():
             print("   {}: {}".format(key, value))
 
-        path = f"{args.outputFolder}/fold{fold_id}/logs/trial{study.best_trial._trial_id}/version_0/"
+        path = f"{args.outputFolder}/m{mid}/logs/trial{study.best_trial._trial_id}/version_0/"
         with open(os.path.join(args.outputFolder, "best_model_paths.txt"), "a") as f:
             f.write(path + "\n")
 
@@ -159,7 +155,7 @@ def run_train():
         model = GNN.load_from_checkpoint(checkpoint_path)
 
         trainer = Trainer(accelerator="auto", logger=False)
-        validation_outputs[fold_id] = trainer.predict(
+        validation_outputs[mid] = trainer.predict(
             model=model, dataloaders=DataLoader(val_data, batch_size=len(val_data))
         )
 
@@ -190,7 +186,7 @@ if __name__ == "__main__":
         dest="model",
         type=str,
         required=True,
-        help="The desired model architecture.",
+        help="The model architecture.",
     )
     parser.add_argument(
         "-e",
@@ -200,8 +196,15 @@ if __name__ == "__main__":
         help="The maximum number of training epochs.",
     )
     parser.add_argument(
-        "-nt",
-        dest="numberTrials",
+        "-s",
+        dest="ensembleSize",
+        type=int,
+        required=True,
+        help="The number of individual models in the deep ensemble.",
+    )
+    parser.add_argument(
+        "-t",
+        dest="numberOptunaTrials",
         type=int,
         required=True,
         help="The number of Optuna trials.",
