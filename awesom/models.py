@@ -8,12 +8,16 @@ from torch_geometric.nn import (
     ChebConv,
     global_add_pool,
 )
+from torch_geometric.nn.models import GIN
 from typing import List, Optional, Tuple, Union
 from lightning import LightningModule
 from torchmetrics import AUROC, MatthewsCorrCoef
 
 # from torch_geometric.nn.norm import LayerNorm
 # from torch_geometric import transforms as T
+
+
+
 
 
 class GNN(LightningModule):
@@ -47,7 +51,7 @@ class GNN(LightningModule):
             [weight for weight in class_weights.values()], dtype=torch.float
         ).cuda()
         self.model = model_dict[architecture](params, hyperparams, self.cw)
-        self.loss_function = torch.nn.CrossEntropyLoss(weight=self.cw, reduction="mean")
+        self.loss_function = torch.nn.NLLLoss(weight=self.cw, reduction="mean")
         self.learning_rate = hyperparams["learning_rate"]
         self.weight_decay = hyperparams["weight_decay"]
 
@@ -72,9 +76,9 @@ class GNN(LightningModule):
         }
 
     def step(self, batch):
-        y_hat = self.model(batch, batch.batch)
-        loss = self.loss_function(y_hat, batch.y)
-        return loss, y_hat
+        log_y_hat = self.model(batch, batch.batch)
+        loss = self.loss_function(log_y_hat, batch.y)
+        return loss, torch.exp(log_y_hat)
 
     def on_train_start(self) -> None:
         self.logger.log_hyperparams(
@@ -439,7 +443,6 @@ class M5(torch.nn.Module):
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
-
         self.activation = torch.nn.LeakyReLU()
 
         in_channels = params["num_node_features"]
@@ -470,19 +473,20 @@ class M5(torch.nn.Module):
     ) -> torch.Tensor:
         # Convolutions
         x = data.x
-        for conv, batch_norm in zip(self.conv, self.batch_norm):
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
             x = conv(x, data.edge_index, data.edge_attr)
-            x = batch_norm(x)
-            x = self.activation(x)
+            if i != len(self.conv) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
 
-        # torch.save(x, "/data/shared/private/rjacob/awesom/experiments/yaQSAR/RDKIT/M5/play/x.pt")
+        # torch.save(x, "path/x.pt")
 
         # Pooling for context
         x_pool = global_add_pool(x, batch)
         num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
         x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
 
-        # torch.save(x_pool, "/data/shared/private/rjacob/awesom/experiments/yaQSAR/RDKIT/M5/play/x_pool.pt")
+        # torch.save(x_pool, "path/x_pool.pt")
 
         # Concatenate final embedding and pooled representation
         x = torch.cat((x, x_pool_expanded), dim=1)
@@ -973,6 +977,87 @@ class M11(torch.nn.Module):
             size_conv_layers=size_conv_layers,
             num_linear_layers=num_linear_layers,
             size_linear_layers=size_linear_layers,
+        )
+
+        return params, hyperparams
+
+
+class M12(torch.nn.Module):
+    def __init__(self, params, hyperparams, class_weights) -> None:
+        super(M12, self).__init__()
+
+        self.conv = torch.nn.ModuleList()
+        self.batch_norm = torch.nn.ModuleList()
+        self.activation = torch.nn.LeakyReLU()
+        self.dropout = torch.nn.Dropout(0.1)
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv.append(
+                GINEConv(
+                    torch.nn.Sequential(
+                        torch.nn.Linear(in_channels, out_channels),
+                        BatchNorm(out_channels),
+                        self.activation,
+                        torch.nn.Linear(out_channels, out_channels),
+                    ),
+                    train_eps=True,
+                    edge_dim=params["num_edge_features"],
+                )
+            )
+            self.batch_norm.append(BatchNorm(out_channels))
+            in_channels = out_channels
+
+        self.final = torch.nn.Linear(out_channels * 2, class_weights.shape[0])
+
+        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        batch: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        # Convolutions
+        x = data.x
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
+            x = conv(x, data.edge_index, data.edge_attr)
+            if i != len(self.conv) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
+                x = self.dropout(x)
+
+        # Pooling for context
+        x_pool = global_add_pool(x, batch)
+        num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
+        x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
+
+        # Concatenate final embedding and pooled representation
+        x = torch.cat((x, x_pool_expanded), dim=1)
+
+        # Classification
+        x = self.final(x)
+
+        return self.logsoftmax(x)
+
+    @classmethod
+    def get_params(self, data, trial):
+        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
+
+        params = dict(
+            num_node_features=data.num_node_features,
+            num_edge_features=data.num_edge_features,
+        )
+
+        hyperparams = dict(
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
         )
 
         return params, hyperparams
