@@ -133,7 +133,7 @@ class ValidationMetrics(BaseMetrics):
         with open(os.path.join(output_folder, "validation.txt"), "w") as f:
             for key, value in metrics.items():
                 f.write(
-                    f"{key}: {round(mean(value), 2)} +/- {round(stdev(value), 2)}\n"
+                    f"{key}: {round(mean(value), 4)} +/- {round(stdev(value), 4)}\n"
                 )
 
 
@@ -216,15 +216,15 @@ class TestMetrics(BaseMetrics):
             mol_r_precision = mean(per_molecule_r_precisions)
 
             with open(os.path.join(output_folder, "results.txt"), "w") as f:
-                f.write(f"MCC: {round(cls.mcc(y_hat_bin, y).item(), 2)}\n")
-                f.write(f"Precision: {round(cls.precision(y_hat_bin, y).item(), 2)}\n")
-                f.write(f"Recall: {round(cls.recall(y_hat_bin, y).item(), 2)}\n")
-                f.write(f"Molecular R-Precision: {round(mol_r_precision, 2)}\n")
-                f.write(f"Molecular AUROC:  {round(mol_auroc, 2)}\n")
-                f.write(f"Top-2 Correctness Rate: {round(top2_correctness_rate, 2)}\n")
-                f.write(f"Atomic R-Precision: {round(atom_r_precision, 2)}\n")
+                f.write(f"MCC: {round(cls.mcc(y_hat_bin, y).item(), 4)}\n")
+                f.write(f"Precision: {round(cls.precision(y_hat_bin, y).item(), 4)}\n")
+                f.write(f"Recall: {round(cls.recall(y_hat_bin, y).item(), 4)}\n")
+                f.write(f"Molecular R-Precision: {round(mol_r_precision, 4)}\n")
+                f.write(f"Molecular AUROC:  {round(mol_auroc, 4)}\n")
+                f.write(f"Top-2 Correctness Rate: {round(top2_correctness_rate, 4)}\n")
+                f.write(f"Atomic R-Precision: {round(atom_r_precision, 4)}\n")
                 f.write(
-                    f"Atomic AUROC: {round(cls.auroc(y_hat_avg[:, 1], y).item(), 2)}\n"
+                    f"Atomic AUROC: {round(cls.auroc(y_hat_avg[:, 1], y).item(), 4)}\n"
                 )
 
             RocCurveDisplay.from_predictions(y, y_hat_avg[:, 1])
