@@ -3,7 +3,8 @@ import optuna
 import os
 import torch
 
-from lightning import Trainer, Callback, lightning_seed_everything
+from lightning import Trainer, Callback
+from lightning import seed_everything as lightning_seed_everything
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
@@ -30,6 +31,7 @@ from awesom import (
     M9,
     M10,
     M11,
+    M12,
     ValidationMetrics,
 )
 
@@ -45,6 +47,7 @@ model_dict = {
     "M9": M9,
     "M10": M10,
     "M11": M11,
+    "M12": M12,
 }
 
 class PatchedCallback(PyTorchLightningPruningCallback, Callback):
