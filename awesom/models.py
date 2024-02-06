@@ -8,16 +8,12 @@ from torch_geometric.nn import (
     ChebConv,
     global_add_pool,
 )
-from torch_geometric.nn.models import GIN
 from typing import List, Optional, Tuple, Union
 from lightning import LightningModule
 from torchmetrics import AUROC, MatthewsCorrCoef
 
 # from torch_geometric.nn.norm import LayerNorm
 # from torch_geometric import transforms as T
-
-
-
 
 
 class GNN(LightningModule):
@@ -45,12 +41,15 @@ class GNN(LightningModule):
             "M9": M9,
             "M10": M10,
             "M11": M11,
+            "M12": M12,
         }
 
         self.cw = torch.tensor(
             [weight for weight in class_weights.values()], dtype=torch.float
         ).cuda()
         self.model = model_dict[architecture](params, hyperparams, self.cw)
+        # self.loss_function = torch.nn.BCEWithLogitsLoss(reduction="mean")
+        # self.loss_function = torch.nn.CrossEntropyLoss(weight=self.cw, reduction="mean")
         self.loss_function = torch.nn.NLLLoss(weight=self.cw, reduction="mean")
         self.learning_rate = hyperparams["learning_rate"]
         self.weight_decay = hyperparams["weight_decay"]
@@ -59,6 +58,10 @@ class GNN(LightningModule):
         self.val_auroc = AUROC(task="multiclass", num_classes=2)
         self.train_mcc = MatthewsCorrCoef(task="multiclass", num_classes=2)
         self.val_mcc = MatthewsCorrCoef(task="multiclass", num_classes=2)
+
+    def heteroscedastic_loss(y, mean, var):
+        loss = (var**(-1)) * (y - mean)**2 + torch.log(var)
+        return loss
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -195,7 +198,7 @@ class M1(torch.nn.Module):
 
         x = self.final(x)
 
-        return torch.softmax(x, dim=1)
+        return x
 
     @classmethod
     def get_params(self, data, trial):
@@ -260,14 +263,9 @@ class M2(torch.nn.Module):
                 x = batch_norm(x)
                 x = self.activation(x)
 
-        torch.save(
-            x,
-            "/data/shared/private/rjacob/awesom/experiments/yaQSAR/RDKIT/M2/play/x.pt",
-        )
-
         x = self.final(x)
 
-        return torch.softmax(x, dim=1)
+        return x
 
     @classmethod
     def get_params(self, data, trial):
@@ -343,7 +341,7 @@ class M3(torch.nn.Module):
         # Classify
         h = self.final(h)
 
-        return torch.softmax(h, dim=1)
+        return x
 
     @classmethod
     def get_params(self, data, trial):
@@ -413,7 +411,7 @@ class M4(torch.nn.Module):
         # Classify
         x = self.final(x)
 
-        return torch.softmax(x, dim=1)
+        return x
 
     @classmethod
     def get_params(self, data, trial):
@@ -494,7 +492,7 @@ class M5(torch.nn.Module):
         # Classification
         x = self.final(x)
 
-        return torch.softmax(x, dim=1)
+        return x
 
     @classmethod
     def get_params(self, data, trial):
@@ -571,8 +569,8 @@ class M6(torch.nn.Module):
 
         x = self.final(x, data.edge_index, data.edge_attr)
 
-        return torch.softmax(x, dim=1)
-
+        return x
+    
     @classmethod
     def get_params(self, data, trial):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
@@ -644,7 +642,7 @@ class M7(torch.nn.Module):
 
         x = self.final(x)
 
-        return torch.softmax(x, dim=1)
+        return x
 
     @classmethod
     def get_params(self, data, trial):
@@ -715,7 +713,7 @@ class M8(torch.nn.Module):
 
         x = self.final(x)
 
-        return torch.softmax(x, dim=1)
+        return x
 
     @classmethod
     def get_params(self, data, trial):
@@ -783,7 +781,7 @@ class M9(torch.nn.Module):
 
         x = self.final(x)
 
-        return torch.softmax(x, dim=1)
+        return x
 
     @classmethod
     def get_params(self, data, trial):
@@ -863,7 +861,7 @@ class M10(torch.nn.Module):
         # Classify
         x = self.final(x)
 
-        return torch.softmax(x, dim=1)
+        return x
 
     @classmethod
     def get_params(self, data, trial):
@@ -954,7 +952,7 @@ class M11(torch.nn.Module):
             x = self.dropout(x)
         x = self.final(x)
 
-        return torch.softmax(x, dim=1)
+        return x
 
     @classmethod
     def get_params(self, data, trial):
@@ -989,7 +987,7 @@ class M12(torch.nn.Module):
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
         self.activation = torch.nn.LeakyReLU()
-        self.dropout = torch.nn.Dropout(0.1)
+        self.dropout = torch.nn.Dropout(0.2)
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
