@@ -59,11 +59,31 @@ class GNN(LightningModule):
         self.train_mcc = MatthewsCorrCoef(task="multiclass", num_classes=2)
         self.val_mcc = MatthewsCorrCoef(task="multiclass", num_classes=2)
 
+
     def heteroscedastic_loss(y, mean, var):
+        """Computes heteroscedastic loss for a prediction.
+        
+        Args:
+        y: Ground truth labels tensor.
+        mean: Predicted mean tensor. 
+        var: Predicted variance tensor.
+        
+        Returns:
+        The heteroscedastic loss value.
+        """
         loss = (var**(-1)) * (y - mean)**2 + torch.log(var)
         return loss
 
     def configure_optimizers(self):
+        """Configures the optimizers and learning rate scheduler.
+        
+        Creates an Adam optimizer with the given learning rate and weight decay. 
+        Also creates a ReduceLROnPlateau learning rate scheduler that reduces the 
+        learning rate by a factor of 0.1 when the validation loss plateaus.
+        
+        Returns:
+            A dictionary with the optimizer and learning rate scheduler. 
+        """
         optimizer = torch.optim.Adam(
             self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
         )
