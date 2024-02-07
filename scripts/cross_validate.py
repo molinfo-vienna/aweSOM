@@ -114,7 +114,7 @@ def run_train():
             os.makedirs(os.path.join(args.outputFolder, f"fold{fold_id}"))
 
         storage = "sqlite:///" + args.outputFolder + f"/fold{fold_id}" + "/storage.db"
-        pruner = optuna.pruners.MedianPruner(n_min_trials=5, n_warmup_steps=5000)
+        pruner = optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=1000)
         study = optuna.create_study(
             study_name=f"{args.model}_study",
             direction="maximize",
