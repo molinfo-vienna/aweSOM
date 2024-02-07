@@ -30,6 +30,7 @@ NUM_H_NEIGHBORS = [0, 1, 2, 3, "OTHER"]
 
 BOND_TYPE_STR = ["SINGLE", "DOUBLE", "TRIPLE", "AROMATIC", "OTHER"]
 BOND_TYPE_INT = [1, 2, 3, "OTHER"]
+BOND_STEREO_STR = ["STEREONONE", "STEREOANY", "STEREOZ", "STEREOE", "STEREOCIS", "STEREOTRANS"]
 
 CLASS1 = [i for i in range(4)]  # 3 total
 CLASS2 = [i for i in range(22)]  # 21 total
@@ -598,10 +599,11 @@ def generate_bond_features_RDKit(bond: RDKitBond) -> list[float]:
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
-    return _get_one_hot_encoded_element(str(bond.GetBondType()), BOND_TYPE_STR) + [
-        float(bond.IsInRing()),
-        float(bond.GetIsConjugated()),
-    ]
+    return _get_one_hot_encoded_element(str(bond.GetBondType()), BOND_TYPE_STR) + \
+           _get_one_hot_encoded_element(str(bond.GetStereo()), BOND_STEREO_STR) + [
+               float(bond.IsInRing()),
+               float(bond.GetIsConjugated()),
+           ]
 
 
 def generate_preprocessed_data_RDKit(
@@ -666,28 +668,28 @@ def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int) -> List[
     """
     features = {
         "atom_type": _get_one_hot_encoded_element(atom.GetAtomicNum(), ELEM_LIST),
-        # "aromaticity": list([float(atom.GetIsAromatic())]),
-        # "degree": _get_one_hot_encoded_element(atom.GetTotalDegree(), TOTAL_DEGREE),
+        "aromaticity": list([float(atom.GetIsAromatic())]),
         "formal_charge": _get_one_hot_encoded_element(
             atom.GetFormalCharge(), FORMAL_CHARGE
         ),
-        # "hybridization_state": _get_one_hot_encoded_element(
-        #     str(atom.GetHybridization()), HYBRIDIZATION_TYPE
-        # ),
-        # "ring_size": _get_one_hot_encoded_element(atm_ring_length, RING_SIZE),
-        # "valence": _get_one_hot_encoded_element(atom.GetTotalValence(), TOTAL_VALENCE),
-        # "num_h_neighbors": _get_one_hot_encoded_element(atom.GetTotalNumHs(), NUM_H_NEIGHBORS),
+        "hybridization_state": _get_one_hot_encoded_element(
+            str(atom.GetHybridization()), HYBRIDIZATION_TYPE
+        ),
+        "num_h_neighbors": _get_one_hot_encoded_element(atom.GetTotalNumHs(), NUM_H_NEIGHBORS),
+        "ring_size": _get_one_hot_encoded_element(atm_ring_length, RING_SIZE),
+        "total_degree": _get_one_hot_encoded_element(atom.GetTotalDegree(), TOTAL_DEGREE),
+        "valence": _get_one_hot_encoded_element(atom.GetTotalValence(), TOTAL_VALENCE),
         # "class3": _get_one_hot_encoded_element(class3, CLASS3),
     }
     return (
         features["atom_type"]
-        # + features["aromaticity"]
-        # + features["degree"]
+        + features["aromaticity"]
         + features["formal_charge"]
-        # + features["hybridization_state"]
-        # + features["ring_size"]
-        # + features["valence"]
-        # + features["num_h_neighbors"]
+        + features["hybridization_state"]
+        + features["ring_size"]
+        + features["degree"]
+        + features["valence"]
+        + features["num_h_neighbors"]
         # + features["class3"]
     )
 
