@@ -96,7 +96,7 @@ def run_train():
                 EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=30),
                 PatchedCallback(trial=trial, monitor="val/loss"),
                 ModelCheckpoint(
-                    filename=f"trial{trial._trial_id}", monitor="val/mcc", mode="max"
+                    filename=f"trial{trial._trial_id}", monitor="val/loss", mode="min"
                 ),
             ]
 
@@ -112,7 +112,7 @@ def run_train():
                 model=model, train_dataloaders=train_loader, val_dataloaders=val_loader
             )
 
-            return trainer.callback_metrics["val/mcc"].item()
+            return trainer.callback_metrics["val/loss"].item()
 
         if not os.path.exists(os.path.join(args.outputFolder, f"m{mid}")):
             os.makedirs(os.path.join(args.outputFolder, f"m{mid}"))
@@ -121,7 +121,7 @@ def run_train():
         pruner = optuna.pruners.MedianPruner(n_min_trials=5, n_warmup_steps=100)
         study = optuna.create_study(
             study_name=f"{args.model}_study",
-            direction="maximize",
+            direction="minimize",
             pruner=pruner,
             storage=storage,
             load_if_exists=True,
@@ -136,7 +136,7 @@ def run_train():
         print("   Number of pruned trials: ", len(pruned_trials))
         print("   Number of complete trials: ", len(complete_trials))
         print(
-            f"Best trial is trial {study.best_trial._trial_id} with validation mcc {study.best_trial.value} and hyperparameters:"
+            f"Best trial is trial {study.best_trial._trial_id} with validation loss {study.best_trial.value} and hyperparameters:"
         )
         for key, value in study.best_trial.params.items():
             print("   {}: {}".format(key, value))
@@ -157,9 +157,7 @@ def run_train():
         model = GNN.load_from_checkpoint(checkpoint_path)
 
         trainer = Trainer(accelerator="auto", logger=False)
-        validation_outputs[mid] = trainer.predict(
-            model=model, dataloaders=DataLoader(val_data, batch_size=len(val_data))
-        )
+        validation_outputs[mid] = trainer.predict(model=model, dataloaders=val_loader)
 
     ValidationMetrics.compute_and_log_validation_metrics(
         validation_outputs, args.outputFolder
