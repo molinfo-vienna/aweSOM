@@ -61,15 +61,16 @@ def run_train():
     torch.backends.cudnn.benchmark = True
     torch.set_float32_matmul_precision("medium")
 
-    data = SOM(root=args.inputFolder, transform=T.ToUndirected())  # , transform=T.Distance(norm=False)
-    train_data, val_data = train_test_split(data, test_size=1/9, random_state=42)
+    data = SOM(
+        root=args.inputFolder, transform=T.ToUndirected()
+    )  # , transform=T.Distance(norm=False)
+    train_data, val_data = train_test_split(data, test_size=1 / 9, random_state=42)
     print(f"Number of training instances: {len(train_data)}")
     print(f"Number of validation instances: {len(val_data)}")
 
     validation_outputs = {}
 
     for mid in range(args.ensembleSize):
-
         train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
         val_loader = DataLoader(val_data, batch_size=64, shuffle=True)
 

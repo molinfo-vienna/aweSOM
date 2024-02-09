@@ -52,40 +52,43 @@ class GNN(LightningModule):
         # self.loss_function = torch.nn.CrossEntropyLoss(weight=self.cw, reduction="mean")
         self.loss_function = torch.nn.NLLLoss(weight=self.cw, reduction="mean")
         self.learning_rate = hyperparams["learning_rate"]
-        self.weight_decay = hyperparams["weight_decay"]
 
         self.train_auroc = AUROC(task="multiclass", num_classes=2)
         self.val_auroc = AUROC(task="multiclass", num_classes=2)
         self.train_mcc = MatthewsCorrCoef(task="multiclass", num_classes=2)
         self.val_mcc = MatthewsCorrCoef(task="multiclass", num_classes=2)
 
-
     def heteroscedastic_loss(y, mean, var):
         """Computes heteroscedastic loss for a prediction.
-        
+
         Args:
         y: Ground truth labels tensor.
-        mean: Predicted mean tensor. 
+        mean: Predicted mean tensor.
         var: Predicted variance tensor.
-        
+
         Returns:
         The heteroscedastic loss value.
         """
-        loss = (var**(-1)) * (y - mean)**2 + torch.log(var)
+        loss = (var ** (-1)) * (y - mean) ** 2 + torch.log(var)
         return loss
 
     def configure_optimizers(self):
         """Configures the optimizers and learning rate scheduler.
-        
-        Creates an Adam optimizer with the given learning rate and weight decay. 
-        Also creates a ReduceLROnPlateau learning rate scheduler that reduces the 
+
+        Creates an Adam optimizer with the given learning rate.
+        Also creates a ReduceLROnPlateau learning rate scheduler that reduces the
         learning rate by a factor of 0.1 when the validation loss plateaus.
-        
+
         Returns:
-            A dictionary with the optimizer and learning rate scheduler. 
+            A dictionary with the optimizer and learning rate scheduler.
         """
-        optimizer = torch.optim.Adam(
-            self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
+        optimizer = torch.optim.AdamW(
+            self.parameters(),
+            lr=self.learning_rate,
+            betas=(0.9, 0.999),
+            eps=1e-08,
+            weight_decay=0.01,
+            amsgrad=False,
         )
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, mode="min", factor=0.1, patience=10
@@ -590,7 +593,7 @@ class M6(torch.nn.Module):
         x = self.final(x, data.edge_index, data.edge_attr)
 
         return x
-    
+
     @classmethod
     def get_params(self, data, trial):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
@@ -1062,7 +1065,6 @@ class M12(torch.nn.Module):
     @classmethod
     def get_params(self, data, trial):
         learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
 
@@ -1073,7 +1075,6 @@ class M12(torch.nn.Module):
 
         hyperparams = dict(
             learning_rate=learning_rate,
-            weight_decay=weight_decay,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
         )

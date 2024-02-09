@@ -50,6 +50,7 @@ model_dict = {
     "M12": M12,
 }
 
+
 class PatchedCallback(PyTorchLightningPruningCallback, Callback):
     pass
 
@@ -59,9 +60,11 @@ def run_train():
     geometric_seed_everything(42)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    torch.set_float32_matmul_precision('medium')
+    torch.set_float32_matmul_precision("medium")
 
-    data = SOM(root=args.inputFolder, transform=T.ToUndirected()).shuffle()  # , transform=T.Distance(norm=False)
+    data = SOM(
+        root=args.inputFolder, transform=T.ToUndirected()
+    ).shuffle()  # , transform=T.Distance(norm=False)
     print(f"Number of training instances: {len(data)}")
 
     validation_outputs = {}
@@ -76,16 +79,18 @@ def run_train():
         def objective(trial):
             model_type = model_dict[args.model]
             params, hyperparams = model_type.get_params(data, trial)
-            model = GNN(params=params, 
-                        hyperparams=hyperparams, 
-                        class_weights=data.get_class_weights(), 
-                        architecture=args.model, 
-                        threshold=0.5
+            model = GNN(
+                params=params,
+                hyperparams=hyperparams,
+                class_weights=data.get_class_weights(),
+                architecture=args.model,
+                threshold=0.5,
             )
 
             tbl = TensorBoardLogger(
                 save_dir=os.path.join(
-                    os.path.join(args.outputFolder, f"fold{fold_id}"), "logs",
+                    os.path.join(args.outputFolder, f"fold{fold_id}"),
+                    "logs",
                 ),
                 name=f"trial{trial._trial_id}",
                 default_hp_metric=False,
@@ -93,7 +98,9 @@ def run_train():
             callbacks = [
                 EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=30),
                 PatchedCallback(trial=trial, monitor="val/loss"),
-                ModelCheckpoint(filename=f"trial{trial._trial_id}", monitor="val/loss", mode="min")
+                ModelCheckpoint(
+                    filename=f"trial{trial._trial_id}", monitor="val/loss", mode="min"
+                ),
             ]
 
             trainer = Trainer(
@@ -153,11 +160,14 @@ def run_train():
         model = GNN.load_from_checkpoint(checkpoint_path)
 
         trainer = Trainer(accelerator="auto", logger=False)
-        validation_outputs[fold_id] = trainer.predict(model=model, dataloaders=val_loader)
+        validation_outputs[fold_id] = trainer.predict(
+            model=model, dataloaders=val_loader
+        )
 
     ValidationMetrics.compute_and_log_validation_metrics(
         validation_outputs, args.outputFolder
     )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Training and testing the model.")

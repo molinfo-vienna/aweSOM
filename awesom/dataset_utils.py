@@ -30,7 +30,14 @@ NUM_H_NEIGHBORS = [0, 1, 2, 3, "OTHER"]
 
 BOND_TYPE_STR = ["SINGLE", "DOUBLE", "TRIPLE", "AROMATIC", "OTHER"]
 BOND_TYPE_INT = [1, 2, 3, "OTHER"]
-BOND_STEREO_STR = ["STEREONONE", "STEREOANY", "STEREOZ", "STEREOE", "STEREOCIS", "STEREOTRANS"]
+BOND_STEREO_STR = [
+    "STEREONONE",
+    "STEREOANY",
+    "STEREOZ",
+    "STEREOE",
+    "STEREOCIS",
+    "STEREOTRANS",
+]
 
 CLASS1 = [i for i in range(4)]  # 3 total
 CLASS2 = [i for i in range(22)]  # 21 total
@@ -600,9 +607,9 @@ def generate_bond_features_RDKit(bond: RDKitBond) -> list[float]:
         (list[float]): one-hot encoded atom feature list
     """
     return _get_one_hot_encoded_element(str(bond.GetBondType()), BOND_TYPE_STR) + [
-               float(bond.IsInRing()),
-               float(bond.GetIsConjugated()),
-           ]
+        float(bond.IsInRing()),
+        float(bond.GetIsConjugated()),
+    ]
 
 
 def generate_preprocessed_data_RDKit(
