@@ -142,7 +142,6 @@ class TestMetrics(BaseMetrics):
     def compute_and_log_test_metric(
         cls, predictions: dict, output_folder: str, true_labels: bool
     ) -> None:
-
         y_hats = []
         for model_id, preds in predictions.items():
             y_hats.append(preds[0][0])
