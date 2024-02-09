@@ -96,10 +96,10 @@ def run_train():
                 default_hp_metric=False,
             )
             callbacks = [
-                EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=30),
-                PatchedCallback(trial=trial, monitor="val/loss"),
+                EarlyStopping(monitor="val/mcc", mode="max", min_delta=0, patience=30),
+                PatchedCallback(trial=trial, monitor="val/mcc"),
                 ModelCheckpoint(
-                    filename=f"trial{trial._trial_id}", monitor="val/loss", mode="min"
+                    filename=f"trial{trial._trial_id}", monitor="val/mcc", mode="max"
                 ),
             ]
 
@@ -115,7 +115,7 @@ def run_train():
                 model=model, train_dataloaders=train_loader, val_dataloaders=val_loader
             )
 
-            return trainer.callback_metrics["val/loss"].item()
+            return trainer.callback_metrics["val/mcc"].item()
 
         if not os.path.exists(os.path.join(args.outputFolder, f"fold{fold_id}")):
             os.makedirs(os.path.join(args.outputFolder, f"fold{fold_id}"))
@@ -124,7 +124,7 @@ def run_train():
         pruner = optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=1000)
         study = optuna.create_study(
             study_name=f"{args.model}_study",
-            direction="minimize",
+            direction="maximize",
             pruner=pruner,
             storage=storage,
             load_if_exists=True,
@@ -139,7 +139,7 @@ def run_train():
         print("   Number of pruned trials: ", len(pruned_trials))
         print("   Number of complete trials: ", len(complete_trials))
         print(
-            f"Best trial is trial {study.best_trial._trial_id} with validation loss {study.best_trial.value} and hyperparameters:"
+            f"Best trial is trial {study.best_trial._trial_id} with validation mcc {study.best_trial.value} and hyperparameters:"
         )
         for key, value in study.best_trial.params.items():
             print("   {}: {}".format(key, value))
