@@ -10,6 +10,7 @@ from multiprocessing import Pool
 from rdkit.Chem import Mol as RDKitMol
 from rdkit.Chem.rdchem import Atom as RDKitAtom
 from rdkit.Chem.rdchem import Bond as RDKitBond
+from rdkit.Chem import rdMolDescriptors
 from typing import Any, List, Tuple
 
 import CDPL.Chem as Chem
@@ -661,6 +662,32 @@ def generate_preprocessed_data_chunk_RDKit(
     return G
 
 
+def generate_mol_features_RDKit(mol: RDKitMol) -> List[float]:
+    return [
+        rdMolDescriptors.CalcExactMolWt(mol),
+        rdMolDescriptors.CalcFractionCSP3(mol),
+        rdMolDescriptors.CalcLabuteASA(mol),
+        rdMolDescriptors.CalcNumAliphaticCarbocycles(mol),
+        rdMolDescriptors.CalcNumAliphaticHeterocycles(mol),
+        rdMolDescriptors.CalcNumAliphaticRings(mol),
+        rdMolDescriptors.CalcNumAmideBonds(mol),
+        rdMolDescriptors.CalcNumAromaticCarbocycles(mol),
+        rdMolDescriptors.CalcNumAromaticHeterocycles(mol),
+        rdMolDescriptors.CalcNumAromaticRings(mol),
+        rdMolDescriptors.CalcNumHeavyAtoms(mol),
+        rdMolDescriptors.CalcNumHBA(mol),
+        rdMolDescriptors.CalcNumHBD(mol),
+        rdMolDescriptors.CalcNumHeteroatoms(mol),
+        rdMolDescriptors.CalcNumHeterocycles(mol),
+        rdMolDescriptors.CalcNumRings(mol),
+        rdMolDescriptors.CalcNumRotatableBonds(mol),
+        rdMolDescriptors.CalcNumSaturatedCarbocycles(mol),
+        rdMolDescriptors.CalcNumSaturatedHeterocycles(mol),
+        rdMolDescriptors.CalcNumSaturatedRings(mol),
+        rdMolDescriptors.CalcTPSA(mol),
+    ]
+
+
 def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int) -> List[float]:
     # def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int, class3: int) -> List[float]:
     """
@@ -699,7 +726,6 @@ def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int) -> List[
         # + features["class3"]
     )
 
-
 def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
     # def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int], class3: int) -> nx.Graph:
     """
@@ -729,6 +755,7 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
             atom_idx,  # node identifier
             node_features=generate_node_features_RDKit(atom, atm_ring_length),
             # node_features=generate_node_features_RDKit(atom, atm_ring_length, class3),
+            mol_features = generate_mol_features_RDKit(mol),
             is_som=(atom_idx in soms),  # label
             # the next two elements are later used to assign the
             # predicted labels but are of course not used as features!

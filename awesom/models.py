@@ -18,9 +18,8 @@ class GNN(LightningModule):
         self,
         params,
         hyperparams,
-        class_weights,
         architecture,
-        threshold,
+        pos_weight,
     ) -> None:
         super(GNN, self).__init__()
 
@@ -44,28 +43,18 @@ class GNN(LightningModule):
             "M15": M15,
         }
 
-        self.cw = torch.tensor(
-            [weight for weight in class_weights.values()], dtype=torch.float
-        ).cuda()
-        self.model = model_dict[architecture](params, hyperparams, self.cw)
-        # Since the problem of SoM prediction is a binary classification problem, we should use binary loss ...
-        # self.loss_function = torch.nn.BCELoss(reduction="mean")  # takes log probabilities as input
-        # self.loss_function = torch.nn.BCEWithLogitsLoss(reduction="mean")  # takes unnormalized logits as input
-        # ... the issue however is that the way BCE loss is implemented in PyTorch makes it difficult to use class weights ...
-        # ... which are important in the case of unbalanced classification ...
-        # ... I therefore prefer to use losses for multiclass classification with number_of_classes = 2 ...
-        # ... It looks strange, but it makes it much easier to use class weights and does not impact the learning process.
-        # self.loss_function = torch.nn.NLLLoss(weight=self.cw, reduction="mean")  # takes log probabilities as input
-        self.loss_function = torch.nn.CrossEntropyLoss(weight=self.cw, reduction="mean")  # takes unnormalized logits as input
+        self.model = model_dict[architecture](params, hyperparams)
+
+        self.pos_weight = torch.tensor(pos_weight, dtype=torch.float).cuda()
+        self.loss_function = torch.nn.BCEWithLogitsLoss(pos_weight=self.pos_weight, reduction="mean")
+
         self.learning_rate = hyperparams["learning_rate"]
         self.weight_decay = hyperparams["weight_decay"]
 
-        self.train_auroc = AUROC(task="multiclass", num_classes=2)
-        self.val_auroc = AUROC(task="multiclass", num_classes=2)
-        self.train_mcc = MatthewsCorrCoef(task="multiclass", num_classes=2)
-        self.val_mcc = MatthewsCorrCoef(task="multiclass", num_classes=2)
-
-        # self.logsoftmax = torch.nn.LogSoftmax(dim=1)
+        self.train_auroc = AUROC(task="binary")
+        self.val_auroc = AUROC(task="binary")
+        self.train_mcc = MatthewsCorrCoef(task="binary")
+        self.val_mcc = MatthewsCorrCoef(task="binary")
 
     def heteroscedastic_loss(y, mean, var):
         """Computes heteroscedastic loss for a prediction.
@@ -112,7 +101,7 @@ class GNN(LightningModule):
 
     def step(self, batch):
         logits = self.model(batch, batch.batch)
-        loss = self.loss_function(logits, batch.y)
+        loss = self.loss_function(logits, batch.y.float())
         return loss, logits
 
     def on_train_start(self) -> None:
@@ -129,9 +118,10 @@ class GNN(LightningModule):
         )
 
     def training_step(self, batch, batch_idx):
-        loss, y_hat = self.step(batch)
-        self.train_auroc(y_hat, batch.y)
-        self.train_mcc(y_hat, batch.y)
+        loss, logits = self.step(batch)
+        y_hats = torch.sigmoid(logits)
+        self.train_auroc(y_hats, batch.y)
+        self.train_mcc(y_hats, batch.y)
         self.log(
             "train/loss",
             loss,
@@ -156,9 +146,10 @@ class GNN(LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, y_hat = self.step(batch)
-        self.val_auroc(y_hat, batch.y)
-        self.val_mcc(y_hat, batch.y)
+        loss, logits = self.step(batch)
+        y_hats = torch.sigmoid(logits)
+        self.val_auroc(y_hats, batch.y)
+        self.val_mcc(y_hats, batch.y)
         self.log(
             "val/loss",
             loss,
@@ -1241,7 +1232,7 @@ class M14(torch.nn.Module):
 
 
 class M15(torch.nn.Module):
-    def __init__(self, params, hyperparams, class_weights) -> None:
+    def __init__(self, params, hyperparams) -> None:
         super(M15, self).__init__()
 
         self.conv = torch.nn.ModuleList()
@@ -1268,7 +1259,7 @@ class M15(torch.nn.Module):
             self.batch_norm.append(BatchNorm(out_channels + params["num_node_features"]))
             in_channels = out_channels + params["num_node_features"]
 
-        self.final = torch.nn.Linear((out_channels + params["num_node_features"])* 2, class_weights.shape[0])
+        self.final = torch.nn.Linear((out_channels + params["num_node_features"])* 2, 1)
 
     def forward(
         self,
@@ -1296,7 +1287,7 @@ class M15(torch.nn.Module):
         # Classification
         x = self.final(x)
 
-        return x
+        return torch.flatten(x)
 
     @classmethod
     def get_params(self, data, trial):

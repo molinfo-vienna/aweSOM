@@ -81,9 +81,8 @@ def run_train():
             model = GNN(
                 params=params,
                 hyperparams=hyperparams,
-                class_weights=data.get_class_weights(),
                 architecture=args.model,
-                threshold=0.5,
+                pos_weight=data.get_pos_weight(),
             )
 
             tbl = TensorBoardLogger(
@@ -147,14 +146,10 @@ def run_train():
         with open(os.path.join(args.outputFolder, "best_model_paths.txt"), "a") as f:
             f.write(path + "\n")
 
-        # Recompute validation metrics with best model
-
+        # Compute all validation metrics with best model
         for file in os.listdir(os.path.join(path, "checkpoints")):
             if file.endswith(".ckpt"):
                 checkpoint_path = os.path.join(os.path.join(path, "checkpoints"), file)
-        # for file in os.listdir(path):
-        #     if file.endswith(".yaml"):
-        #         hparams_file = os.path.join(path, file)
 
         model = GNN.load_from_checkpoint(checkpoint_path)
 

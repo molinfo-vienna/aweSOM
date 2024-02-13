@@ -71,7 +71,6 @@ def run_train():
     data = SOM(
         root=args.inputFolder, transform=T.ToUndirected()
     ).shuffle()
-    print(f"Number of training instances: {len(data)}")
 
     validation_outputs = {}
 
@@ -82,15 +81,16 @@ def run_train():
         train_loader = DataLoader(train_data, batch_size=args.batchSize)
         val_loader = DataLoader(val_data, batch_size=args.batchSize)
 
+        print(f"CV-fold {fold_id}/{args.numCVFolds}: number of training instances {len(train_data)}, number of validation instances {len(val_data)}")
+
         def objective(trial):
             model_type = model_dict[args.model]
             params, hyperparams = model_type.get_params(data, trial)
             model = GNN(
                 params=params,
                 hyperparams=hyperparams,
-                class_weights=data.get_class_weights(),
                 architecture=args.model,
-                threshold=0.5,
+                pos_weight=data.get_pos_weight(),
             )
 
             tbl = TensorBoardLogger(
