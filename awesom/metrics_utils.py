@@ -55,11 +55,12 @@ class ValidationMetrics(BaseMetrics):
         }
 
         for fold_id, preds in predictions.items():
-            y_hat = preds[0][0]
+            logits = preds[0][0]
             y = preds[0][1]
             mol_id = preds[0][2]
             atom_id = preds[0][3]
 
+            y_hat = torch.log_softmax(logits, dim=1)
             y_hat_bin = torch.max(y_hat, dim=1).indices
             ranking = cls.compute_ranking(y_hat, mol_id)
 
@@ -139,19 +140,20 @@ class ValidationMetrics(BaseMetrics):
 
 class TestMetrics(BaseMetrics):
     @classmethod
-    def compute_and_log_test_metric(
+    def compute_and_log_test_metrics(
         cls, predictions: dict, output_folder: str, true_labels: bool
     ) -> None:
-        y_hats = []
+        logits_lst = []
         for model_id, preds in predictions.items():
-            y_hats.append(preds[0][0])
+            logits_lst.append(preds[0][0])
             if model_id == 0:
                 y = preds[0][1]
                 mol_id = preds[0][2]
                 atom_id = preds[0][3]
 
-        y_hats = torch.stack(y_hats, dim=0)
-        y_hat_avg = torch.mean(y_hats, dim=0)
+        logits = torch.stack(logits_lst, dim=0)
+        logits_avg = torch.mean(logits, dim=0)
+        y_hat_avg = torch.softmax(logits_avg, dim=1)
         y_hat_bin = torch.max(y_hat_avg, dim=1).indices
 
         ranking = cls.compute_ranking(y_hat_avg, mol_id)
@@ -222,9 +224,7 @@ class TestMetrics(BaseMetrics):
                 f.write(f"Molecular AUROC:  {round(mol_auroc, 4)}\n")
                 f.write(f"Top-2 Correctness Rate: {round(top2_correctness_rate, 4)}\n")
                 f.write(f"Atomic R-Precision: {round(atom_r_precision, 4)}\n")
-                f.write(
-                    f"Atomic AUROC: {round(cls.auroc(y_hat_avg[:, 1], y).item(), 4)}\n"
-                )
+                f.write(f"Atomic AUROC: {round(cls.auroc(y_hat_avg[:, 1], y).item(), 4)}\n")
 
             RocCurveDisplay.from_predictions(y, y_hat_avg[:, 1])
             plt.savefig(str(os.path.join(output_folder, "roc.png")), dpi=300)
