@@ -4,16 +4,13 @@ import os
 import torch
 
 from lightning import Trainer, Callback
-from lightning import seed_everything as lightning_seed_everything
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
-from operator import itemgetter
 from optuna.integration import PyTorchLightningPruningCallback
 from optuna.trial import TrialState
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import train_test_split
 from torch_geometric import transforms as T
-from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric.loader import DataLoader
 
 from awesom import (
@@ -31,6 +28,9 @@ from awesom import (
     M10,
     M11,
     M12,
+    M13,
+    M14,
+    M15,
     ValidationMetrics,
 )
 
@@ -47,6 +47,9 @@ model_dict = {
     "M10": M10,
     "M11": M11,
     "M12": M12,
+    "M13": M13,
+    "M14": M14,
+    "M15": M15,
 }
 
 
@@ -55,15 +58,13 @@ class PatchedCallback(PyTorchLightningPruningCallback, Callback):
 
 
 def run_train():
-    # lightning_seed_everything(42)
-    # geometric_seed_everything(42)
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = True
     torch.set_float32_matmul_precision("medium")
 
     data = SOM(
         root=args.inputFolder, transform=T.ToUndirected()
-    )  # , transform=T.Distance(norm=False)
+    )
     train_data, val_data = train_test_split(data, test_size=1 / 9, random_state=42)
     print(f"Number of training instances: {len(train_data)}")
     print(f"Number of validation instances: {len(val_data)}")
