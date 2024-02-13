@@ -22,7 +22,7 @@ class BaseMetrics:
                 torch.argsort(
                     torch.argsort(
                         torch.index_select(
-                            y_hat[:, 1], 0, torch.where(mol_id == mid)[0]
+                            y_hat, 0, torch.where(mol_id == mid)[0]
                         ),
                         dim=0,
                         descending=True,
@@ -60,9 +60,9 @@ class ValidationMetrics(BaseMetrics):
             mol_id = preds[0][2]
             atom_id = preds[0][3]
 
-            y_hat = torch.log_softmax(logits, dim=1)
-            y_hat_bin = torch.max(y_hat, dim=1).indices
+            y_hat = torch.sigmoid(logits)
             ranking = cls.compute_ranking(y_hat, mol_id)
+            y_hat_bin = (y_hat >= 0.5).int()
 
             with open(
                 os.path.join(output_folder, f"validation_fold{fold_id}.csv"), "w"
@@ -79,7 +79,7 @@ class ValidationMetrics(BaseMetrics):
                     )
                 )
                 for row in zip(
-                    y_hat[:, 1].tolist(),
+                    y_hat.tolist(),
                     ranking.tolist(),
                     y_hat_bin.tolist(),
                     y.tolist(),
@@ -91,10 +91,10 @@ class ValidationMetrics(BaseMetrics):
             metrics["MCC"].append(cls.mcc(y_hat_bin, y).item())
             metrics["Precision"].append(cls.precision(y_hat_bin, y).item())
             metrics["Recall"].append(cls.recall(y_hat_bin, y).item())
-            metrics["Atomic AUROC"].append(cls.auroc(y_hat[:, 1], y).item())
+            metrics["Atomic AUROC"].append(cls.auroc(y_hat, y).item())
 
             sorted_y = torch.index_select(
-                y, dim=0, index=torch.sort(y_hat[:, 1], descending=True)[1]
+                y, dim=0, index=torch.sort(y_hat, descending=True)[1]
             )
             total_num_soms_in_validation_split = torch.sum(y).item()
             metrics["Atomic R-Precision"].append(
@@ -114,13 +114,13 @@ class ValidationMetrics(BaseMetrics):
                 masked_sorted_y = torch.index_select(
                     masked_y,
                     dim=0,
-                    index=torch.sort(masked_y_hat[:, 1], descending=True)[1],
+                    index=torch.sort(masked_y_hat, descending=True)[1],
                 )
                 num_soms_in_current_mol = torch.sum(masked_y).item()
                 if torch.sum(masked_sorted_y[:2]).item() > 0:
                     top2_correctness_rate += 1
                 per_molecule_aurocs.append(
-                    cls.auroc(masked_y_hat[:, 1], masked_y).item()
+                    cls.auroc(masked_y_hat, masked_y).item()
                 )
                 per_molecule_r_precisions.append(
                     torch.sum(masked_sorted_y[:num_soms_in_current_mol]).item()
@@ -143,18 +143,18 @@ class TestMetrics(BaseMetrics):
     def compute_and_log_test_metrics(
         cls, predictions: dict, output_folder: str, true_labels: bool
     ) -> None:
-        logits_lst = []
         for model_id, preds in predictions.items():
-            logits_lst.append(preds[0][0])
             if model_id == 0:
+                logits = preds[0][0]
                 y = preds[0][1]
                 mol_id = preds[0][2]
                 atom_id = preds[0][3]
+            else:
+                logits = torch.stack((logits, preds[0][0]), dim=0)
 
-        logits = torch.stack(logits_lst, dim=0)
         logits_avg = torch.mean(logits, dim=0)
-        y_hat_avg = torch.softmax(logits_avg, dim=1)
-        y_hat_bin = torch.max(y_hat_avg, dim=1).indices
+        y_hat_avg = torch.sigmoid(logits_avg)
+        y_hat_bin = (y_hat_avg >= 0.5).int()
 
         ranking = cls.compute_ranking(y_hat_avg, mol_id)
         with open(os.path.join(output_folder, "results.csv"), "w") as f:
@@ -170,9 +170,9 @@ class TestMetrics(BaseMetrics):
                 )
             )
             for row in zip(
-                y_hat_avg[:, 1].tolist(),
+                y_hat_avg.tolist(),
                 ranking.tolist(),
-                torch.max(y_hat_avg, dim=1).indices.tolist(),
+                y_hat_bin.tolist(),
                 y.tolist(),
                 mol_id.tolist(),
                 atom_id.tolist(),
@@ -181,7 +181,7 @@ class TestMetrics(BaseMetrics):
 
         if true_labels:
             sorted_y = torch.index_select(
-                y, dim=0, index=torch.sort(y_hat_avg[:, 1], descending=True)[1]
+                y, dim=0, index=torch.sort(y_hat_avg, descending=True)[1]
             )
             total_num_soms = torch.sum(y).item()
             atom_r_precision = (
@@ -200,13 +200,13 @@ class TestMetrics(BaseMetrics):
                 masked_sorted_y = torch.index_select(
                     masked_y,
                     dim=0,
-                    index=torch.sort(masked_y_hat[:, 1], descending=True)[1],
+                    index=torch.sort(masked_y_hat, descending=True)[1],
                 )
                 num_soms_in_current_mol = torch.sum(masked_y).item()
                 if torch.sum(masked_sorted_y[:2]).item() > 0:
                     top2_correctness_rate += 1
                 per_molecule_aurocs.append(
-                    cls.auroc(masked_y_hat[:, 1], masked_y).item()
+                    cls.auroc(masked_y_hat, masked_y).item()
                 )
                 per_molecule_r_precisions.append(
                     torch.sum(masked_sorted_y[:num_soms_in_current_mol]).item()
@@ -224,7 +224,7 @@ class TestMetrics(BaseMetrics):
                 f.write(f"Molecular AUROC:  {round(mol_auroc, 4)}\n")
                 f.write(f"Top-2 Correctness Rate: {round(top2_correctness_rate, 4)}\n")
                 f.write(f"Atomic R-Precision: {round(atom_r_precision, 4)}\n")
-                f.write(f"Atomic AUROC: {round(cls.auroc(y_hat_avg[:, 1], y).item(), 4)}\n")
+                f.write(f"Atomic AUROC: {round(cls.auroc(y_hat_avg, y).item(), 4)}\n")
 
-            RocCurveDisplay.from_predictions(y, y_hat_avg[:, 1])
+            RocCurveDisplay.from_predictions(y, y_hat_avg)
             plt.savefig(str(os.path.join(output_folder, "roc.png")), dpi=300)

@@ -18,18 +18,18 @@ def run_predict():
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
 
-    if not os.path.exists(args.outputFolder):
-        os.makedirs(args.outputFolder)
+    if not os.path.exists(args.outputPath):
+        os.makedirs(args.outputPath)
 
     if args.test:
-        data = LabeledData(root=args.inputFolder, transform=T.ToUndirected())
+        data = LabeledData(root=args.inputPath, transform=T.ToUndirected())
     else:
-        data = UnlabeledData(root=args.inputFolder, transform=T.ToUndirected())
+        data = UnlabeledData(root=args.inputPath, transform=T.ToUndirected())
 
     print(f"Number of molecules: {len(data)}")
 
     best_model_paths = []
-    with open(os.path.join(args.modelFolder, "best_model_paths.txt"), "r") as f:
+    with open(os.path.join(args.checkpointsPath, "best_model_paths.txt"), "r") as f:
         best_model_paths = f.read().splitlines()
 
     predictions = {}
@@ -38,14 +38,8 @@ def run_predict():
         for file in os.listdir(os.path.join(path, "checkpoints")):
             if file.endswith(".ckpt"):
                 checkpoint_path = os.path.join(os.path.join(path, "checkpoints"), file)
-        # get best threshold from haparams.yaml
-        for file in os.listdir(path):
-            if file.endswith(".yaml"):
-                hparams_file = os.path.join(path, file)
-        with open(hparams_file, "r") as f:
-            best_threshold = yaml.safe_load(f)["threshold"]
 
-        model = GNN.load_from_checkpoint(checkpoint_path, threshold=best_threshold)
+        model = GNN.load_from_checkpoint(checkpoint_path)
 
         trainer = Trainer(accelerator="auto", logger=False)
         predictions[i] = trainer.predict(
@@ -53,7 +47,7 @@ def run_predict():
         )
 
     TestMetrics.compute_and_log_test_metrics(
-        predictions, args.outputFolder, args.test
+        predictions, args.outputPath, args.test
     )
 
 
@@ -69,7 +63,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-c",
-        dest="checkpointsFolder",
+        dest="checkpointsPath",
         type=str,
         required=True,
         help="The path to the model's checkpoints.",
