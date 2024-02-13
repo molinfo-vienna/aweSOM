@@ -32,6 +32,9 @@ from awesom import (
     M10,
     M11,
     M12,
+    M13,
+    M14,
+    M15,
     ValidationMetrics,
 )
 
@@ -48,6 +51,9 @@ model_dict = {
     "M10": M10,
     "M11": M11,
     "M12": M12,
+    "M13": M13,
+    "M14": M14,
+    "M15": M15,
 }
 
 
@@ -64,7 +70,7 @@ def run_train():
 
     data = SOM(
         root=args.inputFolder, transform=T.ToUndirected()
-    ).shuffle()  # , transform=T.Distance(norm=False)
+    ).shuffle()
     print(f"Number of training instances: {len(data)}")
 
     validation_outputs = {}
