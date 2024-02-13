@@ -21,7 +21,7 @@ def run_predict():
     if not os.path.exists(args.outputFolder):
         os.makedirs(args.outputFolder)
 
-    if args.trueLabels:
+    if args.test:
         data = LabeledData(root=args.inputFolder, transform=T.ToUndirected())
     else:
         data = UnlabeledData(root=args.inputFolder, transform=T.ToUndirected())
@@ -52,8 +52,8 @@ def run_predict():
             model=model, dataloaders=DataLoader(data, batch_size=len(data))
         )
 
-    TestMetrics.compute_and_log_test_metric(
-        predictions, args.outputFolder, args.trueLabels
+    TestMetrics.compute_and_log_test_metrics(
+        predictions, args.outputFolder, args.test
     )
 
 
@@ -62,30 +62,33 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-i",
-        dest="inputFolder",
+        dest="inputPath",
         type=str,
         required=True,
-        help="The folder where the input data is stored.",
+        help="The path to the input data.",
     )
     parser.add_argument(
-        "-m",
-        dest="modelFolder",
+        "-c",
+        dest="checkpointsFolder",
         type=str,
         required=True,
-        help="The folder where the model's checkpoints are stored.",
+        help="The path to the model's checkpoints.",
     )
     parser.add_argument(
         "-o",
-        dest="outputFolder",
+        dest="outputPath",
         type=str,
         required=True,
-        help="The folder where the output will be written.",
+        help="The desired output's location.",
     )
     parser.add_argument(
         "-t",
-        dest="trueLabels",
+        dest="test",
         required=False,
-        help="Whether or not your input data has true labels. If set to true, predict.py will compute classification metrics MCC, AUROC, precision and recall.",
+        help="Whether to performance inference (False, default value) or testing (True). \
+                If set to true, the script assumes that true labels are provided \
+                and computes the classification metrics (MCC, precision, recall, top2 correctness rate, \
+                atomic and molecular AUROCs, and atomic and molecular R-precisions).",
         action=argparse.BooleanOptionalAction,
     )
 
