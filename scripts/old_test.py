@@ -3,7 +3,6 @@ import os
 import torch
 import yaml
 
-from datetime import datetime
 from lightning import Trainer, seed_everything
 from pathlib import Path
 from torch_geometric import seed_everything as geometric_seed_everything
@@ -13,7 +12,7 @@ from torch_geometric.loader import DataLoader
 from awesom import LabeledData, UnlabeledData, GNN, TestMetrics
 
 
-def main():
+def run_predict():
     seed_everything(42)
     geometric_seed_everything(42)
     torch.backends.cudnn.deterministic = True
@@ -30,26 +29,16 @@ def main():
 
     print(f"Number of molecules: {len(data)}")
 
-    predictions = {}
-    checkpoints_path = Path(args.checkpointsPath, "lightning_logs")
-    version_paths = [
-        Path(checkpoints_path, f"version_{i}")
-        for i, _ in enumerate(os.listdir(checkpoints_path))
-    ]
-    for i, version_path in enumerate(version_paths):
-        checkpoint_path = [
-            Path(Path(version_path, "checkpoints"), file)
-            for file in os.listdir(Path(version_path, "checkpoints"))
-            if file.endswith(".ckpt")
-        ][0]
-        hparams = yaml.safe_load(Path(version_path, "hparams.yaml").read_text())
+    best_model_paths = []
+    with open(Path(args.checkpointsPath, "best_model_paths.txt"), "r") as f:
+        best_model_paths = f.read().splitlines()
 
-        model = GNN(
-            params=hparams["params"],
-            hyperparams=hparams["hyperparams"],
-            architecture=hparams["architecture"],
-            pos_weight=hparams["pos_weight"],
-        )
+    predictions = {}
+    for i, path in enumerate(best_model_paths):
+        # get checkpoints
+        for file in os.listdir(Path(path, "checkpoints")):
+            if file.endswith(".ckpt"):
+                checkpoint_path = Path(Path(path, "checkpoints"), file)
 
         model = GNN.load_from_checkpoint(checkpoint_path)
 
@@ -97,8 +86,4 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
-    start_time = datetime.now()
-    main()
-    print("Finished in:")
-    print(datetime.now() - start_time)
+    run_predict()

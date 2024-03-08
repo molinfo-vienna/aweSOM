@@ -3,15 +3,15 @@ import optuna
 import os
 import torch
 
-from lightning import Trainer, Callback
 from lightning import seed_everything as lightning_seed_everything
+from lightning import Trainer, Callback
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from operator import itemgetter
 from optuna.integration import PyTorchLightningPruningCallback
 from optuna.trial import TrialState
-from pytorch_lightning.core.saving import save_hparams_to_yaml
+from pathlib import Path
 from sklearn.model_selection import KFold
 from torch_geometric import transforms as T
 from torch_geometric import seed_everything as geometric_seed_everything
@@ -28,13 +28,6 @@ from awesom import (
     M6,
     M7,
     M8,
-    M9,
-    M10,
-    M11,
-    M12,
-    M13,
-    M14,
-    M15,
     ValidationMetrics,
 )
 
@@ -47,13 +40,6 @@ model_dict = {
     "M6": M6,
     "M7": M7,
     "M8": M8,
-    "M9": M9,
-    "M10": M10,
-    "M11": M11,
-    "M12": M12,
-    "M13": M13,
-    "M14": M14,
-    "M15": M15,
 }
 
 
@@ -68,20 +54,20 @@ def run_train():
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
 
-    data = SOM(
-        root=args.inputFolder, transform=T.ToUndirected()
-    ).shuffle()
+    data = SOM(root=args.inputFolder, transform=T.ToUndirected()).shuffle()
 
     validation_outputs = {}
 
-    fold = KFold(n_splits=args.numCVFolds, shuffle=True, random_state=42)
-    for fold_id, (train_idx, val_idx) in enumerate(fold.split(range(len(data)))):
+    kfold = KFold(n_splits=args.numCVFolds, shuffle=True, random_state=42)
+    for fold_id, (train_idx, val_idx) in enumerate(kfold.split(range(len(data)))):
         train_data = itemgetter(*train_idx)(data)
         val_data = itemgetter(*val_idx)(data)
         train_loader = DataLoader(train_data, batch_size=args.batchSize)
         val_loader = DataLoader(val_data, batch_size=args.batchSize)
 
-        print(f"CV-fold {fold_id}/{args.numCVFolds}: number of training instances {len(train_data)}, number of validation instances {len(val_data)}")
+        print(
+            f"CV-fold {fold_id}/{args.numCVFolds}: number of training instances {len(train_data)}, number of validation instances {len(val_data)}"
+        )
 
         def objective(trial):
             model_type = model_dict[args.model]
@@ -94,8 +80,8 @@ def run_train():
             )
 
             tbl = TensorBoardLogger(
-                save_dir=os.path.join(
-                    os.path.join(args.outputFolder, f"fold{fold_id}"),
+                save_dir=Path(
+                    Path(args.outputFolder, f"fold{fold_id}"),
                     "logs",
                 ),
                 name=f"trial{trial._trial_id}",
@@ -123,8 +109,8 @@ def run_train():
 
             return trainer.callback_metrics["val/mcc"].item()
 
-        if not os.path.exists(os.path.join(args.outputFolder, f"fold{fold_id}")):
-            os.makedirs(os.path.join(args.outputFolder, f"fold{fold_id}"))
+        if not os.path.exists(Path(args.outputFolder, f"fold{fold_id}")):
+            os.makedirs(Path(args.outputFolder, f"fold{fold_id}"))
 
         storage = "sqlite:///" + args.outputFolder + f"/fold{fold_id}" + "/storage.db"
         pruner = optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=1000)
@@ -151,17 +137,13 @@ def run_train():
             print("   {}: {}".format(key, value))
 
         path = f"{args.outputFolder}/fold{fold_id}/logs/trial{study.best_trial._trial_id}/version_0/"
-        with open(os.path.join(args.outputFolder, "best_model_paths.txt"), "a") as f:
+        with open(Path(args.outputFolder, "best_model_paths.txt"), "a") as f:
             f.write(path + "\n")
 
         # Recompute validation metrics with best model
-
-        for file in os.listdir(os.path.join(path, "checkpoints")):
+        for file in os.listdir(Path(path, "checkpoints")):
             if file.endswith(".ckpt"):
-                checkpoint_path = os.path.join(os.path.join(path, "checkpoints"), file)
-        # for file in os.listdir(path):
-        #     if file.endswith(".yaml"):
-        #         hparams_file = os.path.join(path, file)
+                checkpoint_path = Path(Path(path, "checkpoints"), file)
 
         model = GNN.load_from_checkpoint(checkpoint_path)
 

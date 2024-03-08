@@ -169,7 +169,7 @@ class SOM(InMemoryDataset):
                 total_num_atoms += 1
                 num_soms += int(label)
         num_nosom = total_num_atoms - num_soms
-        return num_nosom/num_soms
+        return num_nosom / num_soms
 
 
 class LabeledData(SOM):
