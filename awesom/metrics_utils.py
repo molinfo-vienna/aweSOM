@@ -21,9 +21,7 @@ class BaseMetrics:
             [
                 torch.argsort(
                     torch.argsort(
-                        torch.index_select(
-                            y_hat, 0, torch.where(mol_id == mid)[0]
-                        ),
+                        torch.index_select(y_hat, 0, torch.where(mol_id == mid)[0]),
                         dim=0,
                         descending=True,
                     ),
@@ -63,6 +61,8 @@ class ValidationMetrics(BaseMetrics):
             y_hat = torch.sigmoid(logits)
             ranking = cls.compute_ranking(y_hat, mol_id)
             y_hat_bin = (y_hat >= 0.5).int()
+
+
 
             with open(
                 os.path.join(output_folder, f"validation_fold{fold_id}.csv"), "w"
@@ -119,9 +119,7 @@ class ValidationMetrics(BaseMetrics):
                 num_soms_in_current_mol = torch.sum(masked_y).item()
                 if torch.sum(masked_sorted_y[:2]).item() > 0:
                     top2_correctness_rate += 1
-                per_molecule_aurocs.append(
-                    cls.auroc(masked_y_hat, masked_y).item()
-                )
+                per_molecule_aurocs.append(cls.auroc(masked_y_hat, masked_y).item())
                 per_molecule_r_precisions.append(
                     torch.sum(masked_sorted_y[:num_soms_in_current_mol]).item()
                     / num_soms_in_current_mol
@@ -143,18 +141,22 @@ class TestMetrics(BaseMetrics):
     def compute_and_log_test_metrics(
         cls, predictions: dict, output_folder: str, true_labels: bool
     ) -> None:
+        logits_lst = []
         for model_id, preds in predictions.items():
             if model_id == 0:
-                logits = preds[0][0]
                 y = preds[0][1]
                 mol_id = preds[0][2]
                 atom_id = preds[0][3]
-            else:
-                logits = torch.stack((logits, preds[0][0]), dim=0)
+            logits_lst.append(preds[0][0])
 
-        logits_avg = torch.mean(logits, dim=0)
-        y_hat_avg = torch.sigmoid(logits_avg)
+        logits = torch.stack(logits_lst, dim=0)
+        y_hats = torch.sigmoid(logits)
+        y_hat_avg = torch.mean(y_hats, dim=0)
         y_hat_bin = (y_hat_avg >= 0.5).int()
+
+        ensemble_std = torch.std(y_hats, dim=0)
+        ensemble_var = torch.var(y_hats, dim=0)
+        ensemble_mean = torch.mean(y_hats, dim=0)
 
         ranking = cls.compute_ranking(y_hat_avg, mol_id)
         with open(os.path.join(output_folder, "results.csv"), "w") as f:
@@ -162,6 +164,9 @@ class TestMetrics(BaseMetrics):
             writer.writerow(
                 (
                     "averaged_probabilities",
+                    "ensemble_std",
+                    "ensemble_var",
+                    "ensemble_mean",
                     "ranking",
                     "predicted_labels",
                     "true_labels",
@@ -171,6 +176,9 @@ class TestMetrics(BaseMetrics):
             )
             for row in zip(
                 y_hat_avg.tolist(),
+                ensemble_std.tolist(),
+                ensemble_var.tolist(),
+                ensemble_mean.tolist(),
                 ranking.tolist(),
                 y_hat_bin.tolist(),
                 y.tolist(),
@@ -205,9 +213,7 @@ class TestMetrics(BaseMetrics):
                 num_soms_in_current_mol = torch.sum(masked_y).item()
                 if torch.sum(masked_sorted_y[:2]).item() > 0:
                     top2_correctness_rate += 1
-                per_molecule_aurocs.append(
-                    cls.auroc(masked_y_hat, masked_y).item()
-                )
+                per_molecule_aurocs.append(cls.auroc(masked_y_hat, masked_y).item())
                 per_molecule_r_precisions.append(
                     torch.sum(masked_sorted_y[:num_soms_in_current_mol]).item()
                     / num_soms_in_current_mol

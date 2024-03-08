@@ -3,14 +3,15 @@ import optuna
 import os
 import torch
 
-from lightning import Trainer, Callback
+from datetime import datetime
 from lightning import seed_everything as lightning_seed_everything
+from lightning import Trainer
+from pytorch_lightning.core.saving import save_hparams_to_yaml
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from operator import itemgetter
-from optuna.integration import PyTorchLightningPruningCallback
-from pytorch_lightning.core.saving import save_hparams_to_yaml
+from pathlib import Path
 from sklearn.model_selection import KFold
 from statistics import mean
 from torch_geometric import transforms as T
@@ -25,16 +26,11 @@ from awesom import (
     M3,
     M4,
     M5,
+    M5b,
     M6,
     M7,
     M8,
     M9,
-    M10,
-    M11,
-    M12,
-    M13,
-    M14,
-    M15,
     ValidationMetrics,
 )
 
@@ -44,93 +40,26 @@ model_dict = {
     "M3": M3,
     "M4": M4,
     "M5": M5,
+    "M5b": M5b,
     "M6": M6,
     "M7": M7,
     "M8": M8,
     "M9": M9,
-    "M10": M10,
-    "M11": M11,
-    "M12": M12,
-    "M13": M13,
-    "M14": M14,
-    "M15": M15,
 }
 
 
-class PatchedCallback(PyTorchLightningPruningCallback, Callback):
-    pass
+# class PatchedCallback(PyTorchLightningPruningCallback, Callback):
+#     pass
 
 
-import argparse
-import optuna
-import os
-import torch
-
-from lightning import seed_everything as lightning_seed_everything
-from lightning import Trainer, Callback
-from lightning.pytorch.callbacks.early_stopping import EarlyStopping
-from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
-from lightning.pytorch.callbacks import ModelCheckpoint
-from operator import itemgetter
-from optuna.integration import PyTorchLightningPruningCallback
-from optuna.trial import TrialState
-from sklearn.model_selection import KFold
-from torch_geometric import transforms as T
-from torch_geometric import seed_everything as geometric_seed_everything
-from torch_geometric.loader import DataLoader
-
-from awesom import (
-    SOM,
-    GNN,
-    M1,
-    M2,
-    M3,
-    M4,
-    M5,
-    M6,
-    M7,
-    M8,
-    M9,
-    M10,
-    M11,
-    M12,
-    M13,
-    M14,
-    M15,
-    ValidationMetrics,
-)
-
-model_dict = {
-    "M1": M1,
-    "M2": M2,
-    "M3": M3,
-    "M4": M4,
-    "M5": M5,
-    "M6": M6,
-    "M7": M7,
-    "M8": M8,
-    "M9": M9,
-    "M10": M10,
-    "M11": M11,
-    "M12": M12,
-    "M13": M13,
-    "M14": M14,
-    "M15": M15,
-}
-
-
-class PatchedCallback(PyTorchLightningPruningCallback, Callback):
-    pass
-
-
-def run_train():
+def main():
     lightning_seed_everything(42)
     geometric_seed_everything(42)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
 
-    data = SOM(root=args.inputFolder, transform=T.ToUndirected()).shuffle()
+    data = SOM(root=args.inputPath, transform=T.ToUndirected()).shuffle()
 
     data_params = dict(
         num_node_features=data.num_node_features,
@@ -145,9 +74,6 @@ def run_train():
             train_data = itemgetter(*train_idx)(data)
             val_data = itemgetter(*val_idx)(data)
 
-            train_loader = DataLoader(train_data, batch_size=args.batchSize)
-            val_loader = DataLoader(val_data, batch_size=args.batchSize)
-
             print(
                 f"CV-fold {fold_id}/{args.numCVFolds}: number of training instances {len(train_data)}, number of validation instances {len(val_data)}"
             )
@@ -160,8 +86,11 @@ def run_train():
                 pos_weight=data.get_pos_weight(),
             )
 
+            train_loader = DataLoader(train_data, batch_size=hyperparams["batch_size"])
+            val_loader = DataLoader(val_data, batch_size=hyperparams["batch_size"])
+
             tbl = TensorBoardLogger(
-                save_dir=os.path.join(args.outputFolder, "logs"),
+                save_dir=Path(args.outputPath, "logs"),
                 name=f"trial{trial._trial_id}",
                 version=f"fold{fold_id}",
                 default_hp_metric=False,
@@ -169,7 +98,7 @@ def run_train():
 
             callbacks = [
                 EarlyStopping(monitor="val/mcc", mode="max", min_delta=0, patience=30),
-                PatchedCallback(trial=trial, monitor="val/mcc"),
+                # PatchedCallback(trial=trial, monitor="val/mcc"),
                 ModelCheckpoint(
                     filename=f"trial{trial._trial_id}", monitor="val/mcc", mode="max"
                 ),
@@ -191,10 +120,10 @@ def run_train():
 
         return mean(metric_lst)
 
-    if not os.path.exists(args.outputFolder):
-        os.makedirs(args.outputFolder)
+    if not os.path.exists(args.outputPath):
+        os.makedirs(args.outputPath)
 
-    storage = "sqlite:///" + args.outputFolder + "/storage.db"
+    storage = "sqlite:///" + args.outputPath + "/storage.db"
     study = optuna.create_study(
         direction="maximize",
         storage=storage,
@@ -209,7 +138,7 @@ def run_train():
         print("   {}: {}".format(key, value))
 
     save_hparams_to_yaml(
-        os.path.join(args.outputFolder, "best_hparams.yaml"), study.best_trial.params
+        Path(args.outputPath, "best_hparams.yaml"), study.best_trial.params
     )
 
     # Compute and log all relevant validation metrics from models trained with optimal hparams
@@ -218,7 +147,9 @@ def run_train():
     kfold = KFold(n_splits=args.numCVFolds, shuffle=True, random_state=42)
     for fold_id, (_, val_idx) in enumerate(kfold.split(range(len(data)))):
         val_data = itemgetter(*val_idx)(data)
-        val_loader = DataLoader(val_data, batch_size=args.batchSize)
+        val_loader = DataLoader(
+            val_data, batch_size=study.best_trial.params["batch_size"]
+        )
         model = GNN(
             params=data_params,
             hyperparams=study.best_trial.params,
@@ -226,11 +157,11 @@ def run_train():
             pos_weight=data.get_pos_weight(),
         )
 
-        checkpoint_path = os.path.join(
-            os.path.join(
-                os.path.join(
-                    os.path.join(
-                        os.path.join(args.outputFolder, "logs"),
+        checkpoint_path = Path(
+            Path(
+                Path(
+                    Path(
+                        Path(args.outputPath, "logs"),
                         f"trial{study.best_trial._trial_id}",
                     ),
                     f"fold{fold_id}",
@@ -248,26 +179,32 @@ def run_train():
         )
 
     ValidationMetrics.compute_and_log_validation_metrics(
-        collected_validation_outputs, args.outputFolder
+        collected_validation_outputs, args.outputPath
     )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Finding the optinal hyperparameters via Optuna k-fold-cross-validation.")
+    parser = argparse.ArgumentParser(
+        "Finding the optinal hyperparameters via Optuna k-fold-cross-validation."
+    )
 
     parser.add_argument(
         "-i",
-        "--inputFolder",
+        "--inputPath",
         type=str,
         required=True,
-        help="The folder where the input data is stored.",
+        help="The path to the input data.",
     )
     parser.add_argument(
         "-o",
-        "--outputFolder",
+        "--outputPath",
         type=str,
         required=True,
-        help="The name of the folder where the model's checkpoints and the validation metrics will be stored.",
+        help="The desired output's location. \
+            The best hyperparameters will be stored in a YAML file. \
+                The individual validation metrics of each fold will be stored in a CSV file. \
+                    The best model's checkpoints will be stored in a directory. \
+                        The averaged predictions made with the bbest hyperparameters will be stored in a text file.",
     )
     parser.add_argument(
         "-m",
@@ -275,13 +212,6 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="The desired model architecture.",
-    )
-    parser.add_argument(
-        "-b",
-        "--batchSize",
-        type=int,
-        required=True,
-        help="The batch size.",
     )
     parser.add_argument(
         "-e",
@@ -306,4 +236,8 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    run_train()
+
+    start_time = datetime.now()
+    main()
+    print("Finished in:")
+    print(datetime.now() - start_time)

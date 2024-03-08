@@ -31,22 +31,19 @@ class GNN(LightningModule):
             "M3": M3,
             "M4": M4,
             "M5": M5,
+            "M5b": M5b,
             "M6": M6,
             "M7": M7,
             "M8": M8,
             "M9": M9,
-            "M10": M10,
-            "M11": M11,
-            "M12": M12,
-            "M13": M13,
-            "M14": M14,
-            "M15": M15,
         }
 
-        self.model = model_dict[architecture](params, hyperparams)
-
         self.pos_weight = torch.tensor(pos_weight, dtype=torch.float).cuda()
-        self.loss_function = torch.nn.BCEWithLogitsLoss(pos_weight=self.pos_weight, reduction="mean")
+        self.loss_function = torch.nn.BCEWithLogitsLoss(
+            pos_weight=self.pos_weight, reduction="mean"
+        )
+
+        self.model = model_dict[architecture](params, hyperparams, self.pos_weight)
 
         self.learning_rate = hyperparams["learning_rate"]
         self.weight_decay = hyperparams["weight_decay"]
@@ -178,81 +175,18 @@ class GNN(LightningModule):
 
 
 class M1(torch.nn.Module):
-    def __init__(self, params, hyperparams, class_weights) -> None:
+    """
+    The graph isomorphism operator from the “How Powerful are Graph Neural Networks?” paper.
+    https://pytorch-geometric.readthedocs.io/en/2.4.0/generated/torch_geometric.nn.conv.GINConv.html
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
         super(M1, self).__init__()
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
-
         self.activation = torch.nn.LeakyReLU()
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                GINEConv(
-                    torch.nn.Sequential(
-                        torch.nn.Linear(in_channels, out_channels),
-                        BatchNorm(out_channels),
-                        self.activation,
-                        torch.nn.Linear(out_channels, out_channels),
-                    ),
-                    train_eps=True,
-                    edge_dim=params["num_edge_features"],
-                )
-            )
-            self.batch_norm.append(BatchNorm(out_channels))
-            in_channels = out_channels
-
-        self.final = torch.nn.Linear(out_channels, class_weights.shape[0])
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        batch: Optional[List[int]] = None,
-    ) -> torch.Tensor:
-        x = data.x
-        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x = conv(x, data.edge_index, data.edge_attr)
-            if i < len(self.conv) - 1:
-                x = batch_norm(x)
-                x = self.activation(x)
-
-        x = self.final(x)
-
-        return x
-
-    @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
-
-        hyperparams = dict(
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-        )
-
-        return params, hyperparams
-
-
-class M2(torch.nn.Module):
-    def __init__(self, params, hyperparams, class_weights) -> None:
-        super(M2, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-
-        self.activation = torch.nn.LeakyReLU()
+        self.dropout = torch.nn.Dropout(0.2)
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
@@ -269,57 +203,136 @@ class M2(torch.nn.Module):
                     train_eps=True,
                 )
             )
-            self.batch_norm.append(BatchNorm(out_channels))
             in_channels = out_channels
+            self.batch_norm.append(BatchNorm(in_channels))
 
-        self.final = torch.nn.Linear(out_channels, class_weights.shape[0])
+        self.final = torch.nn.Linear(in_channels, 1)
 
     def forward(
         self,
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
+        # Convolutions
         x = data.x
         for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
             x = conv(x, data.edge_index)
-            if i < len(self.conv) - 1:
+            if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
+                x = self.dropout(x)
 
+        # Classification
         x = self.final(x)
 
-        return x
+        return torch.flatten(x)
 
     @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 8, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
 
         hyperparams = dict(
+            batch_size=batch_size,
             learning_rate=learning_rate,
             weight_decay=weight_decay,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
         )
 
-        return params, hyperparams
+        return hyperparams
+
+
+class M2(torch.nn.Module):
+    """
+    The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
+        super(M2, self).__init__()
+
+        self.conv = torch.nn.ModuleList()
+        self.batch_norm = torch.nn.ModuleList()
+        self.activation = torch.nn.LeakyReLU()
+        self.dropout = torch.nn.Dropout(0.2)
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv.append(
+                GINEConv(
+                    torch.nn.Sequential(
+                        torch.nn.Linear(in_channels, out_channels),
+                        BatchNorm(out_channels),
+                        self.activation,
+                        torch.nn.Linear(out_channels, out_channels),
+                    ),
+                    train_eps=True,
+                    edge_dim=params["num_edge_features"],
+                )
+            )
+            in_channels = out_channels
+            self.batch_norm.append(BatchNorm(in_channels))
+
+        self.final = torch.nn.Linear(in_channels, 1)
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        batch: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        # Convolutions
+        x = data.x
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
+            x = conv(x, data.edge_index, data.edge_attr)
+            if i != len(self.conv) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
+                x = self.dropout(x)
+
+        # Classification
+        x = self.final(x)
+
+        return torch.flatten(x)
+
+    @classmethod
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 8, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+
+        hyperparams = dict(
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
+        )
+
+        return hyperparams
 
 
 class M3(torch.nn.Module):
-    def __init__(self, params, hyperparams, class_weights) -> None:
+    """
+    The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
+    + Skip connections
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
         super(M3, self).__init__()
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
-
         self.activation = torch.nn.LeakyReLU()
+        self.dropout = torch.nn.Dropout(0.2)
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
@@ -337,65 +350,64 @@ class M3(torch.nn.Module):
                     edge_dim=params["num_edge_features"],
                 )
             )
-            self.batch_norm.append(BatchNorm(out_channels))
-            in_channels = out_channels
+            in_channels = out_channels + params["num_node_features"]
+            self.batch_norm.append(BatchNorm(in_channels))
 
-        self.final = torch.nn.Linear(
-            out_channels * hyperparams["num_conv_layers"], class_weights.shape[0]
-        )
+        self.final = torch.nn.Linear(in_channels, 1)
 
     def forward(
         self,
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
         batch: Optional[List[int]] = None,
     ) -> torch.Tensor:
-        # Compute node intermediate embeddings
-        h = []
+        # Convolutions with skip connections
         x = data.x
-        for conv, batch_norm in zip(self.conv, self.batch_norm):
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
             x = conv(x, data.edge_index, data.edge_attr)
-            x = batch_norm(x)
-            x = self.activation(x)
-            h.append(x)
+            x = torch.cat((x, data.x), dim=1)
+            if i != len(self.conv) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
+                x = self.dropout(x)
 
-        # Concatenate embeddings (jumping knowledge)
-        h = torch.cat(h, dim=1)
+        # Classification
+        x = self.final(x)
 
-        # Classify
-        h = self.final(h)
-
-        return x
+        return torch.flatten(x)
 
     @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 8, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
 
         hyperparams = dict(
+            batch_size=batch_size,
             learning_rate=learning_rate,
             weight_decay=weight_decay,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
         )
 
-        return params, hyperparams
+        return hyperparams
 
 
 class M4(torch.nn.Module):
-    def __init__(self, params, hyperparams, class_weights) -> None:
+    """
+    The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
+    + Pooling for context
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
         super(M4, self).__init__()
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
-
         self.activation = torch.nn.LeakyReLU()
+        self.dropout = torch.nn.Dropout(0.2)
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
@@ -411,629 +423,12 @@ class M4(torch.nn.Module):
                     ),
                     train_eps=True,
                     edge_dim=params["num_edge_features"],
-                )
-            )
-            self.batch_norm.append(BatchNorm(out_channels))
-            in_channels = out_channels + params["num_node_features"]
-
-        self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        batch: Optional[List[int]] = None,
-    ) -> torch.Tensor:
-        # Compute node intermediate embeddings
-        x = data.x
-        for conv, batch_norm in zip(self.conv, self.batch_norm):
-            h = conv(x, data.edge_index, data.edge_attr)
-            h = batch_norm(h)
-            h = self.activation(h)
-            x = torch.cat((h, data.x), dim=1)
-
-        # Classify
-        x = self.final(x)
-
-        return x
-
-    @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
-
-        hyperparams = dict(
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-        )
-
-        return params, hyperparams
-
-
-class M5(torch.nn.Module):
-    def __init__(self, params, hyperparams, class_weights) -> None:
-        super(M5, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-        self.activation = torch.nn.LeakyReLU()
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                GINEConv(
-                    torch.nn.Sequential(
-                        torch.nn.Linear(in_channels, out_channels),
-                        BatchNorm(out_channels),
-                        self.activation,
-                        torch.nn.Linear(out_channels, out_channels),
-                    ),
-                    train_eps=True,
-                    edge_dim=params["num_edge_features"],
-                )
-            )
-            self.batch_norm.append(BatchNorm(out_channels))
-            in_channels = out_channels
-
-        self.final = torch.nn.Linear(out_channels * 2, class_weights.shape[0])
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        batch: Optional[List[int]] = None,
-    ) -> torch.Tensor:
-        # Convolutions
-        x = data.x
-        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x = conv(x, data.edge_index, data.edge_attr)
-            if i != len(self.conv) - 1:
-                x = batch_norm(x)
-                x = self.activation(x)
-
-        # torch.save(x, "path/x.pt")
-
-        # Pooling for context
-        x_pool = global_add_pool(x, batch)
-        num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
-        x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
-
-        # torch.save(x_pool, "path/x_pool.pt")
-
-        # Concatenate final embedding and pooled representation
-        x = torch.cat((x, x_pool_expanded), dim=1)
-
-        # Classification
-        x = self.final(x)
-
-        return x
-
-    @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
-
-        hyperparams = dict(
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-        )
-
-        return params, hyperparams
-
-
-class M6(torch.nn.Module):
-    def __init__(self, params, hyperparams, class_weights) -> None:
-        super(M6, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-
-        self.activation = torch.nn.LeakyReLU()
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                GINEConv(
-                    torch.nn.Sequential(
-                        torch.nn.Linear(in_channels, out_channels),
-                        BatchNorm(out_channels),
-                        self.activation,
-                        torch.nn.Linear(out_channels, out_channels),
-                    ),
-                    train_eps=True,
-                    edge_dim=params["num_edge_features"],
-                )
-            )
-            self.batch_norm.append(BatchNorm(out_channels))
-            in_channels = out_channels
-
-        self.final = GINEConv(
-            torch.nn.Sequential(
-                torch.nn.Linear(in_channels, class_weights.shape[0]),
-                BatchNorm(class_weights.shape[0]),
-                self.activation,
-                torch.nn.Linear(class_weights.shape[0], class_weights.shape[0]),
-            ),
-            train_eps=True,
-            edge_dim=params["num_edge_features"],
-        )
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        batch: Optional[List[int]] = None,
-    ) -> torch.Tensor:
-        x = data.x
-        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x = conv(x, data.edge_index, data.edge_attr)
-            if i < len(self.conv) - 1:
-                x = batch_norm(x)
-                x = self.activation(x)
-
-        x = self.final(x, data.edge_index, data.edge_attr)
-
-        return x
-
-    @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
-
-        hyperparams = dict(
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-        )
-
-        return params, hyperparams
-
-
-class M7(torch.nn.Module):
-    """The GATv2 operator from the “How Attentive are Graph Attention Networks?” paper,
-    which fixes the static attention problem of the standard GATConv layer.
-    Since the linear layers in the standard GAT are applied right after each other,
-    the ranking of attended nodes is unconditioned on the query node.
-    In contrast, in GATv2, every node can attend to any other node.
-    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html#torch_geometric.nn.conv.GATv2Conv
-    """
-
-    def __init__(self, params, hyperparams, class_weights) -> None:
-        super(M7, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-
-        self.activation = torch.nn.LeakyReLU()
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                GATv2Conv(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    heads=hyperparams["heads"],
-                    negative_slope=hyperparams["negative_slope"],
-                    edge_dim=params["num_edge_features"],
-                )
-            )
-            in_channels = out_channels * hyperparams["heads"]
-            self.batch_norm.append(BatchNorm(in_channels))
-
-        self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        batch: Optional[List[int]] = None,
-    ) -> torch.Tensor:
-        x = data.x
-        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x = conv(x, data.edge_index, data.edge_attr)
-            if i < len(self.conv) - 1:
-                x = batch_norm(x)
-                x = self.activation(x)
-
-        x = self.final(x)
-
-        return x
-
-    @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-        heads = trial.suggest_int("heads", 2, 8)
-        negative_slope = trial.suggest_float("negative_slope", 0.1, 0.9)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
-
-        hyperparams = dict(
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-            heads=heads,
-            negative_slope=negative_slope,
-        )
-
-        return params, hyperparams
-
-
-class M8(torch.nn.Module):
-    """The chebyshev spectral graph convolutional operator from the
-    “Convolutional Neural Networks on Graphs with Fast Localized Spectral Filtering” paper.
-    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.ChebConv.html
-    """
-
-    def __init__(self, params, hyperparams, class_weights) -> None:
-        super(M8, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-        self.activation = torch.nn.LeakyReLU()
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                ChebConv(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    K=hyperparams["filter_size"],
                 )
             )
             in_channels = out_channels
             self.batch_norm.append(BatchNorm(in_channels))
 
-        self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        batch: Optional[List[int]] = None,
-    ) -> torch.Tensor:
-        x = data.x
-        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x = conv(x, data.edge_index)
-            if i < len(self.conv) - 1:
-                x = batch_norm(x)
-                x = self.activation(x)
-
-        x = self.final(x)
-
-        return x
-
-    @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-        filter_size = trial.suggest_int("filter_size", 1, 10)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
-
-        hyperparams = dict(
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-            filter_size=filter_size,
-        )
-
-        return params, hyperparams
-
-
-class M9(torch.nn.Module):
-    """The graph neural network operator from the “Convolutional Networks on Graphs for Learning Molecular Fingerprints” paper.
-    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv
-    """
-
-    def __init__(self, params, hyperparams, class_weights) -> None:
-        super(M9, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-        self.activation = torch.nn.LeakyReLU()
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                MFConv(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    max_degree=hyperparams["max_degree"],
-                )
-            )
-            in_channels = out_channels
-            self.batch_norm.append(BatchNorm(in_channels))
-
-        self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        batch: Optional[List[int]] = None,
-    ) -> torch.Tensor:
-        x = data.x
-        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x = conv(x, data.edge_index)
-            if i < len(self.conv) - 1:
-                x = batch_norm(x)
-                x = self.activation(x)
-
-        x = self.final(x)
-
-        return x
-
-    @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-        max_degree = trial.suggest_int("max_degree", 1, 6)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
-
-        hyperparams = dict(
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-            max_degree=max_degree,
-        )
-
-        return params, hyperparams
-
-
-class M10(torch.nn.Module):
-    def __init__(self, params, hyperparams, class_weights) -> None:
-        super(M10, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-
-        self.activation = torch.nn.LeakyReLU()
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                GINEConv(
-                    torch.nn.Sequential(
-                        torch.nn.Linear(in_channels, out_channels),
-                        BatchNorm(out_channels),
-                        self.activation,
-                        torch.nn.Linear(out_channels, out_channels),
-                    ),
-                    train_eps=True,
-                    edge_dim=params["num_edge_features"],
-                )
-            )
-            self.batch_norm.append(BatchNorm(out_channels))
-            in_channels = out_channels + params["num_node_features"]
-
-        self.final = torch.nn.Linear(in_channels * 2, class_weights.shape[0])
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        batch: Optional[List[int]] = None,
-    ) -> torch.Tensor:
-        # Compute node intermediate embeddings
-        x = data.x
-        for conv, batch_norm in zip(self.conv, self.batch_norm):
-            h = conv(x, data.edge_index, data.edge_attr)
-            h = batch_norm(h)
-            h = self.activation(h)
-            x = torch.cat((h, data.x), dim=1)
-
-        # Pooling for context
-        x_pool = global_add_pool(x, batch)
-        num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
-        x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
-
-        # Concatenate final embedding and pooled representation
-        x = torch.cat((x, x_pool_expanded), dim=1)
-
-        # Classify
-        x = self.final(x)
-
-        return x
-
-    @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
-
-        hyperparams = dict(
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-        )
-
-        return params, hyperparams
-
-
-class M11(torch.nn.Module):
-    def __init__(self, params, hyperparams, class_weights) -> None:
-        super(M11, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-
-        self.activation = torch.nn.LeakyReLU()
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                GINEConv(
-                    torch.nn.Sequential(
-                        torch.nn.Linear(in_channels, out_channels),
-                        BatchNorm(out_channels),
-                        self.activation,
-                        torch.nn.Linear(out_channels, out_channels),
-                    ),
-                    train_eps=True,
-                    edge_dim=params["num_edge_features"],
-                )
-            )
-            self.batch_norm.append(BatchNorm(out_channels))
-            in_channels = out_channels
-
-        self.mlp = torch.nn.ModuleList()
-        in_channels = out_channels * 2
-        out_channels = hyperparams["size_linear_layers"]
-        for _ in range(hyperparams["num_linear_layers"]):
-            self.mlp.append(torch.nn.Linear(in_channels, out_channels))
-            in_channels = out_channels
-
-        self.final = torch.nn.Linear(in_channels, class_weights.shape[0])
-
-        self.activation = torch.nn.LeakyReLU()
-        self.dropout = torch.nn.Dropout(p=0.2)
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        batch: Optional[List[int]] = None,
-    ) -> torch.Tensor:
-        # Convolutions
-        x = data.x
-        for conv, batch_norm in zip(self.conv, self.batch_norm):
-            x = conv(x, data.edge_index, data.edge_attr)
-            x = batch_norm(x)
-            x = self.activation(x)
-
-        # Pooling for context
-        x_pool = global_add_pool(x, batch)
-        num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
-        x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
-
-        # Concatenate final embedding and pooled representation
-        x = torch.cat((x, x_pool_expanded), dim=1)
-
-        # Classification
-        for layer in self.mlp:
-            x = layer(x)
-            x = self.activation(x)
-            x = self.dropout(x)
-        x = self.final(x)
-
-        return x
-
-    @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-        num_linear_layers = trial.suggest_int("num_linear_layers", 1, 5)
-        size_linear_layers = trial.suggest_int("size_linear_layers", 32, 512, log=True)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
-
-        hyperparams = dict(
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-            num_linear_layers=num_linear_layers,
-            size_linear_layers=size_linear_layers,
-        )
-
-        return params, hyperparams
-
-
-class M12(torch.nn.Module):
-    def __init__(self, params, hyperparams, class_weights) -> None:
-        super(M12, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-        self.activation = torch.nn.LeakyReLU()
-        self.dropout = torch.nn.Dropout(0.2)
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                GINEConv(
-                    torch.nn.Sequential(
-                        torch.nn.Linear(in_channels, out_channels),
-                        BatchNorm(out_channels),
-                        self.activation,
-                        torch.nn.Linear(out_channels, out_channels),
-                    ),
-                    train_eps=True,
-                    edge_dim=params["num_edge_features"],
-                )
-            )
-            self.batch_norm.append(BatchNorm(out_channels))
-            in_channels = out_channels
-
-        self.final = torch.nn.Linear(out_channels * 2, class_weights.shape[0])
-
-        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
+        self.final = torch.nn.Linear(in_channels * 2, 1)
 
     def forward(
         self,
@@ -1044,233 +439,6 @@ class M12(torch.nn.Module):
         x = data.x
         for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
             x = conv(x, data.edge_index, data.edge_attr)
-            if i != len(self.conv) - 1:
-                x = batch_norm(x)
-                x = self.activation(x)
-                x = self.dropout(x)
-
-        # Pooling for context
-        x_pool = global_add_pool(x, batch)
-        num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
-        x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
-
-        # Concatenate final embedding and pooled representation
-        x = torch.cat((x, x_pool_expanded), dim=1)
-
-        # Classification
-        x = self.final(x)
-
-        return self.logsoftmax(x)
-
-    @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
-
-        hyperparams = dict(
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-        )
-
-        return params, hyperparams
-
-
-class M13(torch.nn.Module):
-    def __init__(self, params, hyperparams, class_weights) -> None:
-        super(M13, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-        self.activation = torch.nn.LeakyReLU()
-        self.dropout = torch.nn.Dropout(0.2)
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                GINEConv(
-                    torch.nn.Sequential(
-                        torch.nn.Linear(in_channels, out_channels),
-                        BatchNorm(out_channels),
-                        self.activation,
-                        torch.nn.Linear(out_channels, out_channels),
-                    ),
-                    train_eps=True,
-                    edge_dim=params["num_edge_features"],
-                )
-            )
-            self.batch_norm.append(BatchNorm(out_channels))
-            in_channels = out_channels
-
-        self.final = torch.nn.Linear(out_channels, class_weights.shape[0])
-
-        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        batch: Optional[List[int]] = None,
-    ) -> torch.Tensor:
-        # Convolutions
-        x = data.x
-        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x = conv(x, data.edge_index, data.edge_attr)
-            if i != len(self.conv) - 1:
-                x = batch_norm(x)
-                x = self.activation(x)
-                x = self.dropout(x)
-
-        # Classification
-        x = self.final(x)
-
-        return self.logsoftmax(x)
-
-    @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
-
-        hyperparams = dict(
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-        )
-
-        return params, hyperparams
-    
-
-class M14(torch.nn.Module):
-    def __init__(self, params, hyperparams, class_weights) -> None:
-        super(M14, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-        self.activation = torch.nn.LeakyReLU()
-        self.dropout = torch.nn.Dropout(0.2)
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                GINEConv(
-                    torch.nn.Sequential(
-                        torch.nn.Linear(in_channels, out_channels),
-                        BatchNorm(out_channels),
-                        self.activation,
-                        torch.nn.Linear(out_channels, out_channels),
-                    ),
-                    train_eps=True,
-                    edge_dim=params["num_edge_features"],
-                )
-            )
-            self.batch_norm.append(BatchNorm(out_channels + params["num_node_features"]))
-            in_channels = out_channels + params["num_node_features"]
-
-        self.final = torch.nn.Linear(out_channels + params["num_node_features"], class_weights.shape[0])
-
-        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        batch: Optional[List[int]] = None,
-    ) -> torch.Tensor:
-        # Convolutions
-        x = data.x
-        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x = conv(x, data.edge_index, data.edge_attr)
-            x = torch.cat((x, data.x), dim=1)
-            if i != len(self.conv) - 1:
-                x = batch_norm(x)
-                x = self.activation(x)
-                x = self.dropout(x)
-
-        # Classification
-        x = self.final(x)
-
-        return self.logsoftmax(x)
-
-    @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
-
-        hyperparams = dict(
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-        )
-
-        return params, hyperparams
-
-
-class M15(torch.nn.Module):
-    def __init__(self, params, hyperparams) -> None:
-        super(M15, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-        self.activation = torch.nn.LeakyReLU()
-        self.dropout = torch.nn.Dropout(0.2)
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                GINEConv(
-                    torch.nn.Sequential(
-                        torch.nn.Linear(in_channels, out_channels),
-                        BatchNorm(out_channels),
-                        self.activation,
-                        torch.nn.Linear(out_channels, out_channels),
-                    ),
-                    train_eps=True,
-                    edge_dim=params["num_edge_features"],
-                )
-            )
-            self.batch_norm.append(BatchNorm(out_channels + params["num_node_features"]))
-            in_channels = out_channels + params["num_node_features"]
-
-        self.final = torch.nn.Linear((out_channels + params["num_node_features"])* 2, 1)
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-        batch: Optional[List[int]] = None,
-    ) -> torch.Tensor:
-        # Convolutions
-        x = data.x
-        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x = conv(x, data.edge_index, data.edge_attr)
-            x = torch.cat((x, data.x), dim=1)
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
@@ -1290,22 +458,488 @@ class M15(torch.nn.Module):
         return torch.flatten(x)
 
     @classmethod
-    def get_params(self, data, trial):
-        learning_rate = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 8, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512, log=True)
-
-        params = dict(
-            num_node_features=data.num_node_features,
-            num_edge_features=data.num_edge_features,
-        )
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
 
         hyperparams = dict(
+            batch_size=batch_size,
             learning_rate=learning_rate,
             weight_decay=weight_decay,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
         )
 
-        return params, hyperparams
+        return hyperparams
+
+
+class M5(torch.nn.Module):
+    """
+    The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
+    + Skip connections
+    + Pooling for context
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
+        super(M5, self).__init__()
+
+        self.conv_module = torch.nn.ModuleList()
+        self.batch_norm_module = torch.nn.ModuleList()
+        self.activation = torch.nn.LeakyReLU()
+        self.dropout = torch.nn.Dropout(0.2)
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv = GINEConv(
+                torch.nn.Sequential(
+                    torch.nn.Linear(in_channels, out_channels),
+                    BatchNorm(out_channels),
+                    self.activation,
+                    torch.nn.Linear(out_channels, out_channels),
+                ),
+                train_eps=True,
+                edge_dim=params["num_edge_features"],
+            )
+            torch.nn.init.kaiming_normal_(self.conv.lin.weight)
+            torch.nn.init.constant_(self.conv.lin.bias, 0)
+            self.conv_module.append(self.conv)
+            in_channels = out_channels + params["num_node_features"]
+            self.batch_norm_module.append(BatchNorm(in_channels))
+
+        self.final = torch.nn.Linear(in_channels * 2, 1)
+        torch.nn.init.xavier_normal_(self.final.weight)
+        torch.nn.init.constant_(self.final.bias, torch.log(1 / pos_weight))
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        batch: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        # Convolutions
+        x = data.x
+        for i, (conv, batch_norm) in enumerate(
+            zip(self.conv_module, self.batch_norm_module)
+        ):
+            x = conv(x, data.edge_index, data.edge_attr)
+            x = torch.cat((x, data.x), dim=1)
+            if i != len(self.conv_module) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
+                x = self.dropout(x)
+
+        # Pooling for context
+        x_pool = global_add_pool(x, batch)
+        num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
+        x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
+
+        # Concatenate final embedding and pooled representation
+        x = torch.cat((x, x_pool_expanded), dim=1)
+
+        # Classification
+        x = self.final(x)
+
+        return torch.flatten(x)
+
+    @classmethod
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 8, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+
+        hyperparams = dict(
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
+        )
+
+        return hyperparams
+
+
+class M5b(torch.nn.Module):
+    """
+    The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
+    + Skip connections
+    + Pooling for context
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
+        super(M5b, self).__init__()
+
+        self.conv_module = torch.nn.ModuleList()
+        self.batch_norm_module = torch.nn.ModuleList()
+        self.activation = torch.nn.LeakyReLU()
+        self.dropout = torch.nn.Dropout(0.2)
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv = GINEConv(
+                torch.nn.Sequential(
+                    torch.nn.Linear(in_channels, out_channels),
+                    BatchNorm(out_channels),
+                    self.activation,
+                    torch.nn.Linear(out_channels, out_channels),
+                ),
+                train_eps=True,
+                edge_dim=params["num_edge_features"],
+            )
+            self.conv_module.append(self.conv)
+            in_channels = out_channels + params["num_node_features"]
+            self.batch_norm_module.append(BatchNorm(in_channels))
+
+        self.final = torch.nn.Linear(in_channels * 2, 1)
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        batch: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        # Convolutions
+        x = data.x
+        for i, (conv, batch_norm) in enumerate(
+            zip(self.conv_module, self.batch_norm_module)
+        ):
+            x = conv(x, data.edge_index, data.edge_attr)
+            x = torch.cat((x, data.x), dim=1)
+            if i != len(self.conv_module) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
+                x = self.dropout(x)
+
+        # Pooling for context
+        x_pool = global_add_pool(x, batch)
+        num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
+        x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
+
+        # Concatenate final embedding and pooled representation
+        x = torch.cat((x, x_pool_expanded), dim=1)
+
+        # Classification
+        x = self.final(x)
+
+        return torch.flatten(x)
+
+    @classmethod
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 8, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+
+        hyperparams = dict(
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
+        )
+
+        return hyperparams
+
+
+class M6(torch.nn.Module):
+    """The GATv2 operator from the “How Attentive are Graph Attention Networks?” paper,
+    which fixes the static attention problem of the standard GATConv layer.
+    Since the linear layers in the standard GAT are applied right after each other,
+    the ranking of attended nodes is unconditioned on the query node.
+    In contrast, in GATv2, every node can attend to any other node.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html#torch_geometric.nn.conv.GATv2Conv
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
+        super(M6, self).__init__()
+
+        self.conv = torch.nn.ModuleList()
+        self.batch_norm = torch.nn.ModuleList()
+        self.activation = torch.nn.LeakyReLU()
+        self.dropout = torch.nn.Dropout(0.2)
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv.append(
+                GATv2Conv(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    heads=hyperparams["heads"],
+                    negative_slope=hyperparams["negative_slope"],
+                    edge_dim=params["num_edge_features"],
+                )
+            )
+            in_channels = out_channels * hyperparams["heads"]
+            self.batch_norm.append(BatchNorm(in_channels))
+
+        self.final = torch.nn.Linear(in_channels, 1)
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        batch: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        # Convolutions
+        x = data.x
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
+            x = conv(x, data.edge_index, data.edge_attr)
+            if i != len(self.conv) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
+                x = self.dropout(x)
+
+        # Classification
+        x = self.final(x)
+
+        return torch.flatten(x)
+
+    @classmethod
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 8, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+        heads = trial.suggest_int("heads", 2, 8)
+        negative_slope = trial.suggest_float("negative_slope", 0.1, 0.9)
+
+        hyperparams = dict(
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
+            heads=heads,
+            negative_slope=negative_slope,
+        )
+
+        return hyperparams
+
+
+class M7(torch.nn.Module):
+    """The graph neural network operator from the “Convolutional Networks on Graphs for Learning Molecular Fingerprints” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
+        super(M7, self).__init__()
+
+        self.conv = torch.nn.ModuleList()
+        self.batch_norm = torch.nn.ModuleList()
+        self.activation = torch.nn.LeakyReLU()
+        self.dropout = torch.nn.Dropout(0.2)
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv.append(
+                MFConv(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    max_degree=hyperparams["max_degree"],
+                )
+            )
+            in_channels = out_channels
+            self.batch_norm.append(BatchNorm(in_channels))
+
+        self.final = torch.nn.Linear(in_channels, 1)
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        batch: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        # Convolutions
+        x = data.x
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
+            x = conv(x, data.edge_index)
+            if i != len(self.conv) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
+                x = self.dropout(x)
+
+        # Classification
+        x = self.final(x)
+
+        return torch.flatten(x)
+
+    @classmethod
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 8, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+        max_degree = trial.suggest_int("max_degree", 1, 6)
+
+        hyperparams = dict(
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
+            max_degree=max_degree,
+        )
+
+        return hyperparams
+
+
+class M8(torch.nn.Module):
+    """The chebyshev spectral graph convolutional operator from the
+    “Convolutional Neural Networks on Graphs with Fast Localized Spectral Filtering” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.ChebConv.html
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
+        super(M8, self).__init__()
+
+        self.conv = torch.nn.ModuleList()
+        self.batch_norm = torch.nn.ModuleList()
+        self.activation = torch.nn.LeakyReLU()
+        self.dropout = torch.nn.Dropout(0.2)
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv.append(
+                ChebConv(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    K=hyperparams["filter_size"],
+                )
+            )
+            in_channels = out_channels
+            self.batch_norm.append(BatchNorm(in_channels))
+
+        self.final = torch.nn.Linear(in_channels, 1)
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        batch: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        # Convolutions
+        x = data.x
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
+            x = conv(x, data.edge_index)
+            if i != len(self.conv) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
+                x = self.dropout(x)
+
+        # Classification
+        x = self.final(x)
+
+        return torch.flatten(x)
+
+    @classmethod
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 8, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+        filter_size = trial.suggest_int("filter_size", 1, 10)
+
+        hyperparams = dict(
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
+            filter_size=filter_size,
+        )
+
+        return hyperparams
+
+
+class M9(torch.nn.Module):
+    """The chebyshev spectral graph convolutional operator from the
+    “Convolutional Neural Networks on Graphs with Fast Localized Spectral Filtering” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.ChebConv.html
+    + context pooling
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
+        super(M9, self).__init__()
+
+        self.conv = torch.nn.ModuleList()
+        self.batch_norm = torch.nn.ModuleList()
+        self.activation = torch.nn.LeakyReLU()
+        self.dropout = torch.nn.Dropout(0.2)
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv.append(
+                ChebConv(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    K=hyperparams["filter_size"],
+                )
+            )
+            in_channels = out_channels
+            self.batch_norm.append(BatchNorm(in_channels))
+
+        self.final = torch.nn.Linear(in_channels * 2, 1)
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        batch: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        # Convolutions
+        x = data.x
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
+            x = conv(x, data.edge_index)
+            if i != len(self.conv) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
+                x = self.dropout(x)
+
+        # Pooling for context
+        x_pool = global_add_pool(x, batch)
+        num_atoms_per_mol = torch.unique(batch, sorted=False, return_counts=True)[1]
+        x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
+
+        # Concatenate final embedding and pooled representation
+        x = torch.cat((x, x_pool_expanded), dim=1)
+
+        # Classification
+        x = self.final(x)
+
+        return torch.flatten(x)
+
+    @classmethod
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 8, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+        filter_size = trial.suggest_int("filter_size", 1, 10)
+
+        hyperparams = dict(
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
+            filter_size=filter_size,
+        )
+
+        return hyperparams
