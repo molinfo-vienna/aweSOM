@@ -62,8 +62,6 @@ class ValidationMetrics(BaseMetrics):
             ranking = cls.compute_ranking(y_hat, mol_id)
             y_hat_bin = (y_hat >= 0.5).int()
 
-
-
             with open(
                 os.path.join(output_folder, f"validation_fold{fold_id}.csv"), "w"
             ) as f:
