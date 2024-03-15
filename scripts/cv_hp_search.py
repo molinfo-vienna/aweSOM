@@ -31,6 +31,9 @@ from awesom import (
     M7,
     M8,
     M9,
+    M10,
+    M11,
+    M12,
     ValidationMetrics,
 )
 
@@ -45,11 +48,10 @@ model_dict = {
     "M7": M7,
     "M8": M8,
     "M9": M9,
+    "M10": M10,
+    "M11": M11,
+    "M12": M12,
 }
-
-
-# class PatchedCallback(PyTorchLightningPruningCallback, Callback):
-#     pass
 
 
 def main():
@@ -97,10 +99,9 @@ def main():
             )
 
             callbacks = [
-                EarlyStopping(monitor="val/mcc", mode="max", min_delta=0, patience=30),
-                # PatchedCallback(trial=trial, monitor="val/mcc"),
+                EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=30),
                 ModelCheckpoint(
-                    filename=f"trial{trial._trial_id}", monitor="val/mcc", mode="max"
+                    filename=f"trial{trial._trial_id}", monitor="val/loss", mode="min"
                 ),
             ]
 
@@ -116,7 +117,7 @@ def main():
                 model=model, train_dataloaders=train_loader, val_dataloaders=val_loader
             )
 
-            metric_lst.append(trainer.callback_metrics["val/mcc"].item())
+            metric_lst.append(trainer.callback_metrics["val/loss"].item())
 
         return mean(metric_lst)
 
@@ -125,14 +126,14 @@ def main():
 
     storage = "sqlite:///" + args.outputPath + "/storage.db"
     study = optuna.create_study(
-        direction="maximize",
+        direction="minimize",
         storage=storage,
         load_if_exists=True,
     )
     study.optimize(objective, n_trials=args.numberOptunaTrials, gc_after_trial=True)
 
     print(
-        f"Best trial is trial {study.best_trial._trial_id} with mean validation MCC {study.best_trial.value} and hyperparameters:"
+        f"Best trial is trial {study.best_trial._trial_id} with mean validation MCC-loss {study.best_trial.value} and hyperparameters:"
     )
     for key, value in study.best_trial.params.items():
         print("   {}: {}".format(key, value))

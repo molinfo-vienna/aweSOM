@@ -28,6 +28,9 @@ from awesom import (
     M7,
     M8,
     M9,
+    M10,
+    M11,
+    M12,
 )
 
 model_dict = {
@@ -40,6 +43,9 @@ model_dict = {
     "M7": M7,
     "M8": M8,
     "M9": M9,
+    "M10": M10,
+    "M11": M11,
+    "M12": M12,
 }
 
 
