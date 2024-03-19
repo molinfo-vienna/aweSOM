@@ -92,8 +92,8 @@ def main():
         )
 
         callbacks = [
-            EarlyStopping(monitor="val/mcc", mode="max", min_delta=0, patience=30),
-            ModelCheckpoint(monitor="val/mcc", mode="max"),
+            EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=30),
+            ModelCheckpoint(monitor="val/loss", mode="min"),
         ]
 
         trainer = Trainer(

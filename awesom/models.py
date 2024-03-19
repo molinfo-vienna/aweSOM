@@ -90,48 +90,6 @@ class GNN(LightningModule):
         self.train_mcc = MatthewsCorrCoef(task="binary")
         self.val_mcc = MatthewsCorrCoef(task="binary")
 
-
-    def mcc_loss(y_hat, y):
-        """Computes the Matthews correlation coefficient loss.
-
-        Args:
-        y: Ground truth labels tensor.
-        y_hat: Predicted labels tensor.
-
-        Returns:
-        The Matthews correlation coefficient loss value.
-        """
-        tp = torch.sum(torch.mul(y_hat, y))
-        tn = torch.sum(torch.mul((1 - y_hat), (1 - y)))
-        fp = torch.sum(torch.mul(y_hat, (1 - y)))
-        fn = torch.sum(torch.mul((1 - y_hat), y))
-
-        numerator = torch.mul(tp, tn) - torch.mul(fp, fn)
-        denominator = torch.sqrt(
-            torch.add(tp, 1, fp)
-            * torch.add(tp, 1, fn)
-            * torch.add(tn, 1, fp)
-            * torch.add(tn, 1, fn)
-        )
-
-        # Adding 1 to the denominator to avoid divide-by-zero errors.
-        mcc = torch.div(numerator.sum(), denominator.sum() + 1.0)
-        return 1 - mcc
-
-    def heteroscedastic_loss(y, mean, var):
-        """Computes heteroscedastic loss for a prediction.
-
-        Args:
-        y: Ground truth labels tensor.
-        mean: Predicted mean tensor.
-        var: Predicted variance tensor.
-
-        Returns:
-        The heteroscedastic loss value.
-        """
-        loss = (var ** (-1)) * (y - mean) ** 2 + torch.log(var)
-        return loss
-
     def configure_optimizers(self):
         """Configures the optimizers and learning rate scheduler.
 
@@ -163,8 +121,8 @@ class GNN(LightningModule):
 
     def step(self, batch):
         logits = self.model(batch, batch.batch)
-        # loss = self.loss_function(logits, batch.y.float())
-        loss = self.loss_function(torch.sigmoid(logits), batch.y.float())
+        # loss = self.loss_function(logits, batch.y.float())  # use when BCEWithLogitsLoss is used
+        loss = self.loss_function(torch.sigmoid(logits), batch.y.float())   # use when MCC_Loss is used
         return loss, logits
 
     def on_train_start(self) -> None:
