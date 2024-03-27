@@ -889,6 +889,7 @@ class M10(torch.nn.Module):
     The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
     + Pooling for context
+    + Molecular features as additional input
     """
 
     def __init__(self, params, hyperparams, pos_weight) -> None:
