@@ -73,6 +73,7 @@ class GNN(LightningModule):
             "M10": M10,
             "M11": M11,
             "M12": M12,
+            "M13": M13,
         }
 
         self.pos_weight = torch.tensor(pos_weight, dtype=torch.float).cuda()
@@ -1116,3 +1117,105 @@ class M12(torch.nn.Module):
         )
 
         return hyperparams
+
+
+class M13(torch.nn.Module):
+
+    """
+    The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
+    + Pooling for context
+    + Learned molecular features as additional input
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
+        super(M13, self).__init__()
+
+        self.conv = torch.nn.ModuleList()
+        self.batch_norm = torch.nn.ModuleList()
+        self.activation = torch.nn.LeakyReLU()
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv.append(
+                GINEConv(
+                    torch.nn.Sequential(
+                        torch.nn.Linear(in_channels, out_channels),
+                        BatchNorm(out_channels),
+                        self.activation,
+                        torch.nn.Linear(out_channels, out_channels),
+                    ),
+                    train_eps=True,
+                    edge_dim=params["num_edge_features"],
+                )
+            )
+            in_channels = out_channels
+            self.batch_norm.append(BatchNorm(in_channels))
+        
+        in_channels_mol = params["num_mol_features"]
+        out_channels_mol = hyperparams["size_mol_mlp_layers"]
+        self.mol_mlp = torch.nn.Sequential(
+            torch.nn.Linear(in_channels_mol, out_channels_mol),
+            BatchNorm(out_channels_mol),
+            self.activation,
+            torch.nn.Linear(out_channels_mol, out_channels_mol),
+        )
+        
+        in_channels = in_channels + out_channels_mol
+        out_channels = hyperparams["size_final_mlp_layers"]
+        self.final = torch.nn.Sequential(
+            torch.nn.Linear(in_channels, out_channels),
+            BatchNorm(out_channels),
+            self.activation,
+            torch.nn.Linear(out_channels, 1),
+        )
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+        batch: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        # Compute atom embeddings
+        x_atom = data.x
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
+            x_atom = conv(x_atom, data.edge_index, data.edge_attr)
+            if i != len(self.conv) - 1:
+                x_atom = batch_norm(x_atom)
+                x_atom = self.activation(x_atom)
+
+        # Compute molecular embeddings
+        x_mol = self.mol_mlp(data.mol_x)
+        x_mol = data.mol_x
+
+        # Concatenate atom embeddings and molecular embeddings
+        x = torch.cat((x_atom, x_mol), dim=1)
+
+        # Classification
+        x = self.final(x)
+
+        return torch.flatten(x)
+
+    @classmethod
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 16, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+        size_mol_mlp_layers = trial.suggest_int("size_mol_mlp_layers", 32, 512)
+        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
+
+        hyperparams = dict(
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
+            size_mol_mlp_layers=size_mol_mlp_layers,
+            size_final_mlp_layers=size_final_mlp_layers,
+
+        )
+
+        return hyperparams
+    
