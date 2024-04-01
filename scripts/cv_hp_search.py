@@ -33,6 +33,7 @@ from awesom import (
     M10,
     M11,
     M12,
+    M13,
     ValidationMetrics,
 )
 
@@ -49,6 +50,7 @@ model_dict = {
     "M10": M10,
     "M11": M11,
     "M12": M12,
+    "M13": M13,
 }
 
 
@@ -64,6 +66,7 @@ def main():
     data_params = dict(
         num_node_features=data.num_node_features,
         num_edge_features=data.num_edge_features,
+        num_mol_features=data.mol_x.shape[1],
     )
 
     def objective(trial):
