@@ -40,104 +40,6 @@ BOND_STEREO_STR = [
     "STEREOTRANS",
 ]
 
-CLASS1 = [i for i in range(4)]  # 3 total
-CLASS2 = [i for i in range(22)]  # 21 total
-CLASS3 = [
-    1,
-    2,
-    3,
-    4,
-    5,
-    11,
-    12,
-    14,
-    15,
-    17,
-    18,
-    19,
-    23,
-    24,
-    26,
-    27,
-    28,
-    29,
-    30,
-    31,
-    32,
-    33,
-    34,
-    35,
-    36,
-    38,
-    39,
-    40,
-    41,
-    42,
-    44,
-    45,
-    46,
-    47,
-    48,
-    49,
-    50,
-    51,
-    57,
-    58,
-    59,
-    60,
-    61,
-    62,
-    64,
-    65,
-    66,
-    70,
-    71,
-    72,
-    73,
-    75,
-    77,
-    78,
-    79,
-    80,
-    81,
-    82,
-    84,
-    85,
-    87,
-    88,
-    89,
-    90,
-    92,
-    93,
-    94,
-    95,
-    98,
-    99,
-    100,
-    103,
-    104,
-    105,
-    107,
-    108,
-    110,
-    111,
-    112,
-    113,
-    115,
-    116,
-    117,
-    118,
-    119,
-    121,
-    122,
-    123,
-    125,
-    126,
-    127,
-    129,
-    155,
-]  # 93 total
-
 
 """
 General Utilities
@@ -655,7 +557,6 @@ def generate_preprocessed_data_chunk_RDKit(
     df_chunk["G"] = df_chunk.apply(
         lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms),
         axis=1
-        # lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms, x.class3), axis=1
     )
     G = nx.disjoint_union_all(df_chunk["G"].to_list())
 
@@ -688,47 +589,27 @@ def generate_mol_features_RDKit(mol: RDKitMol) -> List[float]:
     ]
 
 
-def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int) -> List[float]:
-    # def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int, class3: int) -> List[float]:
+def generate_node_features_RDKit(atom: RDKitAtom) -> List[float]:
     """
     Generates the node features for each atom
     Args:
         atom (RDKit Atom): atom for the features calculation
-        atm_ring_length (int): the size of the ring in which the atom is
-        class3 (int): the reported reaction subclass
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
     features = {
         "atom_type": _get_one_hot_encoded_element(atom.GetAtomicNum(), ELEM_LIST),
-        # "aromaticity": list([float(atom.GetIsAromatic())]),
-        "formal_charge": _get_one_hot_encoded_element(
-            atom.GetFormalCharge(), FORMAL_CHARGE
-        ),
-        # "hybridization_state": _get_one_hot_encoded_element(
-        #     str(atom.GetHybridization()), HYBRIDIZATION_TYPE
+        # "formal_charge": _get_one_hot_encoded_element(
+        #     atom.GetFormalCharge(), FORMAL_CHARGE
         # ),
-        # "num_h_neighbors": _get_one_hot_encoded_element(atom.GetTotalNumHs(), NUM_H_NEIGHBORS),
-        # "ring_size": _get_one_hot_encoded_element(atm_ring_length, RING_SIZE),
-        # "total_degree": _get_one_hot_encoded_element(atom.GetTotalDegree(), TOTAL_DEGREE),
-        # "valence": _get_one_hot_encoded_element(atom.GetTotalValence(), TOTAL_VALENCE),
-        # "class3": _get_one_hot_encoded_element(class3, CLASS3),
     }
     return (
         features["atom_type"]
-        # + features["aromaticity"]
-        + features["formal_charge"]
-        # + features["hybridization_state"]
-        # + features["num_h_neighbors"]
-        # + features["ring_size"]
-        # + features["total_degree"]
-        # + features["valence"]
-        # + features["class3"]
+        # + features["formal_charge"]
     )
 
 
 def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
-    # def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int], class3: int) -> nx.Graph:
     """
     This function takes an RDKit Mol object as input and returns its corresponding
     NetworkX graph with node and edge attributes.
@@ -738,7 +619,6 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
         soms (list): a list of the indices of atoms that are SoMs (This is
                     of course only relevant for training data. If there is no info
                     about which atom is a SoM, then the list is simply empty.)
-        class3 (int): the reported reaction subclass
     Returns:
         NetworkX Graph with node and edge attributes
     """
@@ -747,15 +627,9 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
     # Assign each atom its features and make it a node of G
     for atom_idx in range(mol.GetNumAtoms()):
         atom = mol.GetAtomWithIdx(atom_idx)
-        atm_ring_length = 0
-        if atom.IsInRing():
-            for ring in mol.GetRingInfo().AtomRings():
-                if atom_idx in ring:
-                    atm_ring_length = len(ring)
         G.add_node(
             atom_idx,  # node identifier
-            node_features=generate_node_features_RDKit(atom, atm_ring_length),
-            # node_features=generate_node_features_RDKit(atom, atm_ring_length, class3),
+            node_features=generate_node_features_RDKit(atom),
             mol_features=generate_mol_features_RDKit(mol),
             is_som=(atom_idx in soms),  # label
             # the next two elements are later used to assign the
