@@ -52,23 +52,6 @@ class ValidationMetrics(BaseMetrics):
             "Atomic AUROC": [],
         }
 
-        for fold_id, lst_batchwise_preds in predictions.items():
-            logits_lst = []
-            y_lst = []
-            mol_id_lst = []
-            atom_id_lst = []
-            for batchwise_preds in lst_batchwise_preds:
-                logits_lst.append(batchwise_preds[0])
-                y_lst.append(batchwise_preds[1])
-                mol_id_lst.append(batchwise_preds[2])
-                atom_id_lst.append(batchwise_preds[3])
-            predictions[fold_id] = (
-                torch.cat(logits_lst, dim=0),
-                torch.cat(y_lst, dim=0),
-                torch.cat(mol_id_lst, dim=0),
-                torch.cat(atom_id_lst, dim=0),
-            )
-
         for fold_id, preds in predictions.items():
             logits = preds[0][0]
             y = preds[0][1]
