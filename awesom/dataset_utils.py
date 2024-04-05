@@ -566,26 +566,28 @@ def generate_preprocessed_data_chunk_RDKit(
 def generate_mol_features_RDKit(mol: RDKitMol) -> List[float]:
     return [
         rdMolDescriptors.CalcExactMolWt(mol),
-        rdMolDescriptors.CalcFractionCSP3(mol),
+        rdMolDescriptors.CalcCrippenDescriptors(mol)[0],  # logP
         rdMolDescriptors.CalcLabuteASA(mol),
-        rdMolDescriptors.CalcNumAliphaticCarbocycles(mol),
-        rdMolDescriptors.CalcNumAliphaticHeterocycles(mol),
-        rdMolDescriptors.CalcNumAliphaticRings(mol),
-        rdMolDescriptors.CalcNumAmideBonds(mol),
-        rdMolDescriptors.CalcNumAromaticCarbocycles(mol),
-        rdMolDescriptors.CalcNumAromaticHeterocycles(mol),
-        rdMolDescriptors.CalcNumAromaticRings(mol),
-        rdMolDescriptors.CalcNumHeavyAtoms(mol),
+        rdMolDescriptors.CalcTPSA(mol),
         rdMolDescriptors.CalcNumHBA(mol),
         rdMolDescriptors.CalcNumHBD(mol),
+        rdMolDescriptors.CalcNumHeavyAtoms(mol),
         rdMolDescriptors.CalcNumHeteroatoms(mol),
-        rdMolDescriptors.CalcNumHeterocycles(mol),
+        rdMolDescriptors.CalcFractionCSP3(mol),
         rdMolDescriptors.CalcNumRings(mol),
-        rdMolDescriptors.CalcNumRotatableBonds(mol),
+        rdMolDescriptors.CalcNumHeterocycles(mol),
+        rdMolDescriptors.CalcNumAliphaticCarbocycles(mol),
+        rdMolDescriptors.CalcNumAliphaticHeterocycles(mol),
+        # rdMolDescriptors.CalcNumAliphaticRings(mol),
+        rdMolDescriptors.CalcNumAromaticCarbocycles(mol),
+        rdMolDescriptors.CalcNumAromaticHeterocycles(mol),
+        # rdMolDescriptors.CalcNumAromaticRings(mol),
         rdMolDescriptors.CalcNumSaturatedCarbocycles(mol),
         rdMolDescriptors.CalcNumSaturatedHeterocycles(mol),
-        rdMolDescriptors.CalcNumSaturatedRings(mol),
-        rdMolDescriptors.CalcTPSA(mol),
+        # rdMolDescriptors.CalcNumSaturatedRings(mol),
+        rdMolDescriptors.CalcNumRotatableBonds(mol),
+        rdMolDescriptors.CalcNumAmideBonds(mol),
+        
     ]
 
 
