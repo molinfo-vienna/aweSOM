@@ -28,7 +28,6 @@ from awesom import (
     M7,
     M8,
     M9,
-    M10,
     M11,
     M12,
     M13,
@@ -43,7 +42,6 @@ model_dict = {
     "M7": M7,
     "M8": M8,
     "M9": M9,
-    "M10": M10,
     "M11": M11,
     "M12": M12,
     "M13": M13,
@@ -123,14 +121,15 @@ def main():
 
     storage = "sqlite:///" + args.outputPath + "/storage.db"
     study = optuna.create_study(
-        direction="minimize",
         storage=storage,
+        study_name="optuna_study",
         load_if_exists=True,
+        direction="minimize",
     )
     study.optimize(objective, n_trials=args.numberOptunaTrials, gc_after_trial=True)
 
     print(
-        f"Best trial is trial {study.best_trial._trial_id} with mean validation MCC-loss {study.best_trial.value} and hyperparameters:"
+        f"Best trial is trial {study.best_trial._trial_id} with mean validation loss {study.best_trial.value} and hyperparameters:"
     )
     for key, value in study.best_trial.params.items():
         print("   {}: {}".format(key, value))
