@@ -31,6 +31,7 @@ from awesom import (
     M11,
     M12,
     M13,
+    M14,
     ValidationMetrics,
 )
 
@@ -45,6 +46,7 @@ model_dict = {
     "M11": M11,
     "M12": M12,
     "M13": M13,
+    "M14": M14,
 }
 
 
