@@ -555,8 +555,7 @@ def generate_preprocessed_data_chunk_RDKit(
     Generates preprocessed data from a chunk of the input data.
     """
     df_chunk["G"] = df_chunk.apply(
-        lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms),
-        axis=1
+        lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms), axis=1
     )
     G = nx.disjoint_union_all(df_chunk["G"].to_list())
 
@@ -587,7 +586,6 @@ def generate_mol_features_RDKit(mol: RDKitMol) -> List[float]:
         # rdMolDescriptors.CalcNumSaturatedRings(mol),
         rdMolDescriptors.CalcNumRotatableBonds(mol),
         rdMolDescriptors.CalcNumAmideBonds(mol),
-        
     ]
 
 
@@ -605,10 +603,8 @@ def generate_node_features_RDKit(atom: RDKitAtom) -> List[float]:
         #     atom.GetFormalCharge(), FORMAL_CHARGE
         # ),
     }
-    return (
-        features["atom_type"]
-        # + features["formal_charge"]
-    )
+    return features["atom_type"]
+    # + features["formal_charge"]
 
 
 def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
