@@ -120,7 +120,9 @@ class GNN(LightningModule):
     def step(self, batch):
         logits = self.model(batch)
         # loss = self.loss_function(logits, batch.y.float())  # use when BCEWithLogitsLoss is used
-        loss = self.loss_function(torch.sigmoid(logits), batch.y.float())   # use when MCC_Loss is used
+        loss = self.loss_function(
+            torch.sigmoid(logits), batch.y.float()
+        )  # use when MCC_Loss is used
         return loss, logits
 
     def on_train_start(self) -> None:
@@ -349,7 +351,7 @@ class M2(torch.nn.Module):
             weight_decay=weight_decay,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
-            size_final_mlp_layers=size_final_mlp_layers
+            size_final_mlp_layers=size_final_mlp_layers,
         )
 
         return hyperparams
@@ -440,7 +442,7 @@ class M4(torch.nn.Module):
             weight_decay=weight_decay,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
-            size_final_mlp_layers=size_final_mlp_layers
+            size_final_mlp_layers=size_final_mlp_layers,
         )
 
         return hyperparams
@@ -812,7 +814,6 @@ class M11(torch.nn.Module):
             torch.nn.Linear(mid_channels, 1),
         )
 
-
     def forward(
         self,
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
@@ -1100,7 +1101,9 @@ class M14(torch.nn.Module):
 
         # Pooling for context
         x_pool = global_add_pool(x_atom, data.batch)
-        num_atoms_per_mol = torch.unique(data.batch, sorted=False, return_counts=True)[1]
+        num_atoms_per_mol = torch.unique(data.batch, sorted=False, return_counts=True)[
+            1
+        ]
         x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
 
         # Concatenate final embedding and pooled representation
@@ -1116,7 +1119,6 @@ class M14(torch.nn.Module):
         x = self.final(x)
 
         return torch.flatten(x)
-
 
     @classmethod
     def get_params(self, trial):
