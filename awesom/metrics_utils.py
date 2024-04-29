@@ -2,6 +2,7 @@ import csv
 import matplotlib.pyplot as plt
 import os
 import torch
+from torch.distributions import Categorical
 from torchmetrics import MatthewsCorrCoef, AUROC, ROC
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from statistics import mean, stdev
@@ -152,15 +153,11 @@ class TestMetrics(BaseMetrics):
         y_hat_avg = torch.mean(y_hats, dim=0)
         y_hat_bin = (y_hat_avg >= 0.5).int()
 
-        ensemble_mean = torch.mean(y_hats, dim=0)
-        ensemble_std = torch.std(y_hats, dim=0)
-        ensemble_var = torch.var(y_hats, dim=0)
-
         total_confidence = abs(y_hat_avg - 0.5)  # distance to the decision boundary
         total_confidence_scaled = total_confidence / 0.5  # scale from [0,0.5] to [0,1]
         total_uncertainty = 1 - total_confidence_scaled
-        aleatoric_uncertainty = total_uncertainty - ensemble_var
-        epistemic_uncertainty = ensemble_var
+        epistemic_uncertainty = Categorical(probs=y_hats.T).entropy()
+        aleatoric_uncertainty = total_uncertainty - epistemic_uncertainty
         
         ranking = cls.compute_ranking(y_hat_avg, mol_id)
         
@@ -168,9 +165,7 @@ class TestMetrics(BaseMetrics):
             writer = csv.writer(f)
             writer.writerow(
                 (
-                    "ensemble_mean",
-                    "ensemble_std",
-                    "ensemble_var",
+                    "averaged_probabilities",
                     "total_uncertainty",
                     "aleatoric_uncertainty",
                     "epistemic_uncertainty",
@@ -182,9 +177,7 @@ class TestMetrics(BaseMetrics):
                 )
             )
             for row in zip(
-                ensemble_mean.tolist(),
-                ensemble_std.tolist(),
-                ensemble_var.tolist(),
+                y_hat_avg.tolist(),
                 total_uncertainty.tolist(),
                 aleatoric_uncertainty.tolist(),
                 epistemic_uncertainty.tolist(),
