@@ -152,19 +152,28 @@ class TestMetrics(BaseMetrics):
         y_hat_avg = torch.mean(y_hats, dim=0)
         y_hat_bin = (y_hat_avg >= 0.5).int()
 
+        ensemble_mean = torch.mean(y_hats, dim=0)
         ensemble_std = torch.std(y_hats, dim=0)
         ensemble_var = torch.var(y_hats, dim=0)
-        ensemble_mean = torch.mean(y_hats, dim=0)
 
+        total_confidence = abs(y_hat_avg - 0.5)  # distance to the decision boundary
+        total_confidence_scaled = total_confidence / 0.5  # scale from [0,0.5] to [0,1]
+        total_uncertainty = 1 - total_confidence_scaled
+        aleatoric_uncertainty = total_uncertainty - ensemble_var
+        epistemic_uncertainty = ensemble_var
+        
         ranking = cls.compute_ranking(y_hat_avg, mol_id)
+        
         with open(os.path.join(output_folder, "results.csv"), "w") as f:
             writer = csv.writer(f)
             writer.writerow(
                 (
-                    "averaged_probabilities",
+                    "ensemble_mean",
                     "ensemble_std",
                     "ensemble_var",
-                    "ensemble_mean",
+                    "total_uncertainty",
+                    "aleatoric_uncertainty",
+                    "epistemic_uncertainty",
                     "ranking",
                     "predicted_labels",
                     "true_labels",
@@ -173,10 +182,12 @@ class TestMetrics(BaseMetrics):
                 )
             )
             for row in zip(
-                y_hat_avg.tolist(),
+                ensemble_mean.tolist(),
                 ensemble_std.tolist(),
                 ensemble_var.tolist(),
-                ensemble_mean.tolist(),
+                total_uncertainty.tolist(),
+                aleatoric_uncertainty.tolist(),
+                epistemic_uncertainty.tolist(),
                 ranking.tolist(),
                 y_hat_bin.tolist(),
                 y.tolist(),
