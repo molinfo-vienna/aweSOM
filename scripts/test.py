@@ -89,7 +89,7 @@ if __name__ == "__main__":
         "-t",
         dest="test",
         required=False,
-        help="Whether to performance inference (False, default value) or testing (True). \
+        help="  Whether to perform inference (False, default value) or testing (True). \
                 If set to true, the script assumes that true labels are provided \
                 and computes the classification metrics (MCC, precision, recall, top2 correctness rate, \
                 atomic and molecular AUROCs, and atomic and molecular R-precisions).",
