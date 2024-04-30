@@ -150,35 +150,32 @@ class TestMetrics(BaseMetrics):
 
         logits = torch.stack(logits_lst, dim=0)
         y_hats = torch.sigmoid(logits)
-        y_hat_avg = torch.mean(y_hats, dim=0)
-        y_hat_bin = (y_hat_avg >= 0.5).int()
 
-        total_confidence = abs(y_hat_avg - 0.5)  # distance to the decision boundary
-        total_confidence_scaled = total_confidence / 0.5  # scale from [0,0.5] to [0,1]
-        total_uncertainty = 1 - total_confidence_scaled
-        epistemic_uncertainty = Categorical(probs=y_hats.T).entropy()
-        aleatoric_uncertainty = total_uncertainty - epistemic_uncertainty
+        mean_ensemble = torch.mean(y_hats, dim=0)  # mean of the ensemble  (predicted SoM probabilities)
+        var_ensemble = torch.var(y_hats, dim=0)  # variance of the ensemble
+        aleatoric_uncertainty = 1 - (abs(mean_ensemble - 0.5) / 0.5)  # one minus the absolute distance to the decision boundary scaled to [0, 1]
+        epistemic_uncertainty = (var_ensemble - var_ensemble.min()) / (var_ensemble.max() - var_ensemble.min())  # variance of the ensemble scaled to [0, 1]
         
-        ranking = cls.compute_ranking(y_hat_avg, mol_id)
+        ranking = cls.compute_ranking(mean_ensemble, mol_id)
+
+        y_hat_bin = (mean_ensemble >= 0.5).int()  # predicted binary labels (assuming threshold = 0.5)
         
         with open(os.path.join(output_folder, "results.csv"), "w") as f:
             writer = csv.writer(f)
             writer.writerow(
                 (
                     "averaged_probabilities",
-                    "total_uncertainty",
                     "aleatoric_uncertainty",
                     "epistemic_uncertainty",
                     "ranking",
-                    "predicted_labels",
+                    "predicted_binary_labels",
                     "true_labels",
                     "mol_id",
                     "atom_id",
                 )
             )
             for row in zip(
-                y_hat_avg.tolist(),
-                total_uncertainty.tolist(),
+                mean_ensemble.tolist(),
                 aleatoric_uncertainty.tolist(),
                 epistemic_uncertainty.tolist(),
                 ranking.tolist(),
@@ -191,7 +188,7 @@ class TestMetrics(BaseMetrics):
 
         if true_labels:
             sorted_y = torch.index_select(
-                y, dim=0, index=torch.sort(y_hat_avg, descending=True)[1]
+                y, dim=0, index=torch.sort(mean_ensemble, descending=True)[1]
             )
             total_num_soms = torch.sum(y).item()
             atom_r_precision = (
@@ -206,7 +203,7 @@ class TestMetrics(BaseMetrics):
             ):  # This is a somewhat complicated way to get an ordered set, but it works
                 mask = torch.where(mol_id == id)[0]
                 masked_y = y[mask]
-                masked_y_hat = y_hat_avg[mask]
+                masked_y_hat = mean_ensemble[mask]
                 masked_sorted_y = torch.index_select(
                     masked_y,
                     dim=0,
@@ -232,7 +229,7 @@ class TestMetrics(BaseMetrics):
                 f.write(f"Molecular AUROC:  {round(mol_auroc, 4)}\n")
                 f.write(f"Top-2 Correctness Rate: {round(top2_correctness_rate, 4)}\n")
                 f.write(f"Atomic R-Precision: {round(atom_r_precision, 4)}\n")
-                f.write(f"Atomic AUROC: {round(cls.auroc(y_hat_avg, y).item(), 4)}\n")
+                f.write(f"Atomic AUROC: {round(cls.auroc(mean_ensemble, y).item(), 4)}\n")
 
-            RocCurveDisplay.from_predictions(y, y_hat_avg)
+            RocCurveDisplay.from_predictions(y, mean_ensemble)
             plt.savefig(str(os.path.join(output_folder, "roc.png")), dpi=300)
