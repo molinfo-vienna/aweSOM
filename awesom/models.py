@@ -13,27 +13,27 @@ from lightning import LightningModule
 from torchmetrics import AUROC, MatthewsCorrCoef
 
 
-class MCC_Loss(torch.nn.Module):
+class MCCLoss(torch.nn.Module):
     """
-    Calculates the proposed Matthews Correlation Coefficient-based loss.
+    Calculates the Matthews Correlation Coefficient loss.
 
     Args:
-        inputs (torch.Tensor): 1-hot encoded predictions
-        targets (torch.Tensor): 1-hot encoded ground truth
+        outputs (torch.Tensor): predictions
+        targets (torch.Tensor): ground truth
     """
 
     def __init__(self):
-        super(MCC_Loss, self).__init__()
+        super(MCCLoss, self).__init__()
 
-    def forward(self, inputs, targets):
+    def forward(self, outputs, targets):
         """
         MCC = (TP.TN - FP.FN) / sqrt((TP+FP) . (TP+FN) . (TN+FP) . (TN+FN))
         where TP, TN, FP, and FN are elements in the confusion matrix.
         """
-        tp = torch.sum(torch.mul(inputs, targets))
-        tn = torch.sum(torch.mul((1 - inputs), (1 - targets)))
-        fp = torch.sum(torch.mul(inputs, (1 - targets)))
-        fn = torch.sum(torch.mul((1 - inputs), targets))
+        tp = torch.sum(torch.mul(outputs, targets))
+        tn = torch.sum(torch.mul((1 - outputs), (1 - targets)))
+        fp = torch.sum(torch.mul(outputs, (1 - targets)))
+        fn = torch.sum(torch.mul((1 - outputs), targets))
 
         numerator = torch.mul(tp, tn) - torch.mul(fp, fn)
         denominator = torch.sqrt(
@@ -46,9 +46,49 @@ class MCC_Loss(torch.nn.Module):
         # Adding 1 to the denominator to avoid divide-by-zero errors.
         mcc = torch.div(numerator.sum(), denominator.sum() + 1.0)
         return 1 - mcc
+    
+
+class HeteroscedasticLoss(torch.nn.Module):
+    """
+    Calculates the heteroscedastic classification loss according to Kendall and Gal (2017).
+    https://arxiv.org/abs/1703.04977
+
+    Args:
+        outputs (torch.Tensor): predictions (mean and standard deviation)
+        targets (torch.Tensor): ground truth
+    """
+
+    def __init__(self, pos_weight):
+        super(HeteroscedasticLoss, self).__init__()
+        self.pos_weight = pos_weight
+
+    def forward(self, outputs, targets):
+        """
+        Computes the heteroscedastic loss by:
+        1) corrupting the logits with Gaussian noise with variance sigma^2,
+        2) calculating the negative log likelihood of the corrupted logits,
+        3) averaging the negative log likelihood over the batch.
+        """
+        mu = outputs[:, 0]
+        sigma = outputs[:, 1]
+        loss = 0
+        for _ in range(10):
+            noise = torch.randn_like(mu) * sigma
+            logits = mu + noise
+            loss += torch.nn.functional.binary_cross_entropy_with_logits(logits, targets, reduction="sum", pos_weight=self.pos_weight)
+        return loss
 
 
 class GNN(LightningModule):
+    """
+    Parent class for the graph neural network models.
+
+    Args:
+        params (dict): dictionary of parameters
+        hyperparams (dict): dictionary of hyperparameters
+        architecture (str): model architecture
+        pos_weight (float): positive class weight for the loss function
+    """
     def __init__(
         self,
         params,
@@ -76,7 +116,8 @@ class GNN(LightningModule):
 
         self.pos_weight = torch.tensor(pos_weight, dtype=torch.float).cuda()
         # self.loss_function = torch.nn.BCEWithLogitsLoss(pos_weight=self.pos_weight, reduction="sum")
-        self.loss_function = MCC_Loss()
+        self.loss_function = MCCLoss()
+        # self.loss_function = HeteroscedasticLoss(pos_weight=self.pos_weight)
 
         self.model = model_dict[architecture](params, hyperparams, self.pos_weight)
 
@@ -116,14 +157,48 @@ class GNN(LightningModule):
                 "monitor": "val/loss",
             },
         }
+    
+    # def step(self, batch):
+    #     """Step function for training with BCEWithLogitsLoss.
+
+    #     Args:
+    #         batch (torch_geometric.data.Data): batch of data
+
+    #     Returns:
+    #         loss (torch.Tensor): loss value
+    #         logits (torch.Tensor): model output
+    #     """
+    #     logits = self.model(batch)
+    #     loss = self.loss_function(logits, batch.y.float())
+    #     return loss, logits
 
     def step(self, batch):
+        """Step function for training with MCCLoss.
+
+        Args:
+            batch (torch_geometric.data.Data): batch of data
+
+        Returns:
+            loss (torch.Tensor): loss value
+            logits (torch.Tensor): model output
+        """
         logits = self.model(batch)
-        # loss = self.loss_function(logits, batch.y.float())  # use when BCEWithLogitsLoss is used
-        loss = self.loss_function(
-            torch.sigmoid(logits), batch.y.float()
-        )  # use when MCC_Loss is used
+        loss = self.loss_function(torch.sigmoid(logits), batch.y.float())
         return loss, logits
+
+    # def step(self, batch):
+    #     """Step function for training with heteroscedastic loss.
+
+    #     Args:
+    #         batch (torch_geometric.data.Data): batch of data
+
+    #     Returns:
+    #         loss (torch.Tensor): loss value
+    #         outputs (torch.Tensor): model outputs (mean and standard deviation)
+    #     """
+    #     outputs = self.model(batch)
+    #     loss = self.loss_function(outputs, batch.y.float())
+    #     return loss, outputs
 
     def on_train_start(self) -> None:
         self.logger.log_hyperparams(
@@ -140,6 +215,8 @@ class GNN(LightningModule):
 
     def training_step(self, batch, batch_idx):
         loss, logits = self.step(batch)
+        # loss, outputs = self.step(batch)
+        # logits, sigma = outputs[:, 0], outputs[:, 1]
         y_hats = torch.sigmoid(logits)
         self.train_auroc(y_hats, batch.y)
         self.train_mcc(y_hats, batch.y)
@@ -168,6 +245,8 @@ class GNN(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         loss, logits = self.step(batch)
+        # loss, outputs = self.step(batch)
+        # logits, sigma = outputs[:, 0], outputs[:, 1]
         y_hats = torch.sigmoid(logits)
         self.val_auroc(y_hats, batch.y)
         self.val_mcc(y_hats, batch.y)
@@ -194,8 +273,31 @@ class GNN(LightningModule):
         )
 
     def predict_step(self, batch, batch_idx):
+        """Predict step function for inference with BCEWithLogitsLoss or MCCLoss.
+
+        Args:
+            batch (_type_): _description_
+            batch_idx (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         _, logits = self.step(batch)
         return logits, batch.y, batch.mol_id, batch.atom_id
+
+    # def predict_step(self, batch, batch_idx):
+    #     """Predict step function for inference with heteroscedastic loss.
+
+    #     Args:
+    #         batch (_type_): _description_
+    #         batch_idx (_type_): _description_
+
+    #     Returns:
+    #         _type_: _description_
+    #     """
+    #     _, outputs = self.step(batch)
+    #     logits, sigma = outputs[:, 0], outputs[:, 1]
+    #     return logits, sigma, batch.y, batch.mol_id, batch.atom_id
 
 
 class M1(torch.nn.Module):
@@ -210,7 +312,6 @@ class M1(torch.nn.Module):
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
         self.activation = torch.nn.LeakyReLU()
-        # self.dropout = torch.nn.Dropout(0.2)
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
@@ -249,7 +350,6 @@ class M1(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
-                # x = self.dropout(x)
 
         # Classification
         x = self.final(x)
@@ -289,7 +389,6 @@ class M2(torch.nn.Module):
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
         self.activation = torch.nn.LeakyReLU()
-        # self.dropout = torch.nn.Dropout(0.2)
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
@@ -329,7 +428,6 @@ class M2(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
-                # x = self.dropout(x)
 
         # Classification
         x = self.final(x)
@@ -370,7 +468,6 @@ class M4(torch.nn.Module):
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
         self.activation = torch.nn.LeakyReLU()
-        # self.dropout = torch.nn.Dropout(0.2)
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
@@ -399,6 +496,9 @@ class M4(torch.nn.Module):
             torch.nn.Linear(mid_channels, 1),
         )
 
+        self.logits_layer = torch.nn.Linear(in_channels*2, 1)
+        self.sigma_layer = torch.nn.Linear(in_channels*2, 1)
+
     def forward(
         self,
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
@@ -410,7 +510,6 @@ class M4(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
-                # x = self.dropout(x)
 
         # Pooling for context
         x_pool = global_add_pool(x, data.batch)
@@ -422,10 +521,15 @@ class M4(torch.nn.Module):
         # Concatenate final embedding and pooled representation
         x = torch.cat((x, x_pool_expanded), dim=1)
 
-        # Classification
+        # Classification with BCEWithLogitsLoss or MCCLoss
         x = self.final(x)
-
         return torch.flatten(x)
+
+        # # Classification with heteroscedastic loss
+        # logits = self.logits_layer(x)
+        # sigma = self.sigma_layer(x)
+        # output = torch.cat((logits, sigma), dim=1)
+        # return output
 
     @classmethod
     def get_params(self, trial):
@@ -463,7 +567,6 @@ class M6(torch.nn.Module):
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
         self.activation = torch.nn.LeakyReLU()
-        # self.dropout = torch.nn.Dropout(0.2)
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
@@ -500,7 +603,6 @@ class M6(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
-                # x = self.dropout(x)
 
         # Classification
         x = self.final(x)
@@ -543,7 +645,6 @@ class M7(torch.nn.Module):
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
         self.activation = torch.nn.LeakyReLU()
-        # self.dropout = torch.nn.Dropout(0.2)
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
@@ -578,7 +679,6 @@ class M7(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
-                # x = self.dropout(x)
 
         # Classification
         x = self.final(x)
@@ -620,7 +720,6 @@ class M8(torch.nn.Module):
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
         self.activation = torch.nn.LeakyReLU()
-        # self.dropout = torch.nn.Dropout(0.2)
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
@@ -655,7 +754,6 @@ class M8(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
-                # x = self.dropout(x)
 
         # Classification
         x = self.final(x)
@@ -698,7 +796,6 @@ class M9(torch.nn.Module):
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
         self.activation = torch.nn.LeakyReLU()
-        # self.dropout = torch.nn.Dropout(0.2)
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
@@ -733,7 +830,6 @@ class M9(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
-                # x = self.dropout(x)
 
         # Pooling for context
         x_pool = global_add_pool(x, data.batch)
