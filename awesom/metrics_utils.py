@@ -154,15 +154,14 @@ class TestMetrics(BaseMetrics):
 
         mean_y_hats = torch.mean(
             y_hats, dim=0
-        )  # mean probabilities of the ensemble (predicted SoM probabilities)
+        )  # mean predicted probabilities of ensemble (predicted SoM probabilities)
 
-        # aleatoric_uncertainty = torch.mean(torch.stack(sigma_lst, dim=0), dim=0)
-        # epistemic_uncertainty = mean_y_hats * torch.log(
-        #     mean_y_hats
-        # )  # epistemic uncertainty (entropy of the predicted probabilities)
-
-        sigma_ale = torch.mean((y_hats * (1-y_hats))**2, dim=0)  # variance of the predicted probabilities, i.e., aleatoric uncertainties
-        sigma_epi = torch.mean((y_hats - mean_y_hats)**2, dim=0)  # epistemic uncertainties
+        sigma_ale = torch.mean(
+            (y_hats * (1 - y_hats)), dim=0
+        )  # aleatoric uncertainties
+        sigma_epi = torch.mean(
+            y_hats**2 - mean_y_hats**2, dim=0
+        )  # epistemic uncertainties
 
         ranking = cls.compute_ranking(mean_y_hats, mol_id)
 
