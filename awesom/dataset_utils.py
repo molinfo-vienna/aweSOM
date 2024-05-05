@@ -4,8 +4,6 @@ import numpy as np
 import pandas as pd
 import os
 
-# import torch
-
 from multiprocessing import Pool
 from rdkit.Chem import Mol as RDKitMol
 from rdkit.Chem.rdchem import Atom as RDKitAtom
@@ -137,14 +135,15 @@ def _get_atom_type(atom: Chem.Atom) -> int:
 
 def _get_file_length(dir: str) -> int:
     """
-    Loads the file based on either SDF or SMILES format and returns the length.
+    PRIVATE method that loads the file based on either SDF or SMILES format and returns the length.
     Args:
         dir (str): directory to file (incl filename)
     Returns:
-        int: length of file
+        file_length (int): length of file
     """
     reader = _get_reader_by_file_extention(dir)
-    return reader.getNumRecords()
+    file_length = reader.getNumRecords()
+    return file_length
 
 
 def _get_formal_charge(atom: Chem.Atom) -> int:
@@ -191,8 +190,7 @@ def _get_hybridization_type(atom: Chem.Atom) -> int:
 
 def _get_reader_by_file_extention(dir: str) -> Chem.MoleculeReader:
     """
-    PRIVATE METHOD
-    Get input handler for the format specified by the input file's extension
+    PRIVATE METHOD that gets the input handler for the format specified by the input file's extension
     Args:
         dir (str): dir to file including name
     Returns:
@@ -515,22 +513,14 @@ def generate_bond_features_RDKit(bond: RDKitBond) -> list[float]:
     ]
 
 
-def generate_preprocessed_data_RDKit(
-    df: pd.DataFrame, num_workers: int
-) -> Tuple[
-    nx.Graph,
-    np.ndarray[np.int64, Any],
-    np.ndarray[np.int64, Any],
-    np.ndarray[np.int64, Any],
-    np.ndarray[np.float64, Any],
-]:
+def generate_preprocessed_data_RDKit(df: pd.DataFrame, num_workers: int) -> nx.Graph:
     """
     Generates the a preprocessed graph from the input data using multiple workers.
     Args:
         df (pandas dataframe): input data
         numWorkers (int): number of worker processes to use
     Returns:
-        G (NetworkX Graph): a molecular graph describing the entire input data
+        G (NetworkX Graph): a molecular graph describing the input data
                             (individual molecules are processed as subgraphs of
                             one big graph object)
     """
@@ -542,17 +532,15 @@ def generate_preprocessed_data_RDKit(
     return G
 
 
-def generate_preprocessed_data_chunk_RDKit(
-    df_chunk: pd.DataFrame,
-) -> Tuple[
-    nx.Graph,
-    np.ndarray[np.int64, Any],
-    np.ndarray[np.int64, Any],
-    np.ndarray[np.int64, Any],
-    np.ndarray[np.float64, Any],
-]:
+def generate_preprocessed_data_chunk_RDKit(df_chunk: pd.DataFrame) -> nx.Graph:
     """
     Generates preprocessed data from a chunk of the input data.
+    Args:
+        df_chunk (pandas dataframe): chunk of the input data
+    Returns:
+        G (NetworkX Graph): a molecular graph describing the input data
+                            (individual molecules are processed as subgraphs of
+                            one big graph object)
     """
     df_chunk["G"] = df_chunk.apply(
         lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms), axis=1
@@ -563,6 +551,13 @@ def generate_preprocessed_data_chunk_RDKit(
 
 
 def generate_mol_features_RDKit(mol: RDKitMol) -> List[float]:
+    """
+    Generates the molecular features for the molecule
+    Args:
+        mol (RDKit Mol): molecule for the features calculation
+    Returns:
+        (list[float]): list of molecular features
+    """
     return [
         rdMolDescriptors.CalcExactMolWt(mol),
         rdMolDescriptors.CalcCrippenDescriptors(mol)[0],  # logP
@@ -599,17 +594,13 @@ def generate_node_features_RDKit(atom: RDKitAtom) -> List[float]:
     """
     features = {
         "atom_type": _get_one_hot_encoded_element(atom.GetAtomicNum(), ELEM_LIST),
-        # "formal_charge": _get_one_hot_encoded_element(
-        #     atom.GetFormalCharge(), FORMAL_CHARGE
-        # ),
     }
     return features["atom_type"]
-    # + features["formal_charge"]
 
 
 def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
     """
-    This function takes an RDKit Mol object as input and returns its corresponding
+    Takes an RDKit Mol object as input and returns its corresponding
     NetworkX graph with node and edge attributes.
     Args:
         mol_id (int): the molecular ID of the parsed mol
