@@ -2,7 +2,6 @@ import csv
 import matplotlib.pyplot as plt
 import os
 import torch
-from torch.distributions import Categorical
 from torchmetrics import MatthewsCorrCoef, AUROC, ROC
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from statistics import mean, stdev
@@ -55,7 +54,6 @@ class ValidationMetrics(BaseMetrics):
 
         for fold_id, preds in predictions.items():
             logits = preds[0][0]
-            # sigmas = preds[0][1]
             y = preds[0][1]
             mol_id = preds[0][2]
             atom_id = preds[0][3]

@@ -67,12 +67,6 @@ class SOM(InMemoryDataset):
                 df["soms"] = "[]"
             df["soms"] = df["soms"].map(ast.literal_eval)
 
-            #################################################################
-            # df["class1"] = df["class1"].map(ast.literal_eval)
-            # df["class2"] = df["class2"].map(ast.literal_eval)
-            # df["class3"] = df["class3"].map(ast.literal_eval)
-            #################################################################
-
             G = generate_preprocessed_data_RDKit(df, min(len(df), cpu_count()))
 
         elif KIT == "CDPKIT":
