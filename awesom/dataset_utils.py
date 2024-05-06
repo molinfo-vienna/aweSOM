@@ -19,7 +19,7 @@ from CDPL.Chem import Atom as CDPKitAtom
 from CDPL.Chem import Bond as CDPKitBond
 
 
-ELEM_LIST = [6, 7, 8, 9, 15, 16, 17, 35, 53, "OTHER"]
+ELEM_LIST = [5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53, "OTHER"]  # B, C, N, O, F, Si, P, S, Cl, Br, I
 TOTAL_DEGREE = [1, 2, 3, 4, "OTHER"]
 FORMAL_CHARGE = [-1, 0, 1, "OTHER"]
 HYBRIDIZATION_TYPE = ["SP", "SP2", "SP3", "OTHER"]
