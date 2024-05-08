@@ -49,7 +49,7 @@ There is the possibility to choose between ```RDKit``` and ```CDPKit``` for prep
 
 Example:
 
-```python scripts/cv_hp_search.py -i /data/train -o experiments/M1 -m M1 -e 1000 -n 10 -t 50```
+```python scripts/cv_hp_search.py -i /data/train -o output/M4 -m M4 -e 1000 -n 10 -t 50```
 
 #### Model Training
 
@@ -69,7 +69,7 @@ Example:
 
 Example:
 
-```python scripts/train.py -i data/train -y experiments/M1 -o experiments/M1/ensemble -m M1 -e 1000 -s 100```
+```python scripts/train.py -i data/train -y output/M4 -o output/M4/ensemble -m M4 -e 1000 -s 100```
 
 #### Model testing (predicting SoMs for unseen, labeled data)
 
@@ -87,7 +87,7 @@ To predict the SoMs of one or multiple *labeled* molecules and output the predic
 
 Example:
 
-```python scripts/infer.py -i data/test -c experiments/M1/ensemble/ -o experiments/M1/ensemble/test -t```
+```python scripts/infer.py -i data/test -c output/M4/ensemble/ -o output/M4/test -t```
 
 #### Inference (predicting SoMs for unseen, unlabeled data)
 
@@ -95,7 +95,7 @@ To predict the SoMs of one or multiple *unlabeled* molecules and output the pred
 
 ```python scripts/infer.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH```
 
-```INPUT_PATH```: The path to the input data. For inference, both .sdf and .smi files and are currently supported. Please name your input file ```data.sdf``` or ```data.smi``` and place it into a subfolder named ```raw/```. Example: the data input path is ```data/fipronil/raw/data.sdf```, so ```INPUT_PATH``` should be ```data/fipronil```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
+```INPUT_PATH```: The path to the input data. For inference, both .sdf and .smi files and are currently supported. Please name your input file ```data.sdf``` or ```data.smi``` and place it into a subfolder named ```raw/```. Example: the data input path is ```data/fipronil/raw/data.smi```, so ```INPUT_PATH``` should be ```data/fipronil```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
 
 ```CHECKPOINTS_PATH```: The path to the trained ensemble model's checkpoints.
 
@@ -103,7 +103,7 @@ To predict the SoMs of one or multiple *unlabeled* molecules and output the pred
 
 Example:
 
-```python scripts/infer.py -i data/fipronil -c experiments/M1/ensemble/ -o experiments/M1/ensemble/fipronil```
+```python scripts/infer.py -i data/fipronil -c output/M4/ensemble/ -o output/M4/fipronil```
 
 ### License
 
