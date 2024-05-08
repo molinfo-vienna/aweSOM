@@ -53,9 +53,11 @@ Example:
 
 #### Model Training
 
-```python scripts/train.py -i INPUT_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -s ENSEMBLE_SIZE```
+```python scripts/train.py -i INPUT_PATH -y HYPERPARAMETERS_YAML_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -s ENSEMBLE_SIZE```
 
 ```INPUT_PATH```: The path to the input data. For model training, only ```.sdf``` input files are currently supported. Please name your input file ```data.sdf``` and place it into a subfolder named ```raw/```. Example: the data input path is ```data/train/raw/data.sdf```, so ```INPUT_PATH``` should be ```data/train```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used.
+
+```HYPERPARAMETERS_YAML_PATH```: The path to the yaml file containing the hyperparameters that were previously determined by running the cv_hp_search.py script on the training data.
 
 ```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file. The individual validation metrics of each fold will be stored in a CSV file. The best model's checkpoints will be stored in a directory. The averaged predictions made with the best hyp.erparameters will be stored in a text file
 
@@ -67,7 +69,7 @@ Example:
 
 Example:
 
-```python scripts/train.py -i data/processed/RDKit/zaretzki -o models/RDKit/zaretzki/gine -m GINE -b 64 -e 500 -nt 100 -nif 5 -nef 5 -v INFO```
+```python scripts/train.py -i data/train -y experiments/M1 -o experiments/M1/ensemble -m M1 -e 1000 -s 100```
 
 #### Model testing (predicting SoMs for unseen, labeled data)
 
@@ -81,7 +83,7 @@ To predict the SoMs of one or multiple *labeled* molecules and output the predic
 
 ```OUTPUT_PATH```: The desired output's location. The performance metrics are written to ```results.txt``` and the individual predictions to ```results.csv```.
 
-````TEST```: Whether to perform inference on non-labeled data (default: False) or testing on labeled data (True). If set to true, the script assumes that true labels are provided and computes the classification metrics (MCC, precision, recall, top2 correctness rate, atomic and molecular AUROCs, and atomic and molecular R-precisions), which are then written to ```OUTPUT_PATH/results.txt```.
+```TEST```: Whether to perform inference on non-labeled data (default: False) or testing on labeled data (True). If set to true, the script assumes that true labels are provided and computes the classification metrics (MCC, precision, recall, top2 correctness rate, atomic and molecular AUROCs, and atomic and molecular R-precisions), which are then written to ```OUTPUT_PATH/results.txt```.
 
 Example:
 
