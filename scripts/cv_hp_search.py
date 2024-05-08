@@ -201,7 +201,7 @@ if __name__ == "__main__":
             The best hyperparameters will be stored in a YAML file. \
                 The individual validation metrics of each fold will be stored in a CSV file. \
                     The best model's checkpoints will be stored in a directory. \
-                        The averaged predictions made with the bbest hyperparameters will be stored in a text file.",
+                        The averaged predictions made with the best hyperparameters will be stored in a text file.",
     )
     parser.add_argument(
         "-m",
