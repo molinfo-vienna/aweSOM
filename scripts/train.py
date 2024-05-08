@@ -153,7 +153,7 @@ if __name__ == "__main__":
         dest="ensembleSize",
         type=int,
         required=True,
-        help="The number of individual models in the deep ensemble.",
+        help="The desired number of models in the final deep ensemble model.",
     )
 
     args = parser.parse_args()
