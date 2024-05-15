@@ -25,70 +25,85 @@ A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (So
 
 4. Install awesom package with ```pip install -e .```
 
+OR install requirements manually via requirements.txt
+
 ### Usage
 
-#### Dataset Generation
+#### Determine optimal architecture and hyperparameters via k-fold cross validation cross:
 
-To load new data for model training/testing and/or prediction purposes run the following before running ```train``` or ```predict```:
+```python scripts/cv_hp_search.py -i INPUT_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -n NUM_FOLDS -t NUM_TRIALS```
 
-```python scripts/preprocess.py -i INPUT_DIRECTORY -o OUTPUT_DIRECTORY -w NUMBER_WORKERS -k KIT -tl TRUE_LABELS -v VERBOSE```
+```INPUT_PATH```: The path to the input data. For model training, only ```.sdf``` input files are currently supported. Please name your input file ```data.sdf``` and place it into a subfolder named ```raw/```. Example: the data input path is ```data/train/raw/data.sdf```, so ```INPUT_PATH``` should be ```data/train```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used.
 
-```INPUT_DIRECTORY``` is the directory of the unprocessed data. Only ```.sdf``` and ```.smiles``` input files are currently supported.
+```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file. The individual validation metrics of each fold will be stored in a CSV file. The best model's checkpoints will be stored in a directory. The averaged predictions made with the best hyp.erparameters will be stored in a text file
 
-```OUTPUT_DIRECTORY``` is the directory where the preprocessed data will stored.
+```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M4```, ```M6```, ```M7```, ```M8```, ```M11```, ```M12```, ```M13```, ```M14```.
 
-```WORKERS``` is the desired number of parallel workers. Please do not set this number higher than the number of molecules in the data file.
+```EPOCHS```: The maximum number of training epochs.
 
-```KIT``` is the desired chemistry tool kit for preprocessing the data. Choose between ```RDKit``` and ```CDPKit```.
+```NUM_FOLDS```: The number of cross-validation folds.
 
-```TRUE_LABELS``` (True/False) indicates whether the input data has true labels or not. Ste to True when preprocessing training data and False when preprocessing data for making predictions.
+```NUM_TRIALS```: The number of Optuna trials.
 
-```VERBOSE``` should be set to the desired verbosity level, e.g. ```INFO```.
+There is the possibility to choose between ```RDKit``` and ```CDPKit``` for preprocessing the input data. ```RDKit``` is set as default, but if you prefer to use ```CDPKit``` then change the ```KIT``` variable in ```dataset.py``` from ```RDKIT``` to ```CDPKIT```.
 
 Example:
 
-```python scripts/preprocess.py -i data/raw/zaretzki.sdf -o data/preprocessed/CDPKit/zaretzki -w 12 -k CDPKit -tl True -v INFO```
-```python scripts/preprocess.py -i data/raw/propanolol.smiles -o data/preprocessed/RDKit/propanolol -w 1 -k RDKit -tl False -v INFO```
+```python scripts/cv_hp_search.py -i /data/train -o output/M4 -m M4 -e 1000 -n 10 -t 50```
 
 #### Model Training
 
-Running the following will take preprocessed training data and run internal/external cross validation to determine the optimal hyperparameters with Optuna. The best model per external cross-validation fold will be saved in the corresponding subdirectory (model.pt), along with a text file (info.txt) holding the best hyperparameters and a plot of the validation and training losses during the final training phase (loss.png). Trained models can then be used to make predictions on preprocessed data.
+```python scripts/train.py -i INPUT_PATH -y HYPERPARAMETERS_YAML_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -s ENSEMBLE_SIZE```
 
-```python scripts/train.py -i INPUT_DIRECTORY -o OUTPUT_DIRECTORY -m MODEL_TYPE -b BATCH_SIZE -e EPOCHS -nt NUMBER_TRIALS -nif NUMBER_INTERNAL_FOLDS -nef NUMBER_EXTERNAL_FOLDS -v VERBOSE```
+```INPUT_PATH```: The path to the input data. For model training, only ```.sdf``` input files are currently supported. Please name your input file ```data.sdf``` and place it into a subfolder named ```raw/```. Example: the data input path is ```data/train/raw/data.sdf```, so ```INPUT_PATH``` should be ```data/train```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used.
 
-```INPUT_DIRECTORY``` is the directory where the preprocessed training data is stored.
+```HYPERPARAMETERS_YAML_PATH```: The path to the yaml file containing the hyperparameters that were previously determined by running the cv_hp_search.py script on the training data.
 
-```OUTPUT_DIRECTORY``` is the directory where the trained models and their metadata will be stored.
+```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file. The individual validation metrics of each fold will be stored in a CSV file. The best model's checkpoints will be stored in a directory. The averaged predictions made with the best hyp.erparameters will be stored in a text file
 
-Supported ```MODEL_TYPE``` include ```GATv2```, ```GIN```, and ```GINE```.
+```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M4```, ```M6```, ```M7```, ```M8```, ```M11```, ```M12```, ```M13```, ```M14```.
 
-GATv2 refers to PyTorch Geometric's GATv2Conv: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html#torch_geometric.nn.conv.GATv2Conv
+```EPOCHS```: The maximum number of training epochs.
 
-GIN refers to PyTorch Geometric's GINConv: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINConv.html#torch_geometric.nn.conv.GINConv
-
-GINE refers to PyTorch Geometric's GINEConv: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html#torch_geometric.nn.conv.GINEConv
-
-```NUMBER_TRIALS``` is the desired number of Optuna trials. Recommended setting: 100.
-
-```NUMBER_INTERNAL_FOLDS``` is the desired number of folds for the internal cross-validation. Recommended setting: 5.
-
-```NUMBER_EXTERNAL_FOLDS``` is the desired number of folds for the external cross-validation. Recommended setting: 5.
-
-```VERBOSE``` should be set to the desired verbosity level, e.g. ```INFO```.
+```ENSEMBLE_SIZE```: The desired number of models in the final deep ensemble model.
 
 Example:
 
-```python scripts/train.py -i data/preprocessed/RDKit/zaretzki -o models/RDKit/zaretzki/gine -m GINE -b 64 -e 500 -nt 100 -nif 5 -nef 5 -v INFO```
+```python scripts/train.py -i data/train -y output/M4 -o output/M4/ensemble -m M4 -e 1000 -s 100```
 
-#### Predicting SoMs
+#### Model testing (predicting SoMs for unseen, labeled data)
 
-To predict the Sites of Metabolism of one or multiple molecules run:
+To predict the SoMs of one or multiple *labeled* molecules and output the predictions and the performance metrics run:
 
-```python scripts/predict.py -i INPUT_DIRECTORY o OUTPUT_DIRECTORY -m MODELS_DIRECTORY -v VERBOSE```
+```python scripts/infer.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -t TEST```
+
+```INPUT_PATH```: The path to the input data. For model testing, only .sdf files are currently supported. Please name your input file ```data.sdf``` and place it into a subfolder named ```raw/```. Example: the data input path is ```data/test/raw/data.sdf```, so ```INPUT_PATH``` should be ```data/test```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
+
+```CHECKPOINTS_PATH```: The path to the trained ensemble model's checkpoints.
+
+```OUTPUT_PATH```: The desired output's location. The performance metrics are written to ```results.txt``` and the individual predictions to ```results.csv```.
+
+```TEST```: Whether to perform inference on non-labeled data (default: False) or testing on labeled data (True). If set to true, the script assumes that true labels are provided and computes the classification metrics (MCC, precision, recall, top2 correctness rate, atomic and molecular AUROCs, and atomic and molecular R-precisions), which are then written to ```OUTPUT_PATH/results.txt```.
 
 Example:
 
-```python scripts/predict.py -i data/preprocessed/RDKit/propanolol -o output/RDKit/propanolol/zaretzki/gine -m models/RDKit/zaretzki/gine -v INFO```
+```python scripts/infer.py -i data/test -c output/M4/ensemble/ -o output/M4/test -t```
+
+#### Inference (predicting SoMs for unseen, unlabeled data)
+
+To predict the SoMs of one or multiple *unlabeled* molecules and output the predictions run:
+
+```python scripts/infer.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH```
+
+```INPUT_PATH```: The path to the input data. For inference, both .sdf and .smi files and are currently supported. Please name your input file ```data.sdf``` or ```data.smi``` and place it into a subfolder named ```raw/```. Example: the data input path is ```data/fipronil/raw/data.smi```, so ```INPUT_PATH``` should be ```data/fipronil```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
+
+```CHECKPOINTS_PATH```: The path to the trained ensemble model's checkpoints.
+
+```OUTPUT_PATH```: The desired output's location. The individual predictions to ```results.csv```.
+
+Example:
+
+```python scripts/infer.py -i data/fipronil -c output/M4/ensemble/ -o output/M4/fipronil```
 
 ### License
 

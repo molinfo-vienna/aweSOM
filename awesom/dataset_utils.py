@@ -3,12 +3,12 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import os
-import torch
 
 from multiprocessing import Pool
 from rdkit.Chem import Mol as RDKitMol
 from rdkit.Chem.rdchem import Atom as RDKitAtom
 from rdkit.Chem.rdchem import Bond as RDKitBond
+from rdkit.Chem import rdMolDescriptors
 from typing import Any, List, Tuple
 
 import CDPL.Chem as Chem
@@ -19,7 +19,7 @@ from CDPL.Chem import Atom as CDPKitAtom
 from CDPL.Chem import Bond as CDPKitBond
 
 
-ELEM_LIST = [6, 7, 8, 9, 15, 16, 17, 35, 53, "OTHER"]
+ELEM_LIST = [5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53, "OTHER"]  # B, C, N, O, F, Si, P, S, Cl, Br, I
 TOTAL_DEGREE = [1, 2, 3, 4, "OTHER"]
 FORMAL_CHARGE = [-1, 0, 1, "OTHER"]
 HYBRIDIZATION_TYPE = ["SP", "SP2", "SP3", "OTHER"]
@@ -29,20 +29,22 @@ NUM_H_NEIGHBORS = [0, 1, 2, 3, "OTHER"]
 
 BOND_TYPE_STR = ["SINGLE", "DOUBLE", "TRIPLE", "AROMATIC", "OTHER"]
 BOND_TYPE_INT = [1, 2, 3, "OTHER"]
-
-CLASS1 = [i for i in range(4)]  # 3 total
-CLASS2 = [i for i in range(22)]  # 21 total
-CLASS3 = [1, 2, 3, 4, 5, 11, 12, 14, 15, 17, 18, 19, 23, 24, 26, 27, 28, 29,
-          30, 31, 32, 33, 34, 35, 36, 38, 39, 40, 41, 42, 44, 45, 46, 47, 48,
-          49, 50, 51, 57, 58, 59, 60, 61, 62, 64, 65, 66, 70, 71, 72, 73, 75,
-          77, 78, 79, 80, 81, 82, 84, 85, 87, 88, 89, 90, 92, 93, 94, 95, 98,
-          99, 100, 103, 104, 105, 107, 108, 110, 111, 112, 113, 115, 116,
-          117, 118, 119, 121, 122, 123, 125, 126, 127, 129, 155]  # 93 total
-
-################ General Utilities ################
+BOND_STEREO_STR = [
+    "STEREONONE",
+    "STEREOANY",
+    "STEREOZ",
+    "STEREOE",
+    "STEREOCIS",
+    "STEREOTRANS",
+]
 
 
-def _get_allowed_set(x: Any, allowable_set: list[Any]) -> List[float]:
+"""
+General Utilities
+"""
+
+
+def _get_one_hot_encoded_element(x: Any, allowable_set: list[Any]) -> List[float]:
     """
     PRIVATE method generates a one-hot encoded list for x. If x not in allowable_set,
     the last value of the allowable_set is taken.
@@ -56,7 +58,8 @@ def _get_allowed_set(x: Any, allowable_set: list[Any]) -> List[float]:
         x = allowable_set[-1]
     return list(map(lambda s: float(x == s), allowable_set))
 
-def _one_hot_encode_list(lst: list[int], allowable_set: list[int]) -> List[float]:
+
+def _get_one_hot_encoded_list(lst: list[int], allowable_set: list[int]) -> List[float]:
     """
     PRIVATE method generates a one-hot encoded list for a list of inputs lst.
     Args:
@@ -65,10 +68,12 @@ def _one_hot_encode_list(lst: list[int], allowable_set: list[int]) -> List[float
     Returns:
         (list): one-hot encoded list
     """
-    return [1. if x in lst else 0. for x in allowable_set]
+    return [1.0 if x in lst else 0.0 for x in allowable_set]
 
 
-################ CDPKit Utilities ################
+"""
+CDPKit Utilities
+"""
 
 
 def _get_atom_degree(atom: Chem.Atom, mol: Chem.BasicMolecule) -> int:
@@ -130,14 +135,15 @@ def _get_atom_type(atom: Chem.Atom) -> int:
 
 def _get_file_length(dir: str) -> int:
     """
-    Loads the file based on either SDF or SMILES format and returns the length.
+    PRIVATE method that loads the file based on either SDF or SMILES format and returns the length.
     Args:
         dir (str): directory to file (incl filename)
     Returns:
-        int: length of file
+        file_length (int): length of file
     """
     reader = _get_reader_by_file_extention(dir)
-    return reader.getNumRecords()
+    file_length = reader.getNumRecords()
+    return file_length
 
 
 def _get_formal_charge(atom: Chem.Atom) -> int:
@@ -184,8 +190,7 @@ def _get_hybridization_type(atom: Chem.Atom) -> int:
 
 def _get_reader_by_file_extention(dir: str) -> Chem.MoleculeReader:
     """
-    PRIVATE METHOD
-    Get input handler for the format specified by the input file's extension
+    PRIVATE METHOD that gets the input handler for the format specified by the input file's extension
     Args:
         dir (str): dir to file including name
     Returns:
@@ -243,8 +248,7 @@ def generate_bond_features_CDPKit(bond: CDPKitBond, mol: CDPKitMol) -> list[floa
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
-    # return _get_allowed_set(Chem.getOrder(bond), BOND_TYPE_INT) + [
-    return [
+    return _get_one_hot_encoded_element(Chem.getOrder(bond), BOND_TYPE_INT) + [
         float(Chem.getRingFlag(bond)),
         float(_is_conjugated(bond, mol)),
         float(Chem.getAromaticityFlag(bond)),
@@ -302,15 +306,15 @@ def generate_node_features_CDPKit(
         (list[float]): one-hot encoded atom feature list
     """
     # features = {
-    #     "atom_type": _get_allowed_set(_get_atom_type(atom), ELEM_LIST),
-    #     "formal_charge": _get_allowed_set(_get_formal_charge(atom), FORMAL_CHARGE),
-    #     "hybridization_state": _get_allowed_set(
+    #     "atom_type": _get_one_hot_encoded_element(_get_atom_type(atom), ELEM_LIST),
+    #     "formal_charge": _get_one_hot_encoded_element(_get_formal_charge(atom), FORMAL_CHARGE),
+    #     "hybridization_state": _get_one_hot_encoded_element(
     #         _get_hybridization_type(atom), HYBRIDIZATION_TYPE
     #     ),
-    #     "ring_size": _get_allowed_set(atm_ring_length, RING_SIZE),
+    #     "ring_size": _get_one_hot_encoded_element(atm_ring_length, RING_SIZE),
     #     "aromaticity": list([float(Chem.getAromaticityFlag(atom))]),
-    #     "degree": _get_allowed_set(_get_atom_degree(atom, mol), TOTAL_DEGREE),
-    #     "valence": _get_allowed_set(_get_atom_valence(atom, mol), TOTAL_VALENCE),
+    #     "degree": _get_one_hot_encoded_element(_get_atom_degree(atom, mol), TOTAL_DEGREE),
+    #     "valence": _get_one_hot_encoded_element(_get_atom_valence(atom, mol), TOTAL_VALENCE),
     # }
     # return (
     #     features["atom_type"]
@@ -373,7 +377,11 @@ def load_mol_input(dir: str, labels: bool, indices: List[int]) -> Tuple[List[nx.
                 )
             struct_data = Chem.getStructureData(mol)
             soms = list()
-            for entry in struct_data:  # iterate of structure data entries consisting of a header line and the actual data
+            for (
+                entry
+            ) in (
+                struct_data
+            ):  # iterate of structure data entries consisting of a header line and the actual data
                 if labels:
                     if "som" in entry.header.lower():
                         if len(entry.data) > 2:
@@ -486,7 +494,9 @@ def mol_to_nx_CDPKit(mol_id: int, mol: CDPKitMol, soms: List[int]) -> nx.Graph:
     return G
 
 
-################ RDKit Utilities ################
+"""
+RDKit Utilities
+"""
 
 
 def generate_bond_features_RDKit(bond: RDKitBond) -> list[float]:
@@ -497,28 +507,20 @@ def generate_bond_features_RDKit(bond: RDKitBond) -> list[float]:
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
-    return _get_allowed_set(str(bond.GetBondType()), BOND_TYPE_STR) + [
+    return _get_one_hot_encoded_element(str(bond.GetBondType()), BOND_TYPE_STR) + [
         float(bond.IsInRing()),
         float(bond.GetIsConjugated()),
     ]
 
 
-def generate_preprocessed_data_RDKit(
-    df: pd.DataFrame, num_workers: int
-) -> Tuple[
-    nx.Graph,
-    np.ndarray[np.int64, Any],
-    np.ndarray[np.int64, Any],
-    np.ndarray[np.int64, Any],
-    np.ndarray[np.float64, Any],
-]:
+def generate_preprocessed_data_RDKit(df: pd.DataFrame, num_workers: int) -> nx.Graph:
     """
     Generates the a preprocessed graph from the input data using multiple workers.
     Args:
         df (pandas dataframe): input data
         numWorkers (int): number of worker processes to use
     Returns:
-        G (NetworkX Graph): a molecular graph describing the entire input data
+        G (NetworkX Graph): a molecular graph describing the input data
                             (individual molecules are processed as subgraphs of
                             one big graph object)
     """
@@ -530,66 +532,75 @@ def generate_preprocessed_data_RDKit(
     return G
 
 
-def generate_preprocessed_data_chunk_RDKit(
-    df_chunk: pd.DataFrame,
-) -> Tuple[
-    nx.Graph,
-    np.ndarray[np.int64, Any],
-    np.ndarray[np.int64, Any],
-    np.ndarray[np.int64, Any],
-    np.ndarray[np.float64, Any],
-]:
+def generate_preprocessed_data_chunk_RDKit(df_chunk: pd.DataFrame) -> nx.Graph:
     """
     Generates preprocessed data from a chunk of the input data.
+    Args:
+        df_chunk (pandas dataframe): chunk of the input data
+    Returns:
+        G (NetworkX Graph): a molecular graph describing the input data
+                            (individual molecules are processed as subgraphs of
+                            one big graph object)
     """
     df_chunk["G"] = df_chunk.apply(
         lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms), axis=1
-        # lambda x: mol_to_nx_RDKit(x.ID, x.ROMol, x.soms, x.class3), axis=1
     )
     G = nx.disjoint_union_all(df_chunk["G"].to_list())
 
     return G
 
-def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int) -> List[float]:
-# def generate_node_features_RDKit(atom: RDKitAtom, atm_ring_length: int, class3: int) -> List[float]:
+
+def generate_mol_features_RDKit(mol: RDKitMol) -> List[float]:
+    """
+    Generates the molecular features for the molecule
+    Args:
+        mol (RDKit Mol): molecule for the features calculation
+    Returns:
+        (list[float]): list of molecular features
+    """
+    return [
+        rdMolDescriptors.CalcExactMolWt(mol),
+        rdMolDescriptors.CalcCrippenDescriptors(mol)[0],  # logP
+        rdMolDescriptors.CalcLabuteASA(mol),
+        rdMolDescriptors.CalcTPSA(mol),
+        rdMolDescriptors.CalcNumHBA(mol),
+        rdMolDescriptors.CalcNumHBD(mol),
+        rdMolDescriptors.CalcNumHeavyAtoms(mol),
+        rdMolDescriptors.CalcNumHeteroatoms(mol),
+        rdMolDescriptors.CalcFractionCSP3(mol),
+        rdMolDescriptors.CalcNumRings(mol),
+        rdMolDescriptors.CalcNumHeterocycles(mol),
+        rdMolDescriptors.CalcNumAliphaticCarbocycles(mol),
+        rdMolDescriptors.CalcNumAliphaticHeterocycles(mol),
+        # rdMolDescriptors.CalcNumAliphaticRings(mol),
+        rdMolDescriptors.CalcNumAromaticCarbocycles(mol),
+        rdMolDescriptors.CalcNumAromaticHeterocycles(mol),
+        # rdMolDescriptors.CalcNumAromaticRings(mol),
+        rdMolDescriptors.CalcNumSaturatedCarbocycles(mol),
+        rdMolDescriptors.CalcNumSaturatedHeterocycles(mol),
+        # rdMolDescriptors.CalcNumSaturatedRings(mol),
+        rdMolDescriptors.CalcNumRotatableBonds(mol),
+        rdMolDescriptors.CalcNumAmideBonds(mol),
+    ]
+
+
+def generate_node_features_RDKit(atom: RDKitAtom) -> List[float]:
     """
     Generates the node features for each atom
     Args:
         atom (RDKit Atom): atom for the features calculation
-        atm_ring_length (int): the size of the ring in which the atom is
-        class3 (int): the reported reaction subclass
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
     features = {
-        "atom_type": _get_allowed_set(atom.GetAtomicNum(), ELEM_LIST),
-        # "aromaticity": list([float(atom.GetIsAromatic())]),
-        # "degree": _get_allowed_set(atom.GetTotalDegree(), TOTAL_DEGREE),
-        "formal_charge": _get_allowed_set(atom.GetFormalCharge(), FORMAL_CHARGE),
-        # "hybridization_state": _get_allowed_set(
-        #     str(atom.GetHybridization()), HYBRIDIZATION_TYPE
-        # ),
-        # "ring_size": _get_allowed_set(atm_ring_length, RING_SIZE),
-        # "valence": _get_allowed_set(atom.GetTotalValence(), TOTAL_VALENCE),
-        # "num_h_neighbors": _get_allowed_set(atom.GetTotalNumHs(), NUM_H_NEIGHBORS),
-        # "class3": _get_allowed_set(class3, CLASS3),
+        "atom_type": _get_one_hot_encoded_element(atom.GetAtomicNum(), ELEM_LIST),
     }
-    return (
-        features["atom_type"]
-        # + features["aromaticity"]
-        # + features["degree"]
-        + features["formal_charge"]
-        # + features["hybridization_state"]
-        # + features["ring_size"]
-        # + features["valence"]
-        # + features["num_h_neighbors"]
-        # + features["class3"]
-    )
+    return features["atom_type"]
+
 
 def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
-# def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int], class3: int) -> nx.Graph:
     """
-    This function takes an RDKit Mol object as input and returns its corresponding
+    Takes an RDKit Mol object as input and returns its corresponding
     NetworkX graph with node and edge attributes.
     Args:
         mol_id (int): the molecular ID of the parsed mol
@@ -597,7 +608,6 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
         soms (list): a list of the indices of atoms that are SoMs (This is
                     of course only relevant for training data. If there is no info
                     about which atom is a SoM, then the list is simply empty.)
-        class3 (int): the reported reaction subclass
     Returns:
         NetworkX Graph with node and edge attributes
     """
@@ -606,15 +616,10 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
     # Assign each atom its features and make it a node of G
     for atom_idx in range(mol.GetNumAtoms()):
         atom = mol.GetAtomWithIdx(atom_idx)
-        atm_ring_length = 0
-        if atom.IsInRing():
-            for ring in mol.GetRingInfo().AtomRings():
-                if atom_idx in ring:
-                    atm_ring_length = len(ring)
         G.add_node(
             atom_idx,  # node identifier
-            node_features=generate_node_features_RDKit(atom, atm_ring_length),
-            # node_features=generate_node_features_RDKit(atom, atm_ring_length, class3),
+            node_features=generate_node_features_RDKit(atom),
+            mol_features=generate_mol_features_RDKit(mol),
             is_som=(atom_idx in soms),  # label
             # the next two elements are later used to assign the
             # predicted labels but are of course not used as features!
