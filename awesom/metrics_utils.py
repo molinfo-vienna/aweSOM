@@ -160,6 +160,7 @@ class TestMetrics(BaseMetrics):
         sigma_epi = torch.mean(
             y_hats**2 - mean_y_hats**2, dim=0
         )  # epistemic uncertainties
+        sigma_tot = sigma_ale + sigma_epi  # total uncertainties
 
         ranking = cls.compute_ranking(mean_y_hats, mol_id)
 
@@ -174,6 +175,7 @@ class TestMetrics(BaseMetrics):
                     "averaged_probabilities",
                     "aleatoric_uncertainty",
                     "epistemic_uncertainty",
+                    "total_uncertainty",
                     "ranking",
                     "predicted_binary_labels",
                     "true_labels",
@@ -185,6 +187,7 @@ class TestMetrics(BaseMetrics):
                 mean_y_hats.tolist(),
                 sigma_ale.tolist(),
                 sigma_epi.tolist(),
+                sigma_tot.tolist(),
                 ranking.tolist(),
                 y_hat_bin.tolist(),
                 y.tolist(),
