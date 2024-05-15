@@ -1,5 +1,4 @@
 import ast
-import networkx as nx
 import numpy as np
 import os
 import pandas as pd
@@ -7,8 +6,8 @@ import torch
 
 from multiprocessing import cpu_count
 from rdkit.Chem import PandasTools
+from sklearn.preprocessing import normalize
 from torch_geometric.data import InMemoryDataset, Data
-from torch_geometric.utils import add_remaining_self_loops
 from typing import List
 
 from awesom.dataset_utils import (
@@ -18,10 +17,8 @@ from awesom.dataset_utils import (
 )
 
 
-__all__ = ["SOM", "LabeledData", "UnlabeledData"]
-
-
 KIT = "RDKIT"
+
 
 class SOM(InMemoryDataset):
     """Creates a PyTorch Geometric Dataset from data.sdf.
@@ -63,18 +60,12 @@ class SOM(InMemoryDataset):
                 PandasTools.AddMoleculeColumnToFrame(df, "smiles")
             else:
                 raise NotImplementedError(f"Invalid file extension: {file_extension}")
-            
-            if 'ID' not in df:
+
+            if "ID" not in df:
                 df["ID"] = df.index
             if not labels:
                 df["soms"] = "[]"
             df["soms"] = df["soms"].map(ast.literal_eval)
-
-            #################################################################
-            # df["class1"] = df["class1"].map(ast.literal_eval)
-            # df["class2"] = df["class2"].map(ast.literal_eval)
-            # df["class3"] = df["class3"].map(ast.literal_eval)
-            #################################################################
 
             G = generate_preprocessed_data_RDKit(df, min(len(df), cpu_count()))
 
@@ -83,7 +74,7 @@ class SOM(InMemoryDataset):
             G = generate_preprocessed_data_CDPKit(
                 path, file_length, min(file_length, cpu_count()), labels
             )
-        
+
         else:
             raise IOError("Error: invalid chemistry toolkit name")
 
@@ -102,14 +93,6 @@ class SOM(InMemoryDataset):
         labels = torch.from_numpy(
             np.array([int(G.nodes[i]["is_som"]) for i in range(len(G.nodes))])
         )
-        # labels = torch.transpose(torch.from_numpy(
-        #     np.array(
-        #         [
-        #             [int(not G.nodes[i]["is_som"]) for i in range(len(G.nodes))],
-        #             [int(G.nodes[i]["is_som"]) for i in range(len(G.nodes))],
-        #         ]
-        #     )
-        # ), 0, 1)
 
         # Compute node features matrix
         num_nodes = len(G.nodes)
@@ -119,17 +102,18 @@ class SOM(InMemoryDataset):
             node_features[i, :] = current_node["node_features"]
         node_features = torch.from_numpy(node_features).to(torch.float)
 
-        # # Compute coordinates matrix
-        # num_nodes = len(G.nodes)
-        # coordinates = torch.zeros((num_nodes, 3))
-        # for i in range(num_nodes):
-        #     current_node = G.nodes[i]
-        #     coordinates[i, :] = current_node["coordinates"]
+        # Compute mol features matrix (normalize across columns)
+        mol_features = np.empty((num_nodes, len(G.nodes()[0]["mol_features"])))
+        for i in range(num_nodes):
+            current_node = G.nodes[i]
+            mol_features[i, :] = current_node["mol_features"]
+        # norm_mol_features = normalize(mol_features, axis=0, norm="l2")
+        # norm_mol_features = torch.from_numpy(norm_mol_features).to(torch.float)
+        mol_features = torch.from_numpy(mol_features).to(torch.float)
 
         data_list = []
 
         for mol_id in torch.unique(mol_ids).tolist():
-
             try:
                 mask = mol_ids == mol_id
 
@@ -137,12 +121,6 @@ class SOM(InMemoryDataset):
 
                 edge_index = torch.tensor(list(subG.edges)).t().contiguous()
                 edge_index_reset = edge_index - edge_index.min()
-                # edge_index_reset = add_remaining_self_loops(edge_index_reset)[0]
-
-                # complete_graph = nx.complete_graph(len(subG.nodes))
-                # fully_connected_edges = torch.tensor(list(complete_graph.edges - subG.edges)).t().contiguous()
-
-                # edge_index_reset = torch.cat((edge_index_reset, fully_connected_edges), dim=1)
 
                 for i, edge in enumerate(list(subG.edges)):
                     if i == 0:
@@ -160,16 +138,14 @@ class SOM(InMemoryDataset):
                         subG.get_edge_data(edge[0], edge[1])["bond_features"]
                     )
 
-                # edge_attr = torch.cat((edge_attr, torch.zeros((fully_connected_edges.shape[1], edge_attr.shape[1]))))
-
                 data = Data(
                     x=node_features[mask],
                     edge_index=edge_index_reset,
                     edge_attr=edge_attr,
+                    mol_x=mol_features[mask],
                     y=labels[mask],
                     mol_id=torch.full((labels[mask].shape[0],), mol_id),
                     atom_id=atom_ids[mask],
-                    # pos=coordinates[mask]
                 )
 
                 data_list.append(data)
@@ -180,22 +156,15 @@ class SOM(InMemoryDataset):
 
         return data_list
 
-    def get_class_distribution(self):
-        size = 0
-        som = 0
+    def get_pos_weight(self):
+        total_num_atoms = 0
+        num_soms = 0
         for data in self:
             for label in data.y:
-                size += 1
-                som += int(label)
-        nosom = size - som
-        return size, nosom, som
-
-    def get_class_weights(self):
-        size, nosom, som = self.get_class_distribution()
-        # return torch.tensor(
-        #     [size / (2 * nosom), size / (2 * som)], dtype=torch.float
-        # ).cuda()
-        return {'0': size / (2 * nosom), '1': size / (2 * som)}
+                total_num_atoms += 1
+                num_soms += int(label)
+        num_nosom = total_num_atoms - num_soms
+        return num_nosom / num_soms
 
 
 class LabeledData(SOM):
