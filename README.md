@@ -29,7 +29,7 @@ OR install requirements manually via requirements.txt
 
 ### Usage
 
-#### Determine optimal architecture and hyperparameters via k-fold cross validation cross:
+#### Determine optimal architecture and hyperparameters via k-fold cross validation:
 
 ```python scripts/cv_hp_search.py -i INPUT_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -n NUM_FOLDS -t NUM_TRIALS```
 
