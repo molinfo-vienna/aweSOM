@@ -33,7 +33,7 @@ OR install requirements manually via requirements.txt
 
 ```python scripts/cv_hp_search.py -i INPUT_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -n NUM_FOLDS -t NUM_TRIALS```
 
-```INPUT_PATH```: The path to the input data. For model training, only ```.sdf``` input files are currently supported. Please name your input file ```data.sdf``` and place it into a subfolder named ```raw/```. Example: the data input path is ```data/train/raw/data.sdf```, so ```INPUT_PATH``` should be ```data/train```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used.
+```INPUT_PATH```: The path to the input data. For model training, only ```.sdf``` input files are currently supported. Please place your file into a subfolder named ```raw/```. Example: the path to the input data is ```data/train/raw/xxx.sdf```, so ```INPUT_PATH``` should be ```data/train```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
 
 ```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file. The individual validation metrics of each fold will be stored in a CSV file. The best model's checkpoints will be stored in a directory. The averaged predictions made with the best hyp.erparameters will be stored in a text file
 
@@ -55,7 +55,7 @@ Example:
 
 ```python scripts/train.py -i INPUT_PATH -y HYPERPARAMETERS_YAML_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -s ENSEMBLE_SIZE```
 
-```INPUT_PATH```: The path to the input data. For model training, only ```.sdf``` input files are currently supported. Please name your input file ```data.sdf``` and place it into a subfolder named ```raw/```. Example: the data input path is ```data/train/raw/data.sdf```, so ```INPUT_PATH``` should be ```data/train```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used.
+```INPUT_PATH```: The path to the input data. For model training, only ```.sdf``` input files are currently supported. Please place your file into a subfolder named ```raw/```. Example: the path to the input data is ```data/train/raw/xxx.sdf```, so ```INPUT_PATH``` should be ```data/train```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
 
 ```HYPERPARAMETERS_YAML_PATH```: The path to the yaml file containing the hyperparameters that were previously determined by running the cv_hp_search.py script on the training data.
 
@@ -77,7 +77,7 @@ To predict the SoMs of one or multiple *labeled* molecules and output the predic
 
 ```python scripts/infer.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -t TEST```
 
-```INPUT_PATH```: The path to the input data. For model testing, only .sdf files are currently supported. Please name your input file ```data.sdf``` and place it into a subfolder named ```raw/```. Example: the data input path is ```data/test/raw/data.sdf```, so ```INPUT_PATH``` should be ```data/test```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
+```INPUT_PATH```: The path to the input data. For model testing, only .sdf files are currently supported. Please place your file into a subfolder named ```raw/```. Example: the path to the input data is ```data/test/raw/xxx.sdf```, so ```INPUT_PATH``` should be ```data/test```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
 
 ```CHECKPOINTS_PATH```: The path to the trained ensemble model's checkpoints.
 
@@ -95,7 +95,7 @@ To predict the SoMs of one or multiple *unlabeled* molecules and output the pred
 
 ```python scripts/infer.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH```
 
-```INPUT_PATH```: The path to the input data. For inference, both .sdf and .smi files and are currently supported. Please name your input file ```data.sdf``` or ```data.smi``` and place it into a subfolder named ```raw/```. Example: the data input path is ```data/fipronil/raw/data.smi```, so ```INPUT_PATH``` should be ```data/fipronil```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
+```INPUT_PATH```: The path to the input data. For inference, both .sdf and .smi files and are currently supported. Please and place your data into a subfolder named ```raw/```. Example: the data input path is ```data/fipronil/raw/data.smi```, so ```INPUT_PATH``` should be ```data/fipronil```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
 
 ```CHECKPOINTS_PATH```: The path to the trained ensemble model's checkpoints.
 
