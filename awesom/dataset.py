@@ -6,7 +6,6 @@ import torch
 
 from multiprocessing import cpu_count
 from rdkit.Chem import PandasTools
-from sklearn.preprocessing import normalize
 from torch_geometric.data import InMemoryDataset, Data
 from typing import List
 
@@ -38,25 +37,26 @@ class SOM(InMemoryDataset):
         self.data, self.slices = torch.load(path)
 
     @property
-    def raw_file_names(self) -> List[str]:
-        return ["data.sdf"]
+    def raw_file_names(self) -> None:
+        pass
 
     @property
     def processed_file_names(self):
         return ["data.pt"]
 
     def process(self):
-        data_list = self.data_processing(path=self.raw_paths[0], labels=True)
+        input_path = os.path.join(os.path.join(self.root, "raw"), os.listdir(os.path.join(self.root, "raw"))[0])
+        data_list = self.data_processing(input_path=input_path, labels=True)
         torch.save((self.collate(data_list)), self.processed_paths[0])
 
-    def data_processing(self, path, labels):
-        _, file_extension = os.path.splitext(path)
+    def data_processing(self, input_path, labels):
+        _, file_extension = os.path.splitext(input_path)
 
         if KIT == "RDKIT":
             if file_extension == ".sdf":
-                df = PandasTools.LoadSDF(path, removeHs=False)
+                df = PandasTools.LoadSDF(input_path, removeHs=False)
             elif file_extension == ".smi":
-                df = pd.read_csv(path, names=["smiles"])
+                df = pd.read_csv(input_path, names=["smiles"])
                 PandasTools.AddMoleculeColumnToFrame(df, "smiles")
             else:
                 raise NotImplementedError(f"Invalid file extension: {file_extension}")
@@ -70,9 +70,9 @@ class SOM(InMemoryDataset):
             G = generate_preprocessed_data_RDKit(df, min(len(df), cpu_count()))
 
         elif KIT == "CDPKIT":
-            file_length = _get_file_length(path)
+            file_length = _get_file_length(input_path)
             G = generate_preprocessed_data_CDPKit(
-                path, file_length, min(file_length, cpu_count()), labels
+                input_path, file_length, min(file_length, cpu_count()), labels
             )
 
         else:
@@ -85,10 +85,12 @@ class SOM(InMemoryDataset):
         mol_ids = torch.from_numpy(
             np.array([G.nodes[i]["mol_id"] for i in range(len(G.nodes))])
         ).to(torch.long)
+
         # Compute list of atom ids
         atom_ids = torch.from_numpy(
             np.array([G.nodes[i]["atom_id"] for i in range(len(G.nodes))])
         ).to(torch.long)
+
         # Compute list of labels
         labels = torch.from_numpy(
             np.array([int(G.nodes[i]["is_som"]) for i in range(len(G.nodes))])
@@ -102,13 +104,11 @@ class SOM(InMemoryDataset):
             node_features[i, :] = current_node["node_features"]
         node_features = torch.from_numpy(node_features).to(torch.float)
 
-        # Compute mol features matrix (normalize across columns)
+        # Compute mol features matrix
         mol_features = np.empty((num_nodes, len(G.nodes()[0]["mol_features"])))
         for i in range(num_nodes):
             current_node = G.nodes[i]
             mol_features[i, :] = current_node["mol_features"]
-        # norm_mol_features = normalize(mol_features, axis=0, norm="l2")
-        # norm_mol_features = torch.from_numpy(norm_mol_features).to(torch.float)
         mol_features = torch.from_numpy(mol_features).to(torch.float)
 
         data_list = []
@@ -183,21 +183,22 @@ class LabeledData(SOM):
         self.data, self.slices = torch.load(path)
 
     @property
-    def raw_file_names(self) -> List[str]:
-        for file in os.listdir(os.path.join(self.root, "raw")):
-            if file.endswith(".smi") or file.endswith(".sdf"):
-                return [str(file)]
-            else:
-                raise NotImplementedError(
-                    'Data file must be either "data.smi" or "data.sdf".'
-                )
+    def raw_file_names(self) -> None:
+        pass
 
     @property
     def processed_file_names(self) -> List[str]:
         return ["data.pt"]
 
     def process(self):
-        data_list = self.data_processing(path=self.raw_paths[0], labels=True)
+        file_name = os.listdir(os.path.join(self.root, "raw"))[0]
+        if file_name.endswith(".smi") or file_name.endswith(".sdf"):
+            input_path = os.path.join(os.path.join(self.root, "raw"), os.listdir(os.path.join(self.root, "raw"))[0])
+        else:
+            raise NotImplementedError(
+                'Data file must be either "data.smi" or "data.sdf".'
+            )
+        data_list = self.data_processing(input_path=input_path, labels=True)
         torch.save((self.collate(data_list)), self.processed_paths[0])
 
 
@@ -217,19 +218,20 @@ class UnlabeledData(SOM):
         self.data, self.slices = torch.load(path)
 
     @property
-    def raw_file_names(self) -> List[str]:
-        for file in os.listdir(os.path.join(self.root, "raw")):
-            if file.endswith(".smi") or file.endswith(".sdf"):
-                return [str(file)]
-            else:
-                raise NotImplementedError(
-                    'Data file must be either "data.smi" or "data.sdf".'
-                )
+    def raw_file_names(self) -> None:
+        pass
 
     @property
     def processed_file_names(self) -> List[str]:
         return ["data.pt"]
 
     def process(self):
-        data_list = self.data_processing(path=self.raw_paths[0], labels=False)
+        file_name = os.listdir(os.path.join(self.root, "raw"))[0]
+        if file_name.endswith(".smi") or file_name.endswith(".sdf"):
+            input_path = os.path.join(os.path.join(self.root, "raw"), os.listdir(os.path.join(self.root, "raw"))[0])
+        else:
+            raise NotImplementedError(
+                'Data file must be either "data.smi" or "data.sdf".'
+            )
+        data_list = self.data_processing(input_path=input_path, labels=False)
         torch.save((self.collate(data_list)), self.processed_paths[0])
