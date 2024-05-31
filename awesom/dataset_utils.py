@@ -24,8 +24,6 @@ TOTAL_DEGREE = [1, 2, 3, 4, "OTHER"]
 FORMAL_CHARGE = [-1, 0, 1, "OTHER"]
 HYBRIDIZATION_TYPE = ["SP", "SP2", "SP3", "OTHER"]
 RING_SIZE = [0, 3, 4, 5, 6, 7, 8, "OTHER"]
-TOTAL_VALENCE = [1, 2, 3, 4, 5, 6, "OTHER"]
-NUM_H_NEIGHBORS = [0, 1, 2, 3, "OTHER"]
 
 BOND_TYPE_STR = ["SINGLE", "DOUBLE", "TRIPLE", "AROMATIC", "OTHER"]
 BOND_TYPE_INT = [1, 2, 3, "OTHER"]
@@ -93,25 +91,6 @@ def _get_atom_degree(atom: Chem.Atom, mol: Chem.BasicMolecule) -> int:
         degree = "OTHER"
 
     return degree
-
-
-def _get_atom_valence(atom: Chem.Atom, mol: Chem.BasicMolecule) -> int:
-    """
-    PRIVATE method that takes an CDPKit atom as input and returns an int or str value ('OTHER')
-    for the valence of the atom.
-    A string value is returned when its another element than in the TOTAL_VALENCE.
-    Args:
-        atom (CDPKit Atom): the atom to calculate the property
-        mol (CDPKit Molecule): The molecule the atom is part of
-    Returns:
-        valence (int): degree
-        valence (str): 'OTHER'
-    """
-    valence = MolProp.calcValence(atom, mol)
-    if valence not in TOTAL_VALENCE:
-        valence = "OTHER"
-
-    return valence
 
 
 def _get_atom_type(atom: Chem.Atom) -> int:
@@ -314,7 +293,6 @@ def generate_node_features_CDPKit(
     #     "ring_size": _get_one_hot_encoded_element(atm_ring_length, RING_SIZE),
     #     "aromaticity": list([float(Chem.getAromaticityFlag(atom))]),
     #     "degree": _get_one_hot_encoded_element(_get_atom_degree(atom, mol), TOTAL_DEGREE),
-    #     "valence": _get_one_hot_encoded_element(_get_atom_valence(atom, mol), TOTAL_VALENCE),
     # }
     # return (
     #     features["atom_type"]
@@ -323,7 +301,6 @@ def generate_node_features_CDPKit(
     #     + features["ring_size"]
     #     + features["aromaticity"]
     #     + features["degree"]
-    #     + features["valence"]
     # )
 
     features = {
@@ -593,7 +570,7 @@ def generate_node_features_RDKit(atom: RDKitAtom) -> List[float]:
         (list[float]): one-hot encoded atom feature list
     """
     features = {
-        "atom_type": _get_one_hot_encoded_element(atom.GetAtomicNum(), ELEM_LIST),
+        "atom_type": _get_one_hot_encoded_element(atom.GetAtomicNum(), ELEM_LIST)
     }
     return features["atom_type"]
 
