@@ -17,7 +17,7 @@ A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (So
 
 2. Create a conda environment with the required dependencies:
 
-```conda env create -f awesom-env.yml```
+```conda env create --name awesom-env python=3.10```
 
 3. Activate the environment:
 
@@ -25,7 +25,6 @@ A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (So
 
 4. Install awesom package with ```pip install -e .```
 
-OR install requirements manually via requirements.txt
 
 ### Usage
 
