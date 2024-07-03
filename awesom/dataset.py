@@ -45,7 +45,10 @@ class SOM(InMemoryDataset):
         return ["data.pt"]
 
     def process(self):
-        input_path = os.path.join(os.path.join(self.root, "raw"), os.listdir(os.path.join(self.root, "raw"))[0])
+        input_path = os.path.join(
+            os.path.join(self.root, "raw"),
+            os.listdir(os.path.join(self.root, "raw"))[0],
+        )
         data_list = self.data_processing(input_path=input_path, labels=True)
         torch.save((self.collate(data_list)), self.processed_paths[0])
 
@@ -63,9 +66,22 @@ class SOM(InMemoryDataset):
 
             if "ID" not in df:
                 df["ID"] = df.index
-            if not labels:
+            if labels:
+                # If there is SoM information, check if every entry has a non-empty list of SoMs,
+                # and if not remove that entry from the dataframe and print a warning
+                df["soms"] = df["soms"].map(ast.literal_eval)
+                df_out = df[df["soms"].map(len) == 0]
+                if len(df_out) > 0:
+                    print(
+                        f"Warning: {len(df_out)} entries have no SoMs and will be removed from the dataset."
+                    )
+                    for i in df_out["ID"]:
+                        print(f"Entry {i} has no SoMs.")
+                df = df[df["soms"].map(len) > 0]
+            else:
+                # If there is no SoM information, create an empty list for each entry
                 df["soms"] = "[]"
-            df["soms"] = df["soms"].map(ast.literal_eval)
+                df["soms"] = df["soms"].map(ast.literal_eval)
 
             G = generate_preprocessed_data_RDKit(df, min(len(df), cpu_count()))
 
@@ -105,11 +121,11 @@ class SOM(InMemoryDataset):
         node_features = torch.from_numpy(node_features).to(torch.float)
 
         # Compute mol features matrix
-        mol_features = np.empty((num_nodes, len(G.nodes()[0]["mol_features"])))
-        for i in range(num_nodes):
-            current_node = G.nodes[i]
-            mol_features[i, :] = current_node["mol_features"]
-        mol_features = torch.from_numpy(mol_features).to(torch.float)
+        # mol_features = np.empty((num_nodes, len(G.nodes()[0]["mol_features"])))
+        # for i in range(num_nodes):
+        #     current_node = G.nodes[i]
+        #     mol_features[i, :] = current_node["mol_features"]
+        # mol_features = torch.from_numpy(mol_features).to(torch.float)
 
         data_list = []
 
@@ -142,7 +158,7 @@ class SOM(InMemoryDataset):
                     x=node_features[mask],
                     edge_index=edge_index_reset,
                     edge_attr=edge_attr,
-                    mol_x=mol_features[mask],
+                    # mol_x=mol_features[mask],
                     y=labels[mask],
                     mol_id=torch.full((labels[mask].shape[0],), mol_id),
                     atom_id=atom_ids[mask],
@@ -193,7 +209,10 @@ class LabeledData(SOM):
     def process(self):
         file_name = os.listdir(os.path.join(self.root, "raw"))[0]
         if file_name.endswith(".smi") or file_name.endswith(".sdf"):
-            input_path = os.path.join(os.path.join(self.root, "raw"), os.listdir(os.path.join(self.root, "raw"))[0])
+            input_path = os.path.join(
+                os.path.join(self.root, "raw"),
+                os.listdir(os.path.join(self.root, "raw"))[0],
+            )
         else:
             raise NotImplementedError(
                 'Data file must be either "data.smi" or "data.sdf".'
@@ -228,7 +247,10 @@ class UnlabeledData(SOM):
     def process(self):
         file_name = os.listdir(os.path.join(self.root, "raw"))[0]
         if file_name.endswith(".smi") or file_name.endswith(".sdf"):
-            input_path = os.path.join(os.path.join(self.root, "raw"), os.listdir(os.path.join(self.root, "raw"))[0])
+            input_path = os.path.join(
+                os.path.join(self.root, "raw"),
+                os.listdir(os.path.join(self.root, "raw"))[0],
+            )
         else:
             raise NotImplementedError(
                 'Data file must be either "data.smi" or "data.sdf".'

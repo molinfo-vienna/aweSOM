@@ -42,13 +42,13 @@ def main():
             for file in os.listdir(Path(version_path, "checkpoints"))
             if file.endswith(".ckpt")
         ][0]
-        hparams = yaml.safe_load(Path(version_path, "hparams.yaml").read_text())
+        hyperparams = yaml.safe_load(Path(version_path, "hparams.yaml").read_text())
 
         model = GNN(
-            params=hparams["params"],
-            hyperparams=hparams["hyperparams"],
-            architecture=hparams["architecture"],
-            pos_weight=hparams["pos_weight"],
+            params=hyperparams["params"],
+            hyperparams=hyperparams["hyperparams"],
+            architecture=hyperparams["architecture"],
+            pos_weight=hyperparams["pos_weight"],
         )
 
         model = GNN.load_from_checkpoint(checkpoint_path)
