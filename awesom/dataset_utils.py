@@ -19,7 +19,20 @@ from CDPL.Chem import Atom as CDPKitAtom
 from CDPL.Chem import Bond as CDPKitBond
 
 
-ELEM_LIST = [5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53, "OTHER"]  # B, C, N, O, F, Si, P, S, Cl, Br, I
+ELEM_LIST = [
+    5,
+    6,
+    7,
+    8,
+    9,
+    14,
+    15,
+    16,
+    17,
+    35,
+    53,
+    "OTHER",
+]  # B, C, N, O, F, Si, P, S, Cl, Br, I
 TOTAL_DEGREE = [1, 2, 3, 4, "OTHER"]
 FORMAL_CHARGE = [-1, 0, 1, "OTHER"]
 HYBRIDIZATION_TYPE = ["SP", "SP2", "SP3", "OTHER"]
@@ -596,7 +609,7 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
         G.add_node(
             atom_idx,  # node identifier
             node_features=generate_node_features_RDKit(atom),
-            mol_features=generate_mol_features_RDKit(mol),
+            # mol_features=generate_mol_features_RDKit(mol),
             is_som=(atom_idx in soms),  # label
             # the next two elements are later used to assign the
             # predicted labels but are of course not used as features!
