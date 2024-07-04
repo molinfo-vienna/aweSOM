@@ -1,9 +1,9 @@
-import ast
 import numpy as np
 import os
 import pandas as pd
 import torch
 
+from ast import literal_eval
 from multiprocessing import cpu_count
 from rdkit.Chem import PandasTools
 from torch_geometric.data import InMemoryDataset, Data
@@ -69,7 +69,7 @@ class SOM(InMemoryDataset):
             if labels:
                 # If there is SoM information, check if every entry has a non-empty list of SoMs,
                 # and if not remove that entry from the dataframe and print a warning
-                df["soms"] = df["soms"].map(ast.literal_eval)
+                df["soms"] = df["soms"].map(literal_eval)
                 df_out = df[df["soms"].map(len) == 0]
                 if len(df_out) > 0:
                     print(
@@ -81,7 +81,7 @@ class SOM(InMemoryDataset):
             else:
                 # If there is no SoM information, create an empty list for each entry
                 df["soms"] = "[]"
-                df["soms"] = df["soms"].map(ast.literal_eval)
+                df["soms"] = df["soms"].map(literal_eval)
 
             G = generate_preprocessed_data_RDKit(df, min(len(df), cpu_count()))
 
