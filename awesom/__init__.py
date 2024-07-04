@@ -1,5 +1,5 @@
 from .dataset import SOM, LabeledData, UnlabeledData
-from .metrics_utils import ValidationMetrics, TestMetrics
+from .metrics_utils import ValidationMetrics, TestMetrics, RFMetrics
 from .models import (
     GNN,
     M1,
