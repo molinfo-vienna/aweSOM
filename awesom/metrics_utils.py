@@ -243,3 +243,82 @@ class TestMetrics(BaseMetrics):
 
             RocCurveDisplay.from_predictions(y, mean_y_hats)
             plt.savefig(str(os.path.join(output_folder, "roc.png")), dpi=300)
+
+
+class RFMetrics(BaseMetrics):
+    @classmethod
+    def compute_and_log_metrics(
+        cls, y_hats, ys, mol_ids, atom_ids, output_folder: str
+    ) -> None:
+        ranking = cls.compute_ranking(y_hats, mol_ids)
+
+        y_hats_bin = (
+            y_hats >= 0.3
+        ).int()  # predicted binary labels (assuming threshold = 0.3)
+
+        with open(os.path.join(output_folder, "results.csv"), "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                (
+                    "averaged_probabilities",
+                    "ranking",
+                    "predicted_binary_labels",
+                    "true_labels",
+                    "mol_ids",
+                    "atom_ids",
+                )
+            )
+            for row in zip(
+                y_hats.tolist(),
+                ranking.tolist(),
+                y_hats_bin.tolist(),
+                ys.tolist(),
+                mol_ids.tolist(),
+                atom_ids.tolist(),
+            ):
+                writer.writerow(row)
+
+        sorted_ys = torch.index_select(
+            ys, dim=0, index=torch.sort(y_hats, descending=True)[1]
+        )
+        total_num_soms = torch.sum(ys).item()
+        atom_r_precision = torch.sum(sorted_ys[:total_num_soms]).item() / total_num_soms
+
+        top2_correctness_rate = 0
+        per_molecule_aurocs = []
+        per_molecule_r_precisions = []
+        for id in list(
+            dict.fromkeys(mol_ids.tolist())
+        ):  # This is a somewhat complicated way to get an ordered set, but it works
+            mask = torch.where(mol_ids == id)[0]
+            masked_y = ys[mask]
+            masked_y_hat = y_hats[mask]
+            masked_sorted_y = torch.index_select(
+                masked_y,
+                dim=0,
+                index=torch.sort(masked_y_hat, descending=True)[1],
+            )
+            num_soms_in_current_mol = torch.sum(masked_y).item()
+            if torch.sum(masked_sorted_y[:2]).item() > 0:
+                top2_correctness_rate += 1
+            per_molecule_aurocs.append(cls.auroc(masked_y_hat, masked_y).item())
+            per_molecule_r_precisions.append(
+                torch.sum(masked_sorted_y[:num_soms_in_current_mol]).item()
+                / num_soms_in_current_mol
+            )
+        top2_correctness_rate /= len(set(mol_ids.tolist()))
+        mol_auroc = mean(per_molecule_aurocs)
+        mol_r_precision = mean(per_molecule_r_precisions)
+
+        with open(os.path.join(output_folder, "results.txt"), "w") as f:
+            f.write(f"MCC: {round(cls.mcc(y_hats_bin, ys).item(), 4)}\n")
+            f.write(f"Precision: {round(cls.precision(y_hats_bin, ys).item(), 4)}\n")
+            f.write(f"Recall: {round(cls.recall(y_hats_bin, ys).item(), 4)}\n")
+            f.write(f"Molecular R-Precision: {round(mol_r_precision, 4)}\n")
+            f.write(f"Molecular AUROC:  {round(mol_auroc, 4)}\n")
+            f.write(f"Top-2 Correctness Rate: {round(top2_correctness_rate, 4)}\n")
+            f.write(f"Atomic R-Precision: {round(atom_r_precision, 4)}\n")
+            f.write(f"Atomic AUROC: {round(cls.auroc(y_hats, ys).item(), 4)}\n")
+
+        RocCurveDisplay.from_predictions(ys, y_hats)
+        plt.savefig(str(os.path.join(output_folder, "roc.png")), dpi=300)

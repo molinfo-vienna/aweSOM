@@ -227,7 +227,8 @@ class GNN(LightningModule):
         Returns:
             _type_: _description_
         """
-        _, logits = self.step(batch)
+        # _, logits = self.step(batch)
+        logits = self.model(batch)
         return logits, batch.y, batch.mol_id, batch.atom_id
 
 
