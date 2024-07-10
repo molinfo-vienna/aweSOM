@@ -27,7 +27,7 @@ class MCCLoss(torch.nn.Module):
 
     def forward(self, outputs, targets):
         """
-        MCC = (TP.TN - FP.FN) / sqrt((TP+FP) . (TP+FN) . (TN+FP) . (TN+FN))
+        MCC = (TP x TN - FP x FN) / sqrt((TP+FP) x (TP+FN) x (TN+FP) x (TN+FN))
         where TP, TN, FP, and FN are elements in the confusion matrix.
         """
         tp = torch.sum(torch.mul(outputs, targets))
@@ -46,6 +46,35 @@ class MCCLoss(torch.nn.Module):
         # Adding 1 to the denominator to avoid divide-by-zero errors.
         mcc = torch.div(numerator.sum(), denominator.sum() + 1.0)
         return 1 - mcc
+    
+
+class JaccardLoss(torch.nn.Module):
+    """
+    Calculates the Jaccard loss.
+
+    Args:
+        outputs (torch.Tensor): predictions from the model
+        targets (torch.Tensor): ground truth
+    """
+
+    def __init__(self):
+        super(JaccardLoss, self).__init__()
+
+    def forward(self, outputs, targets):
+        """
+        MCC = TP / (TP + FP + FN)
+        where TP, FP and FN are elements in the confusion matrix.
+        """
+        tp = torch.sum(torch.mul(outputs, targets))
+        fp = torch.sum(torch.mul(outputs, (1 - targets)))
+        fn = torch.sum(torch.mul((1 - outputs), targets))
+
+        numerator = tp
+        denominator = torch.add(torch.add(tp, fp), fn)
+
+        # Adding 1 to the denominator to avoid divide-by-zero errors.
+        jacc = torch.div(numerator.sum(), denominator.sum() + 1.0)
+        return 1 - jacc
 
 
 class GNN(LightningModule):
@@ -86,6 +115,7 @@ class GNN(LightningModule):
         self.pos_weight = torch.tensor(pos_weight, dtype=torch.float).cuda()
         # self.loss_function = torch.nn.BCEWithLogitsLoss(pos_weight=self.pos_weight, reduction="sum")
         self.loss_function = MCCLoss()
+        self.loss_function = JaccardLoss()
 
         self.model = model_dict[architecture](params, hyperparams, self.pos_weight)
 
