@@ -21,27 +21,29 @@ from awesom import (
     GNN,
     M1,
     M2,
+    M3,
     M4,
-    M6,
+    M5,
     M7,
-    M8,
+    M9,
+    M10,
     M11,
     M12,
     M13,
-    M14,
 )
 
 model_dict = {
     "M1": M1,
     "M2": M2,
+    "M3": M3,
     "M4": M4,
-    "M6": M6,
+    "M5": M5,
     "M7": M7,
-    "M8": M8,
+    "M9": M9,
+    "M10": M10,
     "M11": M11,
     "M12": M12,
     "M13": M13,
-    "M14": M14,
 }
 
 
@@ -55,7 +57,7 @@ def main():
     data_params = dict(
         num_node_features=data.num_node_features,
         num_edge_features=data.num_edge_features,
-        # num_mol_features=data.mol_x.shape[1],
+        num_mol_features=data.mol_x.shape[1],
     )
 
     for seed in random_seeds:

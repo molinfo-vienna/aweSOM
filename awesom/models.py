@@ -30,6 +30,9 @@ class MCCLoss(torch.nn.Module):
         MCC = (TP x TN - FP x FN) / sqrt((TP+FP) x (TP+FN) x (TN+FP) x (TN+FN))
         where TP, TN, FP, and FN are elements in the confusion matrix.
         """
+
+        outputs = torch.sigmoid(outputs)
+
         tp = torch.sum(torch.mul(outputs, targets))
         tn = torch.sum(torch.mul((1 - outputs), (1 - targets)))
         fp = torch.sum(torch.mul(outputs, (1 - targets)))
@@ -102,20 +105,22 @@ class GNN(LightningModule):
         model_dict = {
             "M1": M1,
             "M2": M2,
+            "M3": M3,
             "M4": M4,
-            "M6": M6,
+            "M5": M5,
             "M7": M7,
-            "M8": M8,
+            "M9": M9,
+            "M10": M10,
             "M11": M11,
             "M12": M12,
             "M13": M13,
-            "M14": M14,
         }
 
         self.pos_weight = torch.tensor(pos_weight, dtype=torch.float).cuda()
-        # self.loss_function = torch.nn.BCEWithLogitsLoss(pos_weight=self.pos_weight, reduction="sum")
-        self.loss_function = MCCLoss()
-        self.loss_function = JaccardLoss()
+        self.loss_function = torch.nn.BCEWithLogitsLoss(pos_weight=self.pos_weight, reduction="mean")
+        # self.loss_function = torch.nn.BCEWithLogitsLoss(reduction="mean")
+        # self.loss_function = JaccardLoss()
+        # self.loss_function = MCCLoss()
 
         self.model = model_dict[architecture](params, hyperparams, self.pos_weight)
 
@@ -127,15 +132,6 @@ class GNN(LightningModule):
         self.val_mcc = MatthewsCorrCoef(task="binary")
 
     def configure_optimizers(self):
-        """Configures the optimizers and learning rate scheduler.
-
-        Creates an AdamW optimizer with the given learning rate and weight decay.
-        Also creates a ReduceLROnPlateau learning rate scheduler that reduces the
-        learning rate by a factor of 0.1 when the validation loss plateaus.
-
-        Returns:
-            A dictionary with the optimizer and learning rate scheduler.
-        """
         optimizer = torch.optim.AdamW(
             self.parameters(),
             lr=self.learning_rate,
@@ -151,33 +147,11 @@ class GNN(LightningModule):
             },
         }
 
-    # def step(self, batch):
-    #     """Step function for training with BCEWithLogitsLoss.
-
-    #     Args:
-    #         batch (torch_geometric.data.Data): batch of data
-
-    #     Returns:
-    #         loss (torch.Tensor): loss value
-    #         logits (torch.Tensor): model output
-    #     """
-    #     logits = self.model(batch)
-    #     loss = self.loss_function(logits, batch.y.float())
-    #     return loss, logits
-
     def step(self, batch):
-        """Step function for training with MCCLoss.
-
-        Args:
-            batch (torch_geometric.data.Data): batch of data
-
-        Returns:
-            loss (torch.Tensor): loss value
-            logits (torch.Tensor): model output
-        """
         logits = self.model(batch)
-        loss = self.loss_function(torch.sigmoid(logits), batch.y.float())
+        loss = self.loss_function(logits, batch.y.float())
         return loss, logits
+
 
     def on_train_start(self) -> None:
         self.logger.log_hyperparams(
@@ -248,16 +222,6 @@ class GNN(LightningModule):
         )
 
     def predict_step(self, batch, batch_idx):
-        """Predict step function for inference with BCEWithLogitsLoss or MCCLoss.
-
-        Args:
-            batch (_type_): _description_
-            batch_idx (_type_): _description_
-
-        Returns:
-            _type_: _description_
-        """
-        # _, logits = self.step(batch)
         logits = self.model(batch)
         return logits, batch.y, batch.mol_id, batch.atom_id
 
@@ -413,7 +377,232 @@ class M2(torch.nn.Module):
         return hyperparams
 
 
+class M3(torch.nn.Module):
+    """The GATv2 operator from the “How Attentive are Graph Attention Networks?” paper,
+    which fixes the static attention problem of the standard GATConv layer.
+    Since the linear layers in the standard GAT are applied right after each other,
+    the ranking of attended nodes is unconditioned on the query node.
+    In contrast, in GATv2, every node can attend to any other node.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html#torch_geometric.nn.conv.GATv2Conv
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
+        super(M3, self).__init__()
+
+        self.conv = torch.nn.ModuleList()
+        self.batch_norm = torch.nn.ModuleList()
+        self.activation = torch.nn.LeakyReLU()
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv.append(
+                GATv2Conv(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    heads=hyperparams["heads"],
+                    negative_slope=hyperparams["negative_slope"],
+                    edge_dim=params["num_edge_features"],
+                )
+            )
+            in_channels = out_channels * hyperparams["heads"]
+            self.batch_norm.append(BatchNorm(in_channels))
+
+        mid_channels = hyperparams["size_final_mlp_layers"]
+        self.final = torch.nn.Sequential(
+            torch.nn.Linear(in_channels, mid_channels),
+            BatchNorm(mid_channels),
+            self.activation,
+            torch.nn.Linear(mid_channels, 1),
+        )
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+    ) -> torch.Tensor:
+        # Convolutions
+        x = data.x
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
+            x = conv(x, data.edge_index, data.edge_attr)
+            if i != len(self.conv) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
+
+        # Classification
+        x = self.final(x)
+
+        return torch.flatten(x)
+
+    @classmethod
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 16, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 4)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
+        heads = trial.suggest_int("heads", 1, 4)
+        negative_slope = trial.suggest_float("negative_slope", 0.1, 0.9)
+
+        hyperparams = dict(
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
+            size_final_mlp_layers=size_final_mlp_layers,
+            heads=heads,
+            negative_slope=negative_slope,
+        )
+
+        return hyperparams
+
+
 class M4(torch.nn.Module):
+    """The graph neural network operator from the “Convolutional Networks on Graphs for Learning Molecular Fingerprints” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
+        super(M4, self).__init__()
+
+        self.conv = torch.nn.ModuleList()
+        self.batch_norm = torch.nn.ModuleList()
+        self.activation = torch.nn.LeakyReLU()
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv.append(
+                MFConv(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    max_degree=hyperparams["max_degree"],
+                )
+            )
+            in_channels = out_channels
+            self.batch_norm.append(BatchNorm(in_channels))
+
+        mid_channels = hyperparams["size_final_mlp_layers"]
+        self.final = torch.nn.Sequential(
+            torch.nn.Linear(in_channels, mid_channels),
+            BatchNorm(mid_channels),
+            self.activation,
+            torch.nn.Linear(mid_channels, 1),
+        )
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+    ) -> torch.Tensor:
+        # Convolutions
+        x = data.x
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
+            x = conv(x, data.edge_index)
+            if i != len(self.conv) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
+
+        # Classification
+        x = self.final(x)
+
+        return torch.flatten(x)
+
+    @classmethod
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 16, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 4)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+        max_degree = trial.suggest_int("max_degree", 1, 6)
+        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
+
+        hyperparams = dict(
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
+            max_degree=max_degree,
+            size_final_mlp_layers=size_final_mlp_layers,
+        )
+
+        return hyperparams
+
+
+class M5(torch.nn.Module):
+    """The chebyshev spectral graph convolutional operator from the
+    “Convolutional Neural Networks on Graphs with Fast Localized Spectral Filtering” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.ChebConv.html
+    """
+
+    def __init__(self, params, hyperparams, pos_weight) -> None:
+        super(M5, self).__init__()
+
+        self.conv = torch.nn.ModuleList()
+        self.batch_norm = torch.nn.ModuleList()
+        self.activation = torch.nn.LeakyReLU()
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv.append(
+                ChebConv(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    K=hyperparams["filter_size"],
+                )
+            )
+            in_channels = out_channels
+            self.batch_norm.append(BatchNorm(in_channels))
+
+        mid_channels = hyperparams["size_final_mlp_layers"]
+        self.final = torch.nn.Sequential(
+            torch.nn.Linear(in_channels, mid_channels),
+            BatchNorm(mid_channels),
+            self.activation,
+            torch.nn.Linear(mid_channels, 1),
+        )
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+    ) -> torch.Tensor:
+        # Convolutions
+        x = data.x
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
+            x = conv(x, data.edge_index)
+            if i != len(self.conv) - 1:
+                x = batch_norm(x)
+                x = self.activation(x)
+
+        # Classification
+        x = self.final(x)
+
+        return torch.flatten(x)
+
+    @classmethod
+    def get_params(self, trial):
+        batch_size = trial.suggest_int("batch_size", 16, 256)
+        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 4)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+        filter_size = trial.suggest_int("filter_size", 1, 10)
+        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
+
+        hyperparams = dict(
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
+            filter_size=filter_size,
+            size_final_mlp_layers=size_final_mlp_layers,
+        )
+
+        return hyperparams
+
+
+class M7(torch.nn.Module):
     """
     The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
@@ -421,7 +610,7 @@ class M4(torch.nn.Module):
     """
 
     def __init__(self, params, hyperparams, pos_weight) -> None:
-        super(M4, self).__init__()
+        super(M7, self).__init__()
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -500,17 +689,17 @@ class M4(torch.nn.Module):
         return hyperparams
 
 
-class M6(torch.nn.Module):
-    """The GATv2 operator from the “How Attentive are Graph Attention Networks?” paper,
-    which fixes the static attention problem of the standard GATConv layer.
-    Since the linear layers in the standard GAT are applied right after each other,
-    the ranking of attended nodes is unconditioned on the query node.
-    In contrast, in GATv2, every node can attend to any other node.
-    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html#torch_geometric.nn.conv.GATv2Conv
+class M9(torch.nn.Module):
+
+    """
+    The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
+    + Pooling for context
+    + Learned molecular features as additional input
     """
 
     def __init__(self, params, hyperparams, pos_weight) -> None:
-        super(M6, self).__init__()
+        super(M9, self).__init__()
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -518,20 +707,32 @@ class M6(torch.nn.Module):
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
-
         for _ in range(hyperparams["num_conv_layers"]):
             self.conv.append(
-                GATv2Conv(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    heads=hyperparams["heads"],
-                    negative_slope=hyperparams["negative_slope"],
+                GINEConv(
+                    torch.nn.Sequential(
+                        torch.nn.Linear(in_channels, out_channels),
+                        BatchNorm(out_channels),
+                        self.activation,
+                        torch.nn.Linear(out_channels, out_channels),
+                    ),
+                    train_eps=True,
                     edge_dim=params["num_edge_features"],
                 )
             )
-            in_channels = out_channels * hyperparams["heads"]
+            in_channels = out_channels
             self.batch_norm.append(BatchNorm(in_channels))
 
+        in_channels_mol = params["num_mol_features"]
+        out_channels_mol = hyperparams["size_mol_mlp_layers"]
+        self.mol_mlp = torch.nn.Sequential(
+            torch.nn.Linear(in_channels_mol, out_channels_mol),
+            BatchNorm(out_channels_mol),
+            self.activation,
+            torch.nn.Linear(out_channels_mol, out_channels_mol),
+        )
+
+        in_channels = (in_channels * 2) + out_channels_mol
         mid_channels = hyperparams["size_final_mlp_layers"]
         self.final = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
@@ -544,13 +745,29 @@ class M6(torch.nn.Module):
         self,
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
     ) -> torch.Tensor:
-        # Convolutions
-        x = data.x
+        # Compute atom embeddings
+        x_atom = data.x
         for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x = conv(x, data.edge_index, data.edge_attr)
+            x_atom = conv(x_atom, data.edge_index, data.edge_attr)
             if i != len(self.conv) - 1:
-                x = batch_norm(x)
-                x = self.activation(x)
+                x_atom = batch_norm(x_atom)
+                x_atom = self.activation(x_atom)
+
+        # Pooling for context
+        x_pool = global_add_pool(x_atom, data.batch)
+        num_atoms_per_mol = torch.unique(data.batch, sorted=False, return_counts=True)[
+            1
+        ]
+        x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
+
+        # Concatenate final embedding and pooled representation
+        x_atom = torch.cat((x_atom, x_pool_expanded), dim=1)
+
+        # Compute molecular embeddings
+        x_mol = self.mol_mlp(data.mol_x)
+
+        # Concatenate atom embeddings and molecular embeddings
+        x = torch.cat((x_atom, x_mol), dim=1)
 
         # Classification
         x = self.final(x)
@@ -563,30 +780,32 @@ class M6(torch.nn.Module):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 4)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+        size_mol_mlp_layers = trial.suggest_int("size_mol_mlp_layers", 32, 512)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
-        heads = trial.suggest_int("heads", 1, 4)
-        negative_slope = trial.suggest_float("negative_slope", 0.1, 0.9)
 
         hyperparams = dict(
             batch_size=batch_size,
             learning_rate=learning_rate,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
+            size_mol_mlp_layers=size_mol_mlp_layers,
             size_final_mlp_layers=size_final_mlp_layers,
-            heads=heads,
-            negative_slope=negative_slope,
         )
 
         return hyperparams
+    
 
+class M10(torch.nn.Module):
 
-class M7(torch.nn.Module):
-    """The graph neural network operator from the “Convolutional Networks on Graphs for Learning Molecular Fingerprints” paper.
-    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv
+    """
+    The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
+    + Pooling for context
+    + UniMol molecular embeddings
     """
 
     def __init__(self, params, hyperparams, pos_weight) -> None:
-        super(M7, self).__init__()
+        super(M10, self).__init__()
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -594,18 +813,23 @@ class M7(torch.nn.Module):
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
-
         for _ in range(hyperparams["num_conv_layers"]):
             self.conv.append(
-                MFConv(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    max_degree=hyperparams["max_degree"],
+                GINEConv(
+                    torch.nn.Sequential(
+                        torch.nn.Linear(in_channels, out_channels),
+                        BatchNorm(out_channels),
+                        self.activation,
+                        torch.nn.Linear(out_channels, out_channels),
+                    ),
+                    train_eps=True,
+                    edge_dim=params["num_edge_features"],
                 )
             )
             in_channels = out_channels
             self.batch_norm.append(BatchNorm(in_channels))
 
+        in_channels = (in_channels * 2) + params["num_mol_features"]
         mid_channels = hyperparams["size_final_mlp_layers"]
         self.final = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
@@ -618,13 +842,29 @@ class M7(torch.nn.Module):
         self,
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
     ) -> torch.Tensor:
-        # Convolutions
-        x = data.x
+        # Compute atom embeddings
+        x_atom = data.x
         for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x = conv(x, data.edge_index)
+            x_atom = conv(x_atom, data.edge_index, data.edge_attr)
             if i != len(self.conv) - 1:
-                x = batch_norm(x)
-                x = self.activation(x)
+                x_atom = batch_norm(x_atom)
+                x_atom = self.activation(x_atom)
+
+        # Pooling for context
+        x_pool = global_add_pool(x_atom, data.batch)
+        num_atoms_per_mol = torch.unique(data.batch, sorted=False, return_counts=True)[
+            1
+        ]
+        x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
+
+        # Concatenate final embedding and pooled representation
+        x_atom = torch.cat((x_atom, x_pool_expanded), dim=1)
+
+        # Compute molecular embeddings
+        x_mol = data.mol_x
+
+        # Concatenate atom embeddings and molecular embeddings
+        x = torch.cat((x_atom, x_mol), dim=1)
 
         # Classification
         x = self.final(x)
@@ -637,7 +877,7 @@ class M7(torch.nn.Module):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 4)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
-        max_degree = trial.suggest_int("max_degree", 1, 6)
+        size_mol_mlp_layers = trial.suggest_int("size_mol_mlp_layers", 32, 512)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
 
         hyperparams = dict(
@@ -645,80 +885,7 @@ class M7(torch.nn.Module):
             learning_rate=learning_rate,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
-            max_degree=max_degree,
-            size_final_mlp_layers=size_final_mlp_layers,
-        )
-
-        return hyperparams
-
-
-class M8(torch.nn.Module):
-    """The chebyshev spectral graph convolutional operator from the
-    “Convolutional Neural Networks on Graphs with Fast Localized Spectral Filtering” paper.
-    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.ChebConv.html
-    """
-
-    def __init__(self, params, hyperparams, pos_weight) -> None:
-        super(M8, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-        self.activation = torch.nn.LeakyReLU()
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                ChebConv(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    K=hyperparams["filter_size"],
-                )
-            )
-            in_channels = out_channels
-            self.batch_norm.append(BatchNorm(in_channels))
-
-        mid_channels = hyperparams["size_final_mlp_layers"]
-        self.final = torch.nn.Sequential(
-            torch.nn.Linear(in_channels, mid_channels),
-            BatchNorm(mid_channels),
-            self.activation,
-            torch.nn.Linear(mid_channels, 1),
-        )
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-    ) -> torch.Tensor:
-        # Convolutions
-        x = data.x
-        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x = conv(x, data.edge_index)
-            if i != len(self.conv) - 1:
-                x = batch_norm(x)
-                x = self.activation(x)
-
-        # Classification
-        x = self.final(x)
-
-        return torch.flatten(x)
-
-    @classmethod
-    def get_params(self, trial):
-        batch_size = trial.suggest_int("batch_size", 16, 256)
-        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 4)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
-        filter_size = trial.suggest_int("filter_size", 1, 10)
-        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
-
-        hyperparams = dict(
-            batch_size=batch_size,
-            learning_rate=learning_rate,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-            filter_size=filter_size,
+            size_mol_mlp_layers=size_mol_mlp_layers,
             size_final_mlp_layers=size_final_mlp_layers,
         )
 
@@ -886,12 +1053,10 @@ class M12(torch.nn.Module):
 
 
 class M13(torch.nn.Module):
-
     """
     The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
-    + Pooling for context
-    + Learned molecular features as additional input
+    + 
     """
 
     def __init__(self, params, hyperparams, pos_weight) -> None:
@@ -903,6 +1068,7 @@ class M13(torch.nn.Module):
 
         in_channels = params["num_node_features"]
         out_channels = hyperparams["size_conv_layers"]
+
         for _ in range(hyperparams["num_conv_layers"]):
             self.conv.append(
                 GINEConv(
@@ -919,19 +1085,9 @@ class M13(torch.nn.Module):
             in_channels = out_channels
             self.batch_norm.append(BatchNorm(in_channels))
 
-        in_channels_mol = params["num_mol_features"]
-        out_channels_mol = hyperparams["size_mol_mlp_layers"]
-        self.mol_mlp = torch.nn.Sequential(
-            torch.nn.Linear(in_channels_mol, out_channels_mol),
-            BatchNorm(out_channels_mol),
-            self.activation,
-            torch.nn.Linear(out_channels_mol, out_channels_mol),
-        )
-
-        in_channels = in_channels + out_channels_mol
         mid_channels = hyperparams["size_final_mlp_layers"]
         self.final = torch.nn.Sequential(
-            torch.nn.Linear(in_channels, mid_channels),
+            torch.nn.Linear(params["num_node_features"] + in_channels * hyperparams["num_conv_layers"], mid_channels),
             BatchNorm(mid_channels),
             self.activation,
             torch.nn.Linear(mid_channels, 1),
@@ -941,125 +1097,18 @@ class M13(torch.nn.Module):
         self,
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
     ) -> torch.Tensor:
-        # Compute atom embeddings
-        x_atom = data.x
+        # Convolutions
+        x = data.x
+        xs = [x]
         for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x_atom = conv(x_atom, data.edge_index, data.edge_attr)
+            x = conv(x, data.edge_index, data.edge_attr)
             if i != len(self.conv) - 1:
-                x_atom = batch_norm(x_atom)
-                x_atom = self.activation(x_atom)
-
-        # Compute molecular embeddings
-        x_mol = self.mol_mlp(data.mol_x)
-
-        # Concatenate atom embeddings and molecular embeddings
-        x = torch.cat((x_atom, x_mol), dim=1)
-
-        # Classification
-        x = self.final(x)
-
-        return torch.flatten(x)
-
-    @classmethod
-    def get_params(self, trial):
-        batch_size = trial.suggest_int("batch_size", 16, 256)
-        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 4)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
-        size_mol_mlp_layers = trial.suggest_int("size_mol_mlp_layers", 32, 512)
-        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
-
-        hyperparams = dict(
-            batch_size=batch_size,
-            learning_rate=learning_rate,
-            num_conv_layers=num_conv_layers,
-            size_conv_layers=size_conv_layers,
-            size_mol_mlp_layers=size_mol_mlp_layers,
-            size_final_mlp_layers=size_final_mlp_layers,
-        )
-
-        return hyperparams
-
-
-class M14(torch.nn.Module):
-
-    """
-    The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
-    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
-    + Pooling for context
-    + Learned molecular features as additional input
-    """
-
-    def __init__(self, params, hyperparams, pos_weight) -> None:
-        super(M14, self).__init__()
-
-        self.conv = torch.nn.ModuleList()
-        self.batch_norm = torch.nn.ModuleList()
-        self.activation = torch.nn.LeakyReLU()
-
-        in_channels = params["num_node_features"]
-        out_channels = hyperparams["size_conv_layers"]
-        for _ in range(hyperparams["num_conv_layers"]):
-            self.conv.append(
-                GINEConv(
-                    torch.nn.Sequential(
-                        torch.nn.Linear(in_channels, out_channels),
-                        BatchNorm(out_channels),
-                        self.activation,
-                        torch.nn.Linear(out_channels, out_channels),
-                    ),
-                    train_eps=True,
-                    edge_dim=params["num_edge_features"],
-                )
-            )
-            in_channels = out_channels
-            self.batch_norm.append(BatchNorm(in_channels))
-
-        in_channels_mol = params["num_mol_features"]
-        out_channels_mol = hyperparams["size_mol_mlp_layers"]
-        self.mol_mlp = torch.nn.Sequential(
-            torch.nn.Linear(in_channels_mol, out_channels_mol),
-            BatchNorm(out_channels_mol),
-            self.activation,
-            torch.nn.Linear(out_channels_mol, out_channels_mol),
-        )
-
-        in_channels = (in_channels * 2) + out_channels_mol
-        mid_channels = hyperparams["size_final_mlp_layers"]
-        self.final = torch.nn.Sequential(
-            torch.nn.Linear(in_channels, mid_channels),
-            BatchNorm(mid_channels),
-            self.activation,
-            torch.nn.Linear(mid_channels, 1),
-        )
-
-    def forward(
-        self,
-        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
-    ) -> torch.Tensor:
-        # Compute atom embeddings
-        x_atom = data.x
-        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
-            x_atom = conv(x_atom, data.edge_index, data.edge_attr)
-            if i != len(self.conv) - 1:
-                x_atom = batch_norm(x_atom)
-                x_atom = self.activation(x_atom)
-
-        # Pooling for context
-        x_pool = global_add_pool(x_atom, data.batch)
-        num_atoms_per_mol = torch.unique(data.batch, sorted=False, return_counts=True)[
-            1
-        ]
-        x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
+                x = batch_norm(x)
+                x = self.activation(x)
+            xs.append(x)
 
         # Concatenate final embedding and pooled representation
-        x_atom = torch.cat((x_atom, x_pool_expanded), dim=1)
-
-        # Compute molecular embeddings
-        x_mol = self.mol_mlp(data.mol_x)
-
-        # Concatenate atom embeddings and molecular embeddings
-        x = torch.cat((x_atom, x_mol), dim=1)
+        x = torch.cat(xs, dim=1)
 
         # Classification
         x = self.final(x)
@@ -1072,7 +1121,6 @@ class M14(torch.nn.Module):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 4)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
-        size_mol_mlp_layers = trial.suggest_int("size_mol_mlp_layers", 32, 512)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
 
         hyperparams = dict(
@@ -1080,8 +1128,8 @@ class M14(torch.nn.Module):
             learning_rate=learning_rate,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
-            size_mol_mlp_layers=size_mol_mlp_layers,
             size_final_mlp_layers=size_final_mlp_layers,
         )
 
         return hyperparams
+    

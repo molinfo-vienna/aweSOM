@@ -8,7 +8,7 @@ from multiprocessing import Pool
 from rdkit.Chem import Mol as RDKitMol
 from rdkit.Chem.rdchem import Atom as RDKitAtom
 from rdkit.Chem.rdchem import Bond as RDKitBond
-from rdkit.Chem import rdMolDescriptors
+from rdkit.Chem import MolToSmiles, rdMolDescriptors
 from typing import Any, List, Tuple
 
 import CDPL.Chem as Chem
@@ -40,15 +40,6 @@ RING_SIZE = [0, 3, 4, 5, 6, 7, 8, "OTHER"]
 
 BOND_TYPE_STR = ["SINGLE", "DOUBLE", "TRIPLE", "AROMATIC", "OTHER"]
 BOND_TYPE_INT = [1, 2, 3, "OTHER"]
-BOND_STEREO_STR = [
-    "STEREONONE",
-    "STEREOANY",
-    "STEREOZ",
-    "STEREOE",
-    "STEREOCIS",
-    "STEREOTRANS",
-]
-
 
 """
 General Utilities
@@ -562,13 +553,9 @@ def generate_mol_features_RDKit(mol: RDKitMol) -> List[float]:
         rdMolDescriptors.CalcNumHeterocycles(mol),
         rdMolDescriptors.CalcNumAliphaticCarbocycles(mol),
         rdMolDescriptors.CalcNumAliphaticHeterocycles(mol),
-        # rdMolDescriptors.CalcNumAliphaticRings(mol),
         rdMolDescriptors.CalcNumAromaticCarbocycles(mol),
         rdMolDescriptors.CalcNumAromaticHeterocycles(mol),
-        # rdMolDescriptors.CalcNumAromaticRings(mol),
         rdMolDescriptors.CalcNumSaturatedCarbocycles(mol),
-        rdMolDescriptors.CalcNumSaturatedHeterocycles(mol),
-        # rdMolDescriptors.CalcNumSaturatedRings(mol),
         rdMolDescriptors.CalcNumRotatableBonds(mol),
         rdMolDescriptors.CalcNumAmideBonds(mol),
     ]
@@ -596,8 +583,8 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
         mol_id (int): the molecular ID of the parsed mol
         mol (RDKit Mol): an RDKit Mol object
         soms (list): a list of the indices of atoms that are SoMs (This is
-                    of course only relevant for training data. If there is no info
-                    about which atom is a SoM, then the list is simply empty.)
+                     of course only relevant for the training and testing data. 
+                     If there is no info about which atom is a SoM, then the list is empty.)
     Returns:
         NetworkX Graph with node and edge attributes
     """
@@ -609,7 +596,8 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
         G.add_node(
             atom_idx,  # node identifier
             node_features=generate_node_features_RDKit(atom),
-            # mol_features=generate_mol_features_RDKit(mol),
+            mol_features=generate_mol_features_RDKit(mol),
+            smiles=MolToSmiles(mol),
             is_som=(atom_idx in soms),  # label
             # the next two elements are later used to assign the
             # predicted labels but are of course not used as features!
