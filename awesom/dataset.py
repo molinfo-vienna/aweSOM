@@ -8,6 +8,7 @@ from multiprocessing import cpu_count
 from rdkit.Chem import PandasTools
 from torch_geometric.data import InMemoryDataset, Data
 from typing import List
+from unimol_tools import UniMolRepr
 
 from awesom.dataset_utils import (
     _get_file_length,
@@ -121,11 +122,17 @@ class SOM(InMemoryDataset):
         node_features = torch.from_numpy(node_features).to(torch.float)
 
         # Compute mol features matrix
-        # mol_features = np.empty((num_nodes, len(G.nodes()[0]["mol_features"])))
-        # for i in range(num_nodes):
-        #     current_node = G.nodes[i]
-        #     mol_features[i, :] = current_node["mol_features"]
-        # mol_features = torch.from_numpy(mol_features).to(torch.float)
+        mol_features = np.empty((num_nodes, len(G.nodes()[0]["mol_features"])))
+        for i in range(num_nodes):
+            current_node = G.nodes[i]
+            mol_features[i, :] = current_node["mol_features"]
+        mol_features = torch.from_numpy(mol_features).to(torch.float)
+
+        # # Generates molecular unimol embedding
+        # # (512 dimensional embedding that is supposed to capture the 3D molecular structure)
+        # clf = UniMolRepr(data_type='molecule', remove_hs=False)
+        # smiles_lst = [G.nodes[i]["smiles"] for i in range(num_nodes)]
+        # mol_features = torch.tensor(clf.get_repr(smiles_lst, return_atomic_reprs=False)['cls_repr']).to(torch.float)
 
         data_list = []
 
@@ -158,7 +165,7 @@ class SOM(InMemoryDataset):
                     x=node_features[mask],
                     edge_index=edge_index_reset,
                     edge_attr=edge_attr,
-                    # mol_x=mol_features[mask],
+                    mol_x=mol_features[mask],
                     y=labels[mask],
                     mol_id=torch.full((labels[mask].shape[0],), mol_id),
                     atom_id=atom_ids[mask],
@@ -180,7 +187,7 @@ class SOM(InMemoryDataset):
                 total_num_atoms += 1
                 num_soms += int(label)
         num_nosom = total_num_atoms - num_soms
-        return num_nosom / num_soms
+        return num_nosom / num_soms / 3
 
 
 class LabeledData(SOM):
