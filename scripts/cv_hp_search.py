@@ -96,7 +96,7 @@ def main():
             )
 
             callbacks = [
-                EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=10),
+                EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=20),
                 ModelCheckpoint(
                     filename=f"trial{trial._trial_id}", monitor="val/loss", mode="min"
                 ),

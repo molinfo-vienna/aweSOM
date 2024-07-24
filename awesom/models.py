@@ -694,8 +694,7 @@ class M9(torch.nn.Module):
     """
     The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
-    + Pooling for context
-    + Learned molecular features as additional input
+    + Normalized molecular features as additional input
     """
 
     def __init__(self, params, hyperparams, pos_weight) -> None:
@@ -723,16 +722,9 @@ class M9(torch.nn.Module):
             in_channels = out_channels
             self.batch_norm.append(BatchNorm(in_channels))
 
-        in_channels_mol = params["num_mol_features"]
-        out_channels_mol = hyperparams["size_mol_mlp_layers"]
-        self.mol_mlp = torch.nn.Sequential(
-            torch.nn.Linear(in_channels_mol, out_channels_mol),
-            BatchNorm(out_channels_mol),
-            self.activation,
-            torch.nn.Linear(out_channels_mol, out_channels_mol),
-        )
+        self.norm_mol_x = torch.nn.LayerNorm(params["num_mol_features"])
 
-        in_channels = (in_channels * 2) + out_channels_mol
+        in_channels = in_channels + params["num_mol_features"]
         mid_channels = hyperparams["size_final_mlp_layers"]
         self.final = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
@@ -753,18 +745,8 @@ class M9(torch.nn.Module):
                 x_atom = batch_norm(x_atom)
                 x_atom = self.activation(x_atom)
 
-        # Pooling for context
-        x_pool = global_add_pool(x_atom, data.batch)
-        num_atoms_per_mol = torch.unique(data.batch, sorted=False, return_counts=True)[
-            1
-        ]
-        x_pool_expanded = torch.repeat_interleave(x_pool, num_atoms_per_mol, dim=0)
-
-        # Concatenate final embedding and pooled representation
-        x_atom = torch.cat((x_atom, x_pool_expanded), dim=1)
-
-        # Compute molecular embeddings
-        x_mol = self.mol_mlp(data.mol_x)
+        # Normalize molecular features
+        x_mol = self.norm_mol_x(data.mol_x)
 
         # Concatenate atom embeddings and molecular embeddings
         x = torch.cat((x_atom, x_mol), dim=1)
@@ -780,7 +762,6 @@ class M9(torch.nn.Module):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
         num_conv_layers = trial.suggest_int("num_conv_layers", 1, 4)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
-        size_mol_mlp_layers = trial.suggest_int("size_mol_mlp_layers", 32, 512)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
 
         hyperparams = dict(
@@ -788,7 +769,6 @@ class M9(torch.nn.Module):
             learning_rate=learning_rate,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
-            size_mol_mlp_layers=size_mol_mlp_layers,
             size_final_mlp_layers=size_final_mlp_layers,
         )
 
@@ -801,7 +781,7 @@ class M10(torch.nn.Module):
     The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
     + Pooling for context
-    + UniMol molecular embeddings
+    + Molecular features as additional input
     """
 
     def __init__(self, params, hyperparams, pos_weight) -> None:
@@ -860,11 +840,8 @@ class M10(torch.nn.Module):
         # Concatenate final embedding and pooled representation
         x_atom = torch.cat((x_atom, x_pool_expanded), dim=1)
 
-        # Compute molecular embeddings
-        x_mol = data.mol_x
-
         # Concatenate atom embeddings and molecular embeddings
-        x = torch.cat((x_atom, x_mol), dim=1)
+        x = torch.cat((x_atom, data.mol_x), dim=1)
 
         # Classification
         x = self.final(x)
@@ -957,7 +934,7 @@ class M11(torch.nn.Module):
     def get_params(self, trial):
         batch_size = trial.suggest_int("batch_size", 16, 256)
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 4)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
 
@@ -1037,7 +1014,7 @@ class M12(torch.nn.Module):
     def get_params(self, trial):
         batch_size = trial.suggest_int("batch_size", 16, 256)
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 4)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
 
@@ -1056,7 +1033,7 @@ class M13(torch.nn.Module):
     """
     The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
-    + 
+    + layer memory
     """
 
     def __init__(self, params, hyperparams, pos_weight) -> None:
