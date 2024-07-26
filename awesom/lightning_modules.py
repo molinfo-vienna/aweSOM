@@ -195,9 +195,19 @@ class EnsembleGNN(LightningModule):
         }
 
     def step(self, batch):
-        loss_lst = torch.empty(self.number_monte_carlo_samples, dtype=torch.float32, device=self.device)
-        logits_lst = torch.empty((self.number_monte_carlo_samples, batch.y.size(0)), dtype=torch.float32, device=self.device)
-        stddevs_lst = torch.empty((self.number_monte_carlo_samples, batch.y.size(0)), dtype=torch.float32, device=self.device)
+        loss_lst = torch.empty(
+            self.number_monte_carlo_samples, dtype=torch.float32, device=self.device
+        )
+        logits_lst = torch.empty(
+            (self.number_monte_carlo_samples, batch.y.size(0)),
+            dtype=torch.float32,
+            device=self.device,
+        )
+        stddevs_lst = torch.empty(
+            (self.number_monte_carlo_samples, batch.y.size(0)),
+            dtype=torch.float32,
+            device=self.device,
+        )
         for i in range(self.number_monte_carlo_samples):
             logits, stddevs = self.model(batch)
             loss = self.loss_function(logits, stddevs, batch.y.float())
@@ -277,8 +287,16 @@ class EnsembleGNN(LightningModule):
         )
 
     def predict_step(self, batch, batch_idx):
-        logits_lst = torch.empty((self.number_monte_carlo_samples, batch.y.size(0)), dtype=torch.float32, device=self.device)
-        stddevs_lst = torch.empty((self.number_monte_carlo_samples, batch.y.size(0)), dtype=torch.float32, device=self.device)
+        logits_lst = torch.empty(
+            (self.number_monte_carlo_samples, batch.y.size(0)),
+            dtype=torch.float32,
+            device=self.device,
+        )
+        stddevs_lst = torch.empty(
+            (self.number_monte_carlo_samples, batch.y.size(0)),
+            dtype=torch.float32,
+            device=self.device,
+        )
         for i in range(self.number_monte_carlo_samples):
             logits, stddevs = self.model(batch)
             logits_lst[i, :] = logits

@@ -48,7 +48,7 @@ MODELS = {
     "M13": M13,
 }
 
-BATCH_SIZE = 64 
+BATCH_SIZE = 64
 
 
 def main():
@@ -147,9 +147,7 @@ def main():
     kfold = KFold(n_splits=args.numCVFolds, shuffle=True, random_state=42)
     for fold_id, (_, val_idx) in enumerate(kfold.split(range(len(data)))):
         val_data = itemgetter(*val_idx)(data)
-        val_loader = DataLoader(
-            val_data, batch_size=BATCH_SIZE
-        )
+        val_loader = DataLoader(val_data, batch_size=BATCH_SIZE)
         model = GNN(
             params=data_params,
             hyperparams=study.best_trial.params,

@@ -20,10 +20,17 @@ def main():
     torch.set_float32_matmul_precision("medium")
 
     # Load model
-    checkpoints_path = Path(Path(Path(args.checkpointsPath, "lightning_logs"), "version_0"), "checkpoints")
-    checkpoints_file = Path(checkpoints_path, [file for file in os.listdir(checkpoints_path) if file.endswith(".ckpt")][0])
+    checkpoints_path = Path(
+        Path(Path(args.checkpointsPath, "lightning_logs"), "version_0"), "checkpoints"
+    )
+    checkpoints_file = Path(
+        checkpoints_path,
+        [file for file in os.listdir(checkpoints_path) if file.endswith(".ckpt")][0],
+    )
 
-    hyperparams_path = Path(Path(Path(args.checkpointsPath, "lightning_logs"), "version_0"), "hparams.yaml")
+    hyperparams_path = Path(
+        Path(Path(args.checkpointsPath, "lightning_logs"), "version_0"), "hparams.yaml"
+    )
     hyperparams = yaml.safe_load(hyperparams_path.read_text())
 
     model = EnsembleGNN(
@@ -47,11 +54,20 @@ def main():
 
     # Make predictions
     predictions = trainer.predict(
-            model=model, dataloaders=DataLoader(data, batch_size=len(data))
-        )[0]
+        model=model, dataloaders=DataLoader(data, batch_size=len(data))
+    )[0]
     if not os.path.exists(args.outputPath):
-            os.makedirs(args.outputPath)
-    TestMetrics.compute_and_log_test_metrics(predictions, args.outputPath, args.test)
+        os.makedirs(args.outputPath)
+
+    TestMetrics.compute_and_log_test_metrics(
+        predictions[0].to("cpu"),
+        predictions[1].to("cpu"),
+        predictions[2].to("cpu"),
+        predictions[3].to("cpu"),
+        predictions[4].to("cpu"),
+        args.outputPath,
+        args.test,
+    )
 
 
 if __name__ == "__main__":
