@@ -179,16 +179,6 @@ class SOM(InMemoryDataset):
 
         return data_list
 
-    def get_pos_weight(self):
-        total_num_atoms = 0
-        num_soms = 0
-        for data in self:
-            for label in data.y:
-                total_num_atoms += 1
-                num_soms += int(label)
-        num_nosom = total_num_atoms - num_soms
-        return num_nosom / num_soms / 3
-
 
 class LabeledData(SOM):
     """Creates a PyTorch Geometric Dataset from a data.sdf input data file.

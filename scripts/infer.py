@@ -4,25 +4,37 @@ import torch
 import yaml
 
 from datetime import datetime
-from lightning import Trainer, seed_everything
+from lightning import Trainer
 from pathlib import Path
-from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
-from awesom import LabeledData, UnlabeledData, GNN, TestMetrics
+from awesom.dataset import LabeledData, UnlabeledData
+from awesom.lightning_modules import EnsembleGNN
+from awesom.metrics_utils import TestMetrics
 
 
 def main():
-    seed_everything(42)
-    geometric_seed_everything(42)
-    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
 
-    if not os.path.exists(args.outputPath):
-        os.makedirs(args.outputPath)
+    # Load model
+    checkpoints_path = Path(Path(Path(args.checkpointsPath, "lightning_logs"), "version_0"), "checkpoints")
+    checkpoints_file = Path(checkpoints_path, [file for file in os.listdir(checkpoints_path) if file.endswith(".ckpt")][0])
 
+    hyperparams_path = Path(Path(Path(args.checkpointsPath, "lightning_logs"), "version_0"), "hparams.yaml")
+    hyperparams = yaml.safe_load(hyperparams_path.read_text())
+
+    model = EnsembleGNN(
+        params=hyperparams["params"],
+        hyperparams=hyperparams["hyperparams"],
+        architecture=hyperparams["architecture"],
+    )
+
+    model = EnsembleGNN.load_from_checkpoint(checkpoints_file)
+
+    # Load data
     if args.test:
         data = LabeledData(root=args.inputPath, transform=T.ToUndirected())
     else:
@@ -30,34 +42,15 @@ def main():
 
     print(f"Number of molecules: {len(data)}")
 
-    predictions = {}
-    checkpoints_path = Path(args.checkpointsPath, "lightning_logs")
-    version_paths = [
-        Path(checkpoints_path, f"version_{i}")
-        for i, _ in enumerate(os.listdir(checkpoints_path))
-    ]
-    for i, version_path in enumerate(version_paths):
-        checkpoint_path = [
-            Path(Path(version_path, "checkpoints"), file)
-            for file in os.listdir(Path(version_path, "checkpoints"))
-            if file.endswith(".ckpt")
-        ][0]
-        hyperparams = yaml.safe_load(Path(version_path, "hparams.yaml").read_text())
+    # Initialize trainer
+    trainer = Trainer(accelerator="auto", logger=False)
 
-        model = GNN(
-            params=hyperparams["params"],
-            hyperparams=hyperparams["hyperparams"],
-            architecture=hyperparams["architecture"],
-            pos_weight=hyperparams["pos_weight"],
-        )
-
-        model = GNN.load_from_checkpoint(checkpoint_path)
-
-        trainer = Trainer(accelerator="auto", logger=False)
-        predictions[i] = trainer.predict(
+    # Make predictions
+    predictions = trainer.predict(
             model=model, dataloaders=DataLoader(data, batch_size=len(data))
-        )
-
+        )[0]
+    if not os.path.exists(args.outputPath):
+            os.makedirs(args.outputPath)
     TestMetrics.compute_and_log_test_metrics(predictions, args.outputPath, args.test)
 
 

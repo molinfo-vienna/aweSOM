@@ -18,9 +18,9 @@ from torch_geometric import transforms as T
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric.loader import DataLoader
 
-from awesom import (
-    SOM,
-    GNN,
+from awesom.dataset import SOM
+from awesom.lightning_modules import GNN
+from awesom.models import (
     M1,
     M2,
     M3,
@@ -28,14 +28,14 @@ from awesom import (
     M5,
     M7,
     M9,
-    M10,
     M11,
     M12,
     M13,
-    ValidationMetrics,
 )
+from awesom.metrics_utils import ValidationMetrics
 
-model_dict = {
+
+MODELS = {
     "M1": M1,
     "M2": M2,
     "M3": M3,
@@ -43,14 +43,16 @@ model_dict = {
     "M5": M5,
     "M7": M7,
     "M9": M9,
-    "M10": M10,
     "M11": M11,
     "M12": M12,
     "M13": M13,
 }
 
+BATCH_SIZE = 64 
+
 
 def main():
+    torch.manual_seed(42)
     lightning_seed_everything(42)
     geometric_seed_everything(42)
     torch.backends.cudnn.deterministic = True
@@ -77,16 +79,15 @@ def main():
                 f"CV-fold {fold_id}/{args.numCVFolds}: number of training instances {len(train_data)}, number of validation instances {len(val_data)}"
             )
 
-            hyperparams = model_dict[args.model].get_params(trial)
+            hyperparams = MODELS[args.model].get_params(trial)
             model = GNN(
                 params=data_params,
                 hyperparams=hyperparams,
                 architecture=args.model,
-                pos_weight=data.get_pos_weight(),
             )
 
-            train_loader = DataLoader(train_data, batch_size=hyperparams["batch_size"])
-            val_loader = DataLoader(val_data, batch_size=hyperparams["batch_size"])
+            train_loader = DataLoader(train_data, batch_size=BATCH_SIZE)
+            val_loader = DataLoader(val_data, batch_size=BATCH_SIZE)
 
             tbl = TensorBoardLogger(
                 save_dir=Path(args.outputPath, "logs"),
@@ -147,13 +148,12 @@ def main():
     for fold_id, (_, val_idx) in enumerate(kfold.split(range(len(data)))):
         val_data = itemgetter(*val_idx)(data)
         val_loader = DataLoader(
-            val_data, batch_size=study.best_trial.params["batch_size"]
+            val_data, batch_size=BATCH_SIZE
         )
         model = GNN(
             params=data_params,
             hyperparams=study.best_trial.params,
             architecture=args.model,
-            pos_weight=data.get_pos_weight(),
         )
 
         checkpoint_path = Path(

@@ -1,5 +1,4 @@
 import argparse
-import random
 import torch
 import yaml
 
@@ -15,44 +14,33 @@ from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
+from awesom.dataset import SOM
+from awesom.lightning_modules import EnsembleGNN
 
-from awesom import (
-    SOM,
-    GNN,
-    M1,
-    M2,
-    M3,
-    M4,
-    M5,
-    M7,
-    M9,
-    M10,
-    M11,
-    M12,
-    M13,
-)
-
-model_dict = {
-    "M1": M1,
-    "M2": M2,
-    "M3": M3,
-    "M4": M4,
-    "M5": M5,
-    "M7": M7,
-    "M9": M9,
-    "M10": M10,
-    "M11": M11,
-    "M12": M12,
-    "M13": M13,
-}
+BATCH_SIZE = 64
+# MODELS = {
+#     "M1": M1,
+#     "M2": M2,
+#     "M3": M3,
+#     "M4": M4,
+#     "M5": M5,
+#     "M7": M7,
+#     "M9": M9,
+#     "M11": M11,
+#     "M12": M12,
+#     "M13": M13,
+# }
 
 
 def main():
+    torch.manual_seed(42)
+    lightning_seed_everything(42)
+    geometric_seed_everything(42)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
-    random_seeds = random.sample(range(0, 1000), args.ensembleSize)
 
+    # Load data
     data = SOM(root=args.inputPath, transform=T.ToUndirected())
     data_params = dict(
         num_node_features=data.num_node_features,
@@ -60,56 +48,51 @@ def main():
         num_mol_features=data.mol_x.shape[1],
     )
 
-    for seed in random_seeds:
-        lightning_seed_everything(seed)
-        geometric_seed_everything(seed)
-        train_data, val_data = train_test_split(data, test_size=0.1, random_state=seed)
+    train_data, val_data = train_test_split(data, test_size=0.1, random_state=42)
 
-        print(f"Number of training instances: {len(train_data)}")
-        print(f"Number of validation instances: {len(val_data)}")
+    print(f"Number of training instances: {len(train_data)}")
+    print(f"Number of validation instances: {len(val_data)}")
 
-        hyperparams = yaml.safe_load(
-            Path(args.hparamsYamlPath, "best_hparams.yaml").read_text()
-        )
-        model = GNN(
-            params=data_params,
-            hyperparams=hyperparams,
-            architecture=args.model,
-            pos_weight=data.get_pos_weight(),
-        )
+    train_loader = DataLoader(
+        train_data, batch_size=BATCH_SIZE, shuffle=True
+    )
+    val_loader = DataLoader(
+        val_data, batch_size=BATCH_SIZE, shuffle=True
+    )
 
-        train_loader = DataLoader(
-            train_data, batch_size=hyperparams["batch_size"], shuffle=True
-        )
-        val_loader = DataLoader(
-            val_data, batch_size=hyperparams["batch_size"], shuffle=True
-        )
+    # Load model
+    hyperparams = yaml.safe_load(
+        Path(args.hparamsYamlPath, "best_hparams.yaml").read_text()
+    )
+    model = EnsembleGNN(
+        params=data_params,
+        hyperparams=hyperparams,
+        architecture=args.model,
+    )
 
-        tbl = TensorBoardLogger(
-            save_dir=Path(args.outputPath),
-            default_hp_metric=False,
-        )
+    # Initialize trainer
+    tbl = TensorBoardLogger(
+        save_dir=Path(args.outputPath),
+        default_hp_metric=False,
+    )
 
-        callbacks = [
-            EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=30),
-            ModelCheckpoint(monitor="val/loss", mode="min"),
-        ]
+    callbacks = [
+        EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=20),
+        ModelCheckpoint(monitor="val/loss", mode="min"),
+    ]
 
-        trainer = Trainer(
-            accelerator="auto",
-            max_epochs=args.epochs,
-            logger=tbl,
-            log_every_n_steps=1,
-            callbacks=callbacks,
-        )
+    trainer = Trainer(
+        accelerator="auto",
+        max_epochs=args.epochs,
+        logger=tbl,
+        log_every_n_steps=1,
+        callbacks=callbacks,
+    )
 
-        trainer.fit(
-            model=model, train_dataloaders=train_loader, val_dataloaders=val_loader
-        )
-
-    with open(Path(args.outputPath, "random_seeds.txt"), "w+") as f:
-        for seed in random_seeds:
-            f.write(f"{seed}\n")
+    # Train model
+    trainer.fit(
+        model=model, train_dataloaders=train_loader, val_dataloaders=val_loader
+    )
 
 
 if __name__ == "__main__":
@@ -123,11 +106,11 @@ if __name__ == "__main__":
         help="The path to the input data.",
     )
     parser.add_argument(
-        "-y",
+        "-c",
         dest="hparamsYamlPath",
         type=str,
         required=True,
-        help="The path to the yaml file containing the hyperparameters.",
+        help="The path to the yaml file containing the desired hyperparameters.",
     )
     parser.add_argument(
         "-o",
@@ -138,7 +121,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-m",
-        dest="model",
+        "--model",
         type=str,
         required=True,
         help="The desired model architecture.",
@@ -149,13 +132,6 @@ if __name__ == "__main__":
         type=int,
         required=True,
         help="The maximum number of training epochs (will be subjected to early stopping).",
-    )
-    parser.add_argument(
-        "-s",
-        dest="ensembleSize",
-        type=int,
-        required=True,
-        help="The desired number of models in the final deep ensemble model.",
     )
 
     args = parser.parse_args()
