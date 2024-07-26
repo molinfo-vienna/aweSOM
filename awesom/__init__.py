@@ -1,7 +1,7 @@
 from .dataset import SOM, LabeledData, UnlabeledData
-from .metrics_utils import ValidationMetrics, TestMetrics, RFMetrics
+from .lightning_modules import EnsembleGNN, GNN
+from .metrics_utils import ValidationMetrics, TestMetrics
 from .models import (
-    GNN,
     M1,
     M2,
     M3,
@@ -9,18 +9,15 @@ from .models import (
     M5,
     M7,
     M9,
-    M10,
     M11,
     M12,
     M13,
 )
+from .stochastic_loss import StochasticLoss
 
 __all__ = [
-    "SOM",
+    "EnsembleGNN",
     "LabeledData",
-    "UnlabeledData",
-    "ValidationMetrics",
-    "TestMetrics",
     "GNN",
     "M1",
     "M2",
@@ -29,8 +26,12 @@ __all__ = [
     "M5",
     "M7",
     "M9",
-    "M10",
     "M11",
     "M12",
     "M13",
+    "SOM",
+    "StochasticLoss",
+    "TestMetrics",
+    "UnlabeledData",
+    "ValidationMetrics",
 ]
