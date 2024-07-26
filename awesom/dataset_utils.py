@@ -586,7 +586,7 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
         mol_id (int): the molecular ID of the parsed mol
         mol (RDKit Mol): an RDKit Mol object
         soms (list): a list of the indices of atoms that are SoMs (This is
-                     of course only relevant for the training and testing data. 
+                     of course only relevant for the training and testing data.
                      If there is no info about which atom is a SoM, then the list is empty.)
     Returns:
         NetworkX Graph with node and edge attributes

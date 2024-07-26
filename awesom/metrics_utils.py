@@ -138,29 +138,28 @@ class ValidationMetrics(BaseMetrics):
 class TestMetrics(BaseMetrics):
     @classmethod
     def compute_and_log_test_metrics(
-        cls, predictions: dict, output_folder: str, true_labels: bool
+        cls, logits, stddevs, y, mol_id, atom_id, output_folder: str, true_labels: bool
     ) -> None:
-        
-        logits = predictions[0]
-        stddevs = predictions[1]
-        y = predictions[2]
-        mol_id = predictions[3]
-        atom_id = predictions[4]
+        y_hats = (
+            torch.sigmoid(logits) + 1e-20
+        )  # add epislon  to avoid issues when computing the log2 of 0 later
 
-        y_hats = torch.sigmoid(logits)  + 1e-20  # add epislon  to avoid issues when computing the log2 of 0 later
-
-        mean_y_hats = torch.mean(
+        y_hats_avg = torch.mean(
             y_hats, dim=0
         )  # mean predicted probabilities of ensemble (predicted SoM probabilities)
 
-        sigma_ale = torch.mean(torch.square(stddevs), dim=0)  # aleatoric uncertainties (variances = average of squared stddevs)
-        sigma_epi = -torch.sum(y_hats * torch.log2(y_hats), dim=0)  # epistemic uncertainties (Shannon entropy)
+        sigma_ale = torch.mean(
+            torch.square(stddevs), dim=0
+        )  # aleatoric uncertainties (variances = average of squared stddevs)
+        sigma_epi = -torch.sum(
+            y_hats * torch.log2(y_hats), dim=0
+        )  # epistemic uncertainties (Shannon entropy)
         sigma_tot = sigma_ale + sigma_epi  # total uncertainties
 
-        ranking = cls.compute_ranking(mean_y_hats, mol_id)
+        ranking = cls.compute_ranking(y_hats_avg, mol_id)
 
         y_hat_bin = (
-            mean_y_hats >= 0.3
+            y_hats_avg >= 0.3
         ).int()  # predicted binary labels (assuming threshold = 0.5)
 
         with open(os.path.join(output_folder, "results.csv"), "w") as f:
@@ -179,7 +178,7 @@ class TestMetrics(BaseMetrics):
                 )
             )
             for row in zip(
-                mean_y_hats.tolist(),
+                y_hats_avg.tolist(),
                 sigma_ale.tolist(),
                 sigma_epi.tolist(),
                 sigma_tot.tolist(),
@@ -193,7 +192,7 @@ class TestMetrics(BaseMetrics):
 
         if true_labels:
             sorted_y = torch.index_select(
-                y, dim=0, index=torch.sort(mean_y_hats, descending=True)[1]
+                y, dim=0, index=torch.sort(y_hats_avg, descending=True)[1]
             )
             total_num_soms = torch.sum(y).item()
             atom_r_precision = (
@@ -208,7 +207,7 @@ class TestMetrics(BaseMetrics):
             ):  # This is a somewhat complicated way to get an ordered set, but it works
                 mask = torch.where(mol_id == id)[0]
                 masked_y = y[mask]
-                masked_y_hat = mean_y_hats[mask]
+                masked_y_hat = y_hats_avg[mask]
                 masked_sorted_y = torch.index_select(
                     masked_y,
                     dim=0,
@@ -234,8 +233,7 @@ class TestMetrics(BaseMetrics):
                 f.write(f"Molecular AUROC:  {round(mol_auroc, 4)}\n")
                 f.write(f"Top-2 Correctness Rate: {round(top2_correctness_rate, 4)}\n")
                 f.write(f"Atomic R-Precision: {round(atom_r_precision, 4)}\n")
-                f.write(f"Atomic AUROC: {round(cls.auroc(mean_y_hats, y).item(), 4)}\n")
+                f.write(f"Atomic AUROC: {round(cls.auroc(y_hats_avg, y).item(), 4)}\n")
 
-            RocCurveDisplay.from_predictions(y, mean_y_hats)
+            RocCurveDisplay.from_predictions(y, y_hats_avg)
             plt.savefig(str(os.path.join(output_folder, "roc.png")), dpi=300)
-

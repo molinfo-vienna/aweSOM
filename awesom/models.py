@@ -523,7 +523,6 @@ class M7(torch.nn.Module):
         stddev = self.compute_stddev_2(stddev)
 
         return torch.flatten(mean), torch.flatten(stddev)
-    
 
     @classmethod
     def get_params(self, trial):
@@ -636,7 +635,7 @@ class M9(torch.nn.Module):
         )
 
         return hyperparams
-    
+
 
 class M11(torch.nn.Module):
     """
@@ -853,7 +852,9 @@ class M13(torch.nn.Module):
             in_channels = out_channels
             self.batch_norm.append(BatchNorm(in_channels))
 
-        in_channels = params["num_node_features"] + in_channels * hyperparams["num_conv_layers"]
+        in_channels = (
+            params["num_node_features"] + in_channels * hyperparams["num_conv_layers"]
+        )
         mid_channels = hyperparams["size_final_mlp_layers"]
         self.compute_mean_1 = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
@@ -896,7 +897,7 @@ class M13(torch.nn.Module):
         stddev = self.compute_stddev_2(stddev)
 
         return torch.flatten(mean), torch.flatten(stddev)
-    
+
     @classmethod
     def get_params(self, trial):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
@@ -912,4 +913,3 @@ class M13(torch.nn.Module):
         )
 
         return hyperparams
-    

@@ -17,19 +17,7 @@ from torch_geometric.loader import DataLoader
 from awesom.dataset import SOM
 from awesom.lightning_modules import EnsembleGNN
 
-BATCH_SIZE = 64
-# MODELS = {
-#     "M1": M1,
-#     "M2": M2,
-#     "M3": M3,
-#     "M4": M4,
-#     "M5": M5,
-#     "M7": M7,
-#     "M9": M9,
-#     "M11": M11,
-#     "M12": M12,
-#     "M13": M13,
-# }
+BATCH_SIZE = 32
 
 
 def main():
@@ -53,12 +41,8 @@ def main():
     print(f"Number of training instances: {len(train_data)}")
     print(f"Number of validation instances: {len(val_data)}")
 
-    train_loader = DataLoader(
-        train_data, batch_size=BATCH_SIZE, shuffle=True
-    )
-    val_loader = DataLoader(
-        val_data, batch_size=BATCH_SIZE, shuffle=True
-    )
+    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=True)
 
     # Load model
     hyperparams = yaml.safe_load(
@@ -90,9 +74,7 @@ def main():
     )
 
     # Train model
-    trainer.fit(
-        model=model, train_dataloaders=train_loader, val_dataloaders=val_loader
-    )
+    trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
 
 if __name__ == "__main__":
