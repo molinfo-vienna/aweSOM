@@ -43,19 +43,19 @@ class M1(torch.nn.Module):
             self.batch_norm.append(BatchNorm(in_channels))
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean_1 = torch.nn.Sequential(
+        self.compute_mean = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_mean_2 = torch.nn.Linear(mid_channels, 1)
 
-        self.compute_stddev_1 = torch.nn.Sequential(
+        self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_stddev_2 = torch.nn.Linear(mid_channels, 1)
 
     def forward(
         self,
@@ -68,16 +68,11 @@ class M1(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            x = F.dropout(x, p=0.1, training=True)
+            x = F.dropout(x, p=0.2, training=True)
 
         # Classification
-        mean = self.compute_mean_1(x)
-        mean = F.dropout(mean, p=0.1, training=True)
-        mean = self.compute_mean_2(mean)
-
-        stddev = self.compute_stddev_1(x)
-        stddev = F.dropout(stddev, p=0.1, training=True)
-        stddev = self.compute_stddev_2(stddev)
+        mean = self.compute_mean(x)
+        stddev = self.compute_stddev(x)
 
         return torch.flatten(mean), torch.flatten(stddev)
 
@@ -130,19 +125,19 @@ class M2(torch.nn.Module):
             self.batch_norm.append(BatchNorm(in_channels))
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean_1 = torch.nn.Sequential(
+        self.compute_mean = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_mean_2 = torch.nn.Linear(mid_channels, 1)
 
-        self.compute_stddev_1 = torch.nn.Sequential(
+        self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_stddev_2 = torch.nn.Linear(mid_channels, 1)
 
     def forward(
         self,
@@ -155,16 +150,11 @@ class M2(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            x = F.dropout(x, p=0.1, training=True)
+            x = F.dropout(x, p=0.2, training=True)
 
         # Classification
-        mean = self.compute_mean_1(x)
-        mean = F.dropout(mean, p=0.1, training=True)
-        mean = self.compute_mean_2(mean)
-
-        stddev = self.compute_stddev_1(x)
-        stddev = F.dropout(stddev, p=0.1, training=True)
-        stddev = self.compute_stddev_2(stddev)
+        mean = self.compute_mean(x)
+        stddev = self.compute_stddev(x)
 
         return torch.flatten(mean), torch.flatten(stddev)
 
@@ -217,19 +207,19 @@ class M3(torch.nn.Module):
             self.batch_norm.append(BatchNorm(in_channels))
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean_1 = torch.nn.Sequential(
+        self.compute_mean = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_mean_2 = torch.nn.Linear(mid_channels, 1)
 
-        self.compute_stddev_1 = torch.nn.Sequential(
+        self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_stddev_2 = torch.nn.Linear(mid_channels, 1)
 
     def forward(
         self,
@@ -242,16 +232,11 @@ class M3(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            x = F.dropout(x, p=0.1, training=True)
+            x = F.dropout(x, p=0.2, training=True)
 
         # Classification
-        mean = self.compute_mean_1(x)
-        mean = F.dropout(mean, p=0.1, training=True)
-        mean = self.compute_mean_2(mean)
-
-        stddev = self.compute_stddev_1(x)
-        stddev = F.dropout(stddev, p=0.1, training=True)
-        stddev = self.compute_stddev_2(stddev)
+        mean = self.compute_mean(x)
+        stddev = self.compute_stddev(x)
 
         return torch.flatten(mean), torch.flatten(stddev)
 
@@ -302,19 +287,19 @@ class M4(torch.nn.Module):
             self.batch_norm.append(BatchNorm(in_channels))
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean_1 = torch.nn.Sequential(
+        self.compute_mean = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_mean_2 = torch.nn.Linear(mid_channels, 1)
 
-        self.compute_stddev_1 = torch.nn.Sequential(
+        self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_stddev_2 = torch.nn.Linear(mid_channels, 1)
 
     def forward(
         self,
@@ -327,16 +312,11 @@ class M4(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            x = F.dropout(x, p=0.1, training=True)
+            x = F.dropout(x, p=0.2, training=True)
 
         # Classification
-        mean = self.compute_mean_1(x)
-        mean = F.dropout(mean, p=0.1, training=True)
-        mean = self.compute_mean_2(mean)
-
-        stddev = self.compute_stddev_1(x)
-        stddev = F.dropout(stddev, p=0.1, training=True)
-        stddev = self.compute_stddev_2(stddev)
+        mean = self.compute_mean(x)
+        stddev = self.compute_stddev(x)
 
         return torch.flatten(mean), torch.flatten(stddev)
 
@@ -386,19 +366,19 @@ class M5(torch.nn.Module):
             self.batch_norm.append(BatchNorm(in_channels))
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean_1 = torch.nn.Sequential(
+        self.compute_mean = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_mean_2 = torch.nn.Linear(mid_channels, 1)
 
-        self.compute_stddev_1 = torch.nn.Sequential(
+        self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_stddev_2 = torch.nn.Linear(mid_channels, 1)
 
     def forward(
         self,
@@ -411,16 +391,11 @@ class M5(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            x = F.dropout(x, p=0.1, training=True)
+            x = F.dropout(x, p=0.2, training=True)
 
         # Classification
-        mean = self.compute_mean_1(x)
-        mean = F.dropout(mean, p=0.1, training=True)
-        mean = self.compute_mean_2(mean)
-
-        stddev = self.compute_stddev_1(x)
-        stddev = F.dropout(stddev, p=0.1, training=True)
-        stddev = self.compute_stddev_2(stddev)
+        mean = self.compute_mean(x)
+        stddev = self.compute_stddev(x)
 
         return torch.flatten(mean), torch.flatten(stddev)
 
@@ -476,19 +451,19 @@ class M7(torch.nn.Module):
             self.batch_norm.append(BatchNorm(in_channels))
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean_1 = torch.nn.Sequential(
+        self.compute_mean = torch.nn.Sequential(
             torch.nn.Linear(in_channels * 2, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_mean_2 = torch.nn.Linear(mid_channels, 1)
 
-        self.compute_stddev_1 = torch.nn.Sequential(
+        self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels * 2, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_stddev_2 = torch.nn.Linear(mid_channels, 1)
 
     def forward(
         self,
@@ -501,7 +476,7 @@ class M7(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            x = F.dropout(x, p=0.1, training=True)
+            x = F.dropout(x, p=0.2, training=True)
 
         # Pooling for context
         x_pool = global_add_pool(x, data.batch)
@@ -514,13 +489,8 @@ class M7(torch.nn.Module):
         x = torch.cat((x, x_pool_expanded), dim=1)
 
         # Classification
-        mean = self.compute_mean_1(x)
-        mean = F.dropout(mean, p=0.1, training=True)
-        mean = self.compute_mean_2(mean)
-
-        stddev = self.compute_stddev_1(x)
-        stddev = F.dropout(stddev, p=0.1, training=True)
-        stddev = self.compute_stddev_2(stddev)
+        mean = self.compute_mean(x)
+        stddev = self.compute_stddev(x)
 
         return torch.flatten(mean), torch.flatten(stddev)
 
@@ -577,19 +547,19 @@ class M9(torch.nn.Module):
 
         in_channels = in_channels + params["num_mol_features"]
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean_1 = torch.nn.Sequential(
+        self.compute_mean = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_mean_2 = torch.nn.Linear(mid_channels, 1)
 
-        self.compute_stddev_1 = torch.nn.Sequential(
+        self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_stddev_2 = torch.nn.Linear(mid_channels, 1)
 
     def forward(
         self,
@@ -602,6 +572,7 @@ class M9(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x_atom = batch_norm(x_atom)
                 x_atom = self.activation(x_atom)
+            x_atom = F.dropout(x_atom, p=0.2, training=True)
 
         # Normalize molecular features
         x_mol = self.norm_mol_x(data.mol_x)
@@ -610,13 +581,8 @@ class M9(torch.nn.Module):
         x = torch.cat((x_atom, x_mol), dim=1)
 
         # Classification
-        mean = self.compute_mean_1(x)
-        mean = F.dropout(mean, p=0.1, training=True)
-        mean = self.compute_mean_2(mean)
-
-        stddev = self.compute_stddev_1(x)
-        stddev = F.dropout(stddev, p=0.1, training=True)
-        stddev = self.compute_stddev_2(stddev)
+        mean = self.compute_mean(x)
+        stddev = self.compute_stddev(x)
 
         return torch.flatten(mean), torch.flatten(stddev)
 
@@ -671,19 +637,19 @@ class M11(torch.nn.Module):
             in_channels = (i + 1) * out_channels + params["num_node_features"]
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean_1 = torch.nn.Sequential(
+        self.compute_mean = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_mean_2 = torch.nn.Linear(mid_channels, 1)
 
-        self.compute_stddev_1 = torch.nn.Sequential(
+        self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_stddev_2 = torch.nn.Linear(mid_channels, 1)
 
     def forward(
         self,
@@ -695,19 +661,16 @@ class M11(torch.nn.Module):
             h_norm = batch_norm(h)
             if i == 0:
                 h_prime = conv(h_norm, data.edge_index, data.edge_attr)
+                h_prime = F.dropout(h_prime, p=0.2, training=True)
             else:
                 h_act = self.activation(h_norm)
                 h_prime = conv(h_act, data.edge_index, data.edge_attr)
+                h_prime = F.dropout(h_prime, p=0.2, training=True)
             h = torch.cat((h, h_prime), dim=1)
 
         # Classification
-        mean = self.compute_mean_1(h)
-        mean = F.dropout(mean, p=0.1, training=True)
-        mean = self.compute_mean_2(mean)
-
-        stddev = self.compute_stddev_1(h)
-        stddev = F.dropout(stddev, p=0.1, training=True)
-        stddev = self.compute_stddev_2(stddev)
+        mean = self.compute_mean(h)
+        stddev = self.compute_stddev(h)
 
         return torch.flatten(mean), torch.flatten(stddev)
 
@@ -762,19 +725,19 @@ class M12(torch.nn.Module):
             in_channels = out_channels
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean_1 = torch.nn.Sequential(
+        self.compute_mean = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_mean_2 = torch.nn.Linear(mid_channels, 1)
 
-        self.compute_stddev_1 = torch.nn.Sequential(
+        self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_stddev_2 = torch.nn.Linear(mid_channels, 1)
 
     def forward(
         self,
@@ -786,19 +749,16 @@ class M12(torch.nn.Module):
             h_norm = batch_norm(h)
             if i == 0:
                 h = conv(h_norm, data.edge_index, data.edge_attr)
+                h = F.dropout(h, p=0.2, training=True)
             else:
                 h_act = self.activation(h_norm)
                 h_prime = conv(h_act, data.edge_index, data.edge_attr)
+                h_prime = F.dropout(h_prime, p=0.2, training=True)
                 h = torch.add(h, h_prime)
 
         # Classification
-        mean = self.compute_mean_1(h)
-        mean = F.dropout(mean, p=0.1, training=True)
-        mean = self.compute_mean_2(mean)
-
-        stddev = self.compute_stddev_1(h)
-        stddev = F.dropout(stddev, p=0.1, training=True)
-        stddev = self.compute_stddev_2(stddev)
+        mean = self.compute_mean(h)
+        stddev = self.compute_stddev(h)
 
         return torch.flatten(mean), torch.flatten(stddev)
 
@@ -856,20 +816,19 @@ class M13(torch.nn.Module):
             params["num_node_features"] + in_channels * hyperparams["num_conv_layers"]
         )
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean_1 = torch.nn.Sequential(
+        self.compute_mean = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_mean_2 = torch.nn.Linear(mid_channels, 1)
 
-        self.compute_stddev_1 = torch.nn.Sequential(
+        self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1), 
         )
-        self.compute_stddev_2 = torch.nn.Linear(mid_channels, 1)
-
     def forward(
         self,
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
@@ -882,19 +841,15 @@ class M13(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
+            x = F.dropout(x, p=0.2, training=True)
             xs.append(x)
 
         # Concatenate final embedding and pooled representation
         x = torch.cat(xs, dim=1)
 
         # Classification
-        mean = self.compute_mean_1(x)
-        mean = F.dropout(mean, p=0.1, training=True)
-        mean = self.compute_mean_2(mean)
-
-        stddev = self.compute_stddev_1(x)
-        stddev = F.dropout(stddev, p=0.1, training=True)
-        stddev = self.compute_stddev_2(stddev)
+        mean = self.compute_mean(x)
+        stddev = self.compute_stddev(x)
 
         return torch.flatten(mean), torch.flatten(stddev)
 

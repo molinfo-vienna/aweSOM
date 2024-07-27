@@ -34,6 +34,14 @@ class BaseMetrics:
             ]
         )
         return ranking
+    
+    @classmethod
+    def compute_shannon_entropy(cls, p):
+        return -(p * torch.log2(p) + (1-p) * torch.log2(1-p))
+    
+    @classmethod
+    def scale(cls, x, min, max):
+        return (x - min) / (max - min)
 
 
 class ValidationMetrics(BaseMetrics):
@@ -136,25 +144,24 @@ class ValidationMetrics(BaseMetrics):
 
 
 class TestMetrics(BaseMetrics):
+    
     @classmethod
     def compute_and_log_test_metrics(
         cls, logits, stddevs, y, mol_id, atom_id, output_folder: str, true_labels: bool
     ) -> None:
         y_hats = (
             torch.sigmoid(logits) + 1e-20
-        )  # add epislon  to avoid issues when computing the log2 of 0 later
+        )  # add epsilon  to avoid issues when computing the log2 of 0 later
 
         y_hats_avg = torch.mean(
             y_hats, dim=0
         )  # mean predicted probabilities of ensemble (predicted SoM probabilities)
 
-        sigma_ale = torch.mean(
-            torch.square(stddevs), dim=0
-        )  # aleatoric uncertainties (variances = average of squared stddevs)
-        sigma_epi = -torch.sum(
-            y_hats * torch.log2(y_hats), dim=0
-        )  # epistemic uncertainties (Shannon entropy)
-        sigma_tot = sigma_ale + sigma_epi  # total uncertainties
+        sigma_tot = cls.compute_shannon_entropy(y_hats_avg) # entropy of the BMA (Bayesian Model Average)
+        sigma_ale = torch.mean(cls.compute_shannon_entropy(y_hats), dim=0)  # expected value of the the shannon entropy of the probabilities
+        # sigma_epi = cls.compute_shannon_entropy(torch.mean(y_hats, dim=0)) - torch.mean(cls.compute_shannon_entropy(y_hats_avg), dim=0)  # jensen-shannon divergence
+        sigma_epi = cls.scale(torch.var(cls.compute_shannon_entropy(y_hats), dim=0), 0, 0.25)
+        # sigma_epi = torch.mean(y_hats**2 - y_hats_avg**2, dim=0)
 
         ranking = cls.compute_ranking(y_hats_avg, mol_id)
 

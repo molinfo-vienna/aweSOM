@@ -40,7 +40,7 @@ class GNN(LightningModule):
 
         self.save_hyperparameters()
 
-        self.loss_function = StochasticLoss(reduction="mean")
+        self.loss_function = StochasticLoss()
 
         self.model = MODELS[architecture](params, hyperparams)
 
@@ -167,7 +167,7 @@ class EnsembleGNN(LightningModule):
 
         self.number_monte_carlo_samples = 10
 
-        self.loss_function = StochasticLoss(reduction="mean")
+        self.loss_function = StochasticLoss()
 
         self.model = MODELS[architecture](params, hyperparams)
 
