@@ -13,7 +13,7 @@ from awesom.dataset import LabeledData, UnlabeledData
 from awesom.lightning_modules import GNN
 from awesom.metrics_utils import TestMetrics
 
-NUM_MONTE_CARLO_SAMPLES = 20
+NUM_MONTE_CARLO_SAMPLES = 10
 
 
 def main():
