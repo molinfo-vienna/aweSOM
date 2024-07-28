@@ -47,14 +47,14 @@ class M1(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
         self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
     def forward(
@@ -129,14 +129,14 @@ class M2(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
         self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
     def forward(
@@ -211,14 +211,14 @@ class M3(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
         self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
     def forward(
@@ -291,14 +291,14 @@ class M4(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
         self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
     def forward(
@@ -370,14 +370,14 @@ class M5(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
         self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
     def forward(
@@ -455,14 +455,14 @@ class M7(torch.nn.Module):
             torch.nn.Linear(in_channels * 2, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
         self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels * 2, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
     def forward(
@@ -551,14 +551,14 @@ class M9(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
         self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
     def forward(
@@ -641,14 +641,14 @@ class M11(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
         self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
     def forward(
@@ -729,14 +729,14 @@ class M12(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
         self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
     def forward(
@@ -820,15 +820,16 @@ class M13(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
 
         self.compute_stddev = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1), 
+            torch.nn.Linear(mid_channels, 1),
         )
+
     def forward(
         self,
         data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
