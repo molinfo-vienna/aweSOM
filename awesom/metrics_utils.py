@@ -157,11 +157,23 @@ class TestMetrics(BaseMetrics):
             y_hats, dim=0
         )  # mean predicted probabilities of ensemble (predicted SoM probabilities)
 
-        sigma_tot = cls.compute_shannon_entropy(y_hats_avg) # entropy of the BMA (Bayesian Model Average)
-        sigma_ale = torch.mean(cls.compute_shannon_entropy(y_hats), dim=0)  # expected value of the the shannon entropy of the probabilities
+        # # Mucsanyi, Kirchhof and Oh
+        # sigma_ale = torch.mean(cls.compute_shannon_entropy(y_hats), dim=0)  # expected value of the the shannon entropy of the sampled probabilities (this one works quite well)
         # sigma_epi = cls.compute_shannon_entropy(torch.mean(y_hats, dim=0)) - torch.mean(cls.compute_shannon_entropy(y_hats_avg), dim=0)  # jensen-shannon divergence
-        sigma_epi = cls.scale(torch.var(cls.compute_shannon_entropy(y_hats), dim=0), 0, 0.25)
-        # sigma_epi = torch.mean(y_hats**2 - y_hats_avg**2, dim=0)
+        # # The problem with the Jensen-Shannon divergence is that is returns negative values,
+        # # which, if pushed towards the positive side (+0.3), more or less equal the aleatoric uncertainty...
+        # sigma_epi = cls.scale(torch.var(cls.compute_shannon_entropy(y_hats), dim=0), 0, 0.25) # (this one is much too low and does not spike in the no_halogens case)
+        # sigma_tot = cls.compute_shannon_entropy(y_hats_avg) # entropy of the BMA (Bayesian Model Average)
+
+        # # Kendall and Gal
+        # sigma_ale = torch.mean(torch.square(stddevs), dim=0)  # mean of the variance of the logits
+        # sigma_epi = torch.var(logits, dim=0)  # variance of the logits
+        # sigma_tot = sigma_ale + sigma_epi  # total uncertainty as the sum of aleatoric and epistemic uncertainty
+
+        # Steffen
+        sigma_ale = torch.mean(y_hats * (1 - y_hats), dim=0) # aleatoric uncertainty (this one also works quite well, and is very similar to the Mucsanyi, Kirchhof and Oh method)
+        sigma_epi = torch.mean(y_hats ** 2 - y_hats_avg ** 2, dim=0)  # epistemic uncertainty (this one is also unsatisafactory, and interestingly also very similar to the Mucsanyi, Kirchhof and Oh method, second variant)
+        sigma_tot = sigma_ale + sigma_epi  # total uncertainty as the sum of aleatoric and epistemic uncertainty
 
         ranking = cls.compute_ranking(y_hats_avg, mol_id)
 
