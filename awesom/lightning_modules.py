@@ -1,6 +1,9 @@
 import torch
 
+from datetime import datetime
 from lightning import LightningModule
+from lightning import seed_everything as lightning_seed_everything
+from torch_geometric import seed_everything as geometric_seed_everything
 from torchmetrics import AUROC, MatthewsCorrCoef
 
 from awesom.models import M1, M2, M3, M4, M5, M7, M9, M11, M12, M13
@@ -287,6 +290,8 @@ class EnsembleGNN(LightningModule):
         )
 
     def predict_step(self, batch, batch_idx):
+        lightning_seed_everything(datetime.now().microsecond)
+        geometric_seed_everything(datetime.now().microsecond)
         logits_lst = torch.empty(
             (self.number_monte_carlo_samples, batch.y.size(0)),
             dtype=torch.float32,

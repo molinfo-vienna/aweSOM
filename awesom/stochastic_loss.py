@@ -29,7 +29,6 @@ import torch
 #         stochastic_loss = torch.mean(stochastic_loss, dim=1)
 #         stochastic_loss = torch.sum(stochastic_loss)
 #         return stochastic_loss
-    
 
 
 class StochasticLoss(torch.nn.Module):
@@ -44,7 +43,7 @@ class StochasticLoss(torch.nn.Module):
 
     def __init__(self):
         super(StochasticLoss, self).__init__()
-        self.loss = torch.nn.BCEWithLogitsLoss(reduction='none')
+        self.loss = torch.nn.BCEWithLogitsLoss(reduction="none")
         self.num_samples = 50
 
     def forward(self, logits, stddevs, targets):
@@ -62,4 +61,3 @@ class StochasticLoss(torch.nn.Module):
         log_mean_exp_neg_bce_loss = torch.log(mean_exp_neg_bce_loss)
         stochastic_loss = torch.sum(log_mean_exp_neg_bce_loss)
         return stochastic_loss
-    

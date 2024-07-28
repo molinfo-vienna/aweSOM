@@ -4,8 +4,9 @@ import torch
 import yaml
 
 from datetime import datetime
-from lightning import Trainer
+from lightning import Trainer, seed_everything
 from pathlib import Path
+from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
@@ -13,11 +14,12 @@ from awesom.dataset import LabeledData, UnlabeledData
 from awesom.lightning_modules import GNN
 from awesom.metrics_utils import TestMetrics
 
-NUM_MONTE_CARLO_SAMPLES = 50
-
 
 def main():
-    torch.backends.cudnn.deterministic = False
+    torch.manual_seed(42)
+    seed_everything(42)
+    geometric_seed_everything(42)
+    torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
 
@@ -29,66 +31,64 @@ def main():
 
     print(f"Number of molecules: {len(data)}")
 
-    # Load model
-    checkpoints_path = Path(
-        Path(Path(args.checkpointsPath, "lightning_logs"), "version_0"), "checkpoints"
-    )
-    checkpoints_file = Path(
-        checkpoints_path,
-        [file for file in os.listdir(checkpoints_path) if file.endswith(".ckpt")][0],
-    )
+    checkpoints_path = Path(args.checkpointsPath, "lightning_logs")
+    version_paths = [
+        Path(checkpoints_path, f"version_{i}")
+        for i, _ in enumerate(os.listdir(checkpoints_path))
+    ]
 
-    hyperparams_path = Path(
-        Path(Path(args.checkpointsPath, "lightning_logs"), "version_0"), "hparams.yaml"
+    logits_ensemble = torch.empty(
+        len(version_paths), len(data.x), dtype=torch.float32, device="cpu"
     )
-    hyperparams = yaml.safe_load(hyperparams_path.read_text())
-
-    model = GNN(
-        params=hyperparams["params"],
-        hyperparams=hyperparams["hyperparams"],
-        architecture=hyperparams["architecture"],
+    stddevs_ensemble = torch.empty(
+        len(version_paths), len(data.x), dtype=torch.float32, device="cpu"
     )
+    y_ensemble = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
+    mol_id_ensemble = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
+    atom_id_ensemble = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
 
-    model = GNN.load_from_checkpoint(checkpoints_file)
+    for i, version_path in enumerate(version_paths):
+        checkpoint_path = [
+            Path(Path(version_path, "checkpoints"), file)
+            for file in os.listdir(Path(version_path, "checkpoints"))
+            if file.endswith(".ckpt")
+        ][0]
+        hyperparams = yaml.safe_load(Path(version_path, "hparams.yaml").read_text())
 
-    # Predict SoMs
-    logits_mcsampled = torch.empty(
-        (NUM_MONTE_CARLO_SAMPLES, len(data.x)), dtype=torch.float32, device="cpu"
-    )
-    stddevs_mcsampled = torch.empty(
-        (NUM_MONTE_CARLO_SAMPLES, len(data.x)), dtype=torch.float32, device="cpu"
-    )
-    y_mcsampled = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
-    mol_id_mcsampled = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
-    atom_id_mcsampled = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
+        # Load model
+        model = GNN(
+            params=hyperparams["params"],
+            hyperparams=hyperparams["hyperparams"],
+            architecture=hyperparams["architecture"],
+            pos_weight=hyperparams["pos_weight"],
+        )
 
-    for i in range(NUM_MONTE_CARLO_SAMPLES):
-        # Initialize trainer
+        model = GNN.load_from_checkpoint(checkpoint_path)
+
+        # Predict SoMs
         trainer = Trainer(accelerator="auto", logger=False)
-
-        # Make predictions
         logits, stddevs, y, mol_id, atom_id = trainer.predict(
-            model=model, dataloaders=DataLoader(data, batch_size=len(data.x))
+            model=model, dataloaders=DataLoader(data, batch_size=len(data))
         )[0]
 
-        logits_mcsampled[i, :] = logits
-        stddevs_mcsampled[i, :] = stddevs
+        logits_ensemble[i, :] = logits
+        stddevs_ensemble[i, :] = stddevs
 
         if i == 0:
-            y_mcsampled[:] = y
-            mol_id_mcsampled[:] = mol_id
-            atom_id_mcsampled[:] = atom_id
+            y_ensemble[:] = y
+            mol_id_ensemble[:] = mol_id
+            atom_id_ensemble[:] = atom_id
 
     # Compute and log test metrics
     if not os.path.exists(args.outputPath):
         os.makedirs(args.outputPath)
 
     TestMetrics.compute_and_log_test_metrics(
-        logits_mcsampled,
-        stddevs_mcsampled,
-        y_mcsampled,
-        mol_id_mcsampled,
-        atom_id_mcsampled,
+        logits_ensemble,
+        stddevs_ensemble,
+        y_ensemble,
+        mol_id_ensemble,
+        atom_id_ensemble,
         args.outputPath,
         args.test,
     )

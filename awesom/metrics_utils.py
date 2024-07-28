@@ -34,11 +34,11 @@ class BaseMetrics:
             ]
         )
         return ranking
-    
+
     @classmethod
     def compute_shannon_entropy(cls, p):
-        return -(p * torch.log2(p) + (1-p) * torch.log2(1-p))
-    
+        return -(p * torch.log2(p) + (1 - p) * torch.log2(1 - p))
+
     @classmethod
     def scale(cls, x, min, max):
         return (x - min) / (max - min)
@@ -144,7 +144,6 @@ class ValidationMetrics(BaseMetrics):
 
 
 class TestMetrics(BaseMetrics):
-    
     @classmethod
     def compute_and_log_test_metrics(
         cls, logits, stddevs, y, mol_id, atom_id, output_folder: str, true_labels: bool
@@ -171,9 +170,15 @@ class TestMetrics(BaseMetrics):
         # sigma_tot = sigma_ale + sigma_epi  # total uncertainty as the sum of aleatoric and epistemic uncertainty
 
         # Steffen
-        sigma_ale = torch.mean(y_hats * (1 - y_hats), dim=0) # aleatoric uncertainty (this one also works quite well, and is very similar to the Mucsanyi, Kirchhof and Oh method)
-        sigma_epi = torch.mean(y_hats ** 2 - y_hats_avg ** 2, dim=0)  # epistemic uncertainty (this one is also unsatisafactory, and interestingly also very similar to the Mucsanyi, Kirchhof and Oh method, second variant)
-        sigma_tot = sigma_ale + sigma_epi  # total uncertainty as the sum of aleatoric and epistemic uncertainty
+        sigma_ale = torch.mean(
+            y_hats * (1 - y_hats), dim=0
+        )  # aleatoric uncertainty (this one also works quite well, and is very similar to the Mucsanyi, Kirchhof and Oh method)
+        sigma_epi = torch.mean(
+            y_hats**2 - y_hats_avg**2, dim=0
+        )  # epistemic uncertainty (this one is also unsatisafactory, and interestingly also very similar to the Mucsanyi, Kirchhof and Oh method, second variant)
+        sigma_tot = (
+            sigma_ale + sigma_epi
+        )  # total uncertainty as the sum of aleatoric and epistemic uncertainty
 
         ranking = cls.compute_ranking(y_hats_avg, mol_id)
 
