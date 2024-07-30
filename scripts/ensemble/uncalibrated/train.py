@@ -54,6 +54,7 @@ def main():
         hyperparams = yaml.safe_load(
             Path(args.hparamsYamlPath, "best_hparams.yaml").read_text()
         )
+        hyperparams["mode"] = "ensemble"
         model = GNN(
             params=data_params,
             hyperparams=hyperparams,

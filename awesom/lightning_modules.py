@@ -1,9 +1,6 @@
 import torch
 
-from datetime import datetime
 from lightning import LightningModule
-from lightning import seed_everything as lightning_seed_everything
-from torch_geometric import seed_everything as geometric_seed_everything
 from torchmetrics import AUROC, MatthewsCorrCoef
 
 from awesom.models import M1, M2, M3, M4, M5, M7, M9, M11, M12, M13
@@ -43,7 +40,8 @@ class GNN(LightningModule):
 
         self.save_hyperparameters()
 
-        self.loss_function = StochasticLoss()
+        # self.loss_function = StochasticLoss()
+        self.loss_function = torch.nn.BCEWithLogitsLoss(reduction="mean")
 
         self.model = MODELS[architecture](params, hyperparams)
 
@@ -72,7 +70,8 @@ class GNN(LightningModule):
 
     def step(self, batch):
         logits, stddevs = self.model(batch)
-        loss = self.loss_function(logits, stddevs, batch.y.float())
+        # loss = self.loss_function(logits, stddevs, batch.y.float())
+        loss = self.loss_function(logits, batch.y.float())
         return loss, logits, stddevs
 
     def on_train_start(self) -> None:
@@ -170,7 +169,8 @@ class EnsembleGNN(LightningModule):
 
         self.number_monte_carlo_samples = 10
 
-        self.loss_function = StochasticLoss()
+        self.loss_function = torch.nn.BCEWithLogitsLoss(reduction="mean")
+        # self.loss_function = StochasticLoss()
 
         self.model = MODELS[architecture](params, hyperparams)
 
@@ -213,7 +213,8 @@ class EnsembleGNN(LightningModule):
         )
         for i in range(self.number_monte_carlo_samples):
             logits, stddevs = self.model(batch)
-            loss = self.loss_function(logits, stddevs, batch.y.float())
+            # loss = self.loss_function(logits, stddevs, batch.y.float())
+            loss = self.loss_function(logits, batch.y.float())
             loss_lst[i] = loss
             logits_lst[i, :] = logits
             stddevs_lst[i, :] = stddevs
@@ -290,8 +291,6 @@ class EnsembleGNN(LightningModule):
         )
 
     def predict_step(self, batch, batch_idx):
-        lightning_seed_everything(datetime.now().microsecond)
-        geometric_seed_everything(datetime.now().microsecond)
         logits_lst = torch.empty(
             (self.number_monte_carlo_samples, batch.y.size(0)),
             dtype=torch.float32,

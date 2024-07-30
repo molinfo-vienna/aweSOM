@@ -48,6 +48,7 @@ def main():
     hyperparams = yaml.safe_load(
         Path(args.hparamsYamlPath, "best_hparams.yaml").read_text()
     )
+    hyperparams["mode"] = "mcdropout"
     model = GNN(
         params=data_params,
         hyperparams=hyperparams,

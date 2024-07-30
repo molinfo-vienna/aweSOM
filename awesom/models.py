@@ -21,6 +21,8 @@ class M1(torch.nn.Module):
     def __init__(self, params, hyperparams) -> None:
         super(M1, self).__init__()
 
+        self.mode = hyperparams["mode"]
+
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
 
@@ -68,7 +70,10 @@ class M1(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            x = F.dropout(x, p=0.2, training=True)
+            if self.mode == "ensemble" or "cvhpsearch":
+                x = F.dropout(x, p=0.2, training=False)
+            if self.mode == "mcdropout":
+                x = F.dropout(x, p=0.2, training=True)
 
         # Classification
         mean = self.compute_mean(x)
@@ -101,6 +106,8 @@ class M2(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M2, self).__init__()
+
+        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -150,7 +157,10 @@ class M2(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            x = F.dropout(x, p=0.2, training=True)
+            if self.mode == "ensemble" or "cvhpsearch":
+                x = F.dropout(x, p=0.2, training=False)
+            if self.mode == "mcdropout":
+                x = F.dropout(x, p=0.2, training=True)
 
         # Classification
         mean = self.compute_mean(x)
@@ -186,6 +196,8 @@ class M3(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M3, self).__init__()
+
+        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -232,7 +244,10 @@ class M3(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            x = F.dropout(x, p=0.2, training=True)
+            if self.mode == "ensemble" or "cvhpsearch":
+                x = F.dropout(x, p=0.2, training=False)
+            if self.mode == "mcdropout":
+                x = F.dropout(x, p=0.2, training=True)
 
         # Classification
         mean = self.compute_mean(x)
@@ -268,6 +283,8 @@ class M4(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M4, self).__init__()
+
+        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -312,7 +329,10 @@ class M4(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            x = F.dropout(x, p=0.2, training=True)
+            if self.mode == "ensemble" or "cvhpsearch":
+                x = F.dropout(x, p=0.2, training=False)
+            if self.mode == "mcdropout":
+                x = F.dropout(x, p=0.2, training=True)
 
         # Classification
         mean = self.compute_mean(x)
@@ -347,6 +367,8 @@ class M5(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M5, self).__init__()
+
+        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -391,7 +413,10 @@ class M5(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            x = F.dropout(x, p=0.2, training=True)
+            if self.mode == "ensemble" or "cvhpsearch":
+                x = F.dropout(x, p=0.2, training=False)
+            if self.mode == "mcdropout":
+                x = F.dropout(x, p=0.2, training=True)
 
         # Classification
         mean = self.compute_mean(x)
@@ -427,6 +452,8 @@ class M7(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M7, self).__init__()
+        
+        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -476,7 +503,10 @@ class M7(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            x = F.dropout(x, p=0.2, training=True)
+            if self.mode == "ensemble" or "cvhpsearch":
+                x = F.dropout(x, p=0.2, training=False)
+            if self.mode == "mcdropout":
+                x = F.dropout(x, p=0.2, training=True)
 
         # Pooling for context
         x_pool = global_add_pool(x, data.batch)

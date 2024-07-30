@@ -54,15 +54,14 @@ def main():
             if file.endswith(".ckpt")
         ][0]
         hyperparams = yaml.safe_load(Path(version_path, "hparams.yaml").read_text())
+        hyperparams["hyperparams"]["mode"] = "ensemble"
 
         # Load model
         model = GNN(
             params=hyperparams["params"],
             hyperparams=hyperparams["hyperparams"],
             architecture=hyperparams["architecture"],
-            pos_weight=hyperparams["pos_weight"],
         )
-
         model = GNN.load_from_checkpoint(checkpoint_path)
 
         # Predict SoMs
