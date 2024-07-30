@@ -80,6 +80,7 @@ def main():
             )
 
             hyperparams = MODELS[args.model].get_params(trial)
+            hyperparams["mode"] = "cvhpsearch"
             model = GNN(
                 params=data_params,
                 hyperparams=hyperparams,
@@ -148,9 +149,11 @@ def main():
     for fold_id, (_, val_idx) in enumerate(kfold.split(range(len(data)))):
         val_data = itemgetter(*val_idx)(data)
         val_loader = DataLoader(val_data, batch_size=BATCH_SIZE)
+        hyperparams = study.best_trial.params
+        hyperparams["mode"] = "cvhpsearch"
         model = GNN(
             params=data_params,
-            hyperparams=study.best_trial.params,
+            hyperparams=hyperparams,
             architecture=args.model,
         )
 

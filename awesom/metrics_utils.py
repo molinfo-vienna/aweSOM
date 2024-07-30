@@ -7,6 +7,8 @@ from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from statistics import mean, stdev
 from sklearn.metrics import RocCurveDisplay
 
+THRESHOLD = 0.3
+
 
 class BaseMetrics:
     mcc = MatthewsCorrCoef(task="binary")
@@ -69,7 +71,7 @@ class ValidationMetrics(BaseMetrics):
 
             y_hat = torch.sigmoid(logits)
             ranking = cls.compute_ranking(y_hat, mol_id)
-            y_hat_bin = (y_hat >= 0.3).int()
+            y_hat_bin = (y_hat >= THRESHOLD).int()
 
             with open(
                 os.path.join(output_folder, f"validation_fold{fold_id}.csv"), "w"
@@ -156,35 +158,32 @@ class TestMetrics(BaseMetrics):
             y_hats, dim=0
         )  # mean predicted probabilities of ensemble (predicted SoM probabilities)
 
-        # # Mucsanyi, Kirchhof and Oh
-        # sigma_ale = torch.mean(cls.compute_shannon_entropy(y_hats), dim=0)  # expected value of the the shannon entropy of the sampled probabilities (this one works quite well)
-        # sigma_epi = cls.compute_shannon_entropy(torch.mean(y_hats, dim=0)) - torch.mean(cls.compute_shannon_entropy(y_hats_avg), dim=0)  # jensen-shannon divergence
-        # # The problem with the Jensen-Shannon divergence is that is returns negative values,
-        # # which, if pushed towards the positive side (+0.3), more or less equal the aleatoric uncertainty...
-        # sigma_epi = cls.scale(torch.var(cls.compute_shannon_entropy(y_hats), dim=0), 0, 0.25) # (this one is much too low and does not spike in the no_halogens case)
-        # sigma_tot = cls.compute_shannon_entropy(y_hats_avg) # entropy of the BMA (Bayesian Model Average)
+        # # Steffen
+        # sigma_ale = torch.mean(
+        #     y_hats * (1 - y_hats), dim=0
+        # )  # aleatoric uncertainty (this one also works quite well, and is very similar to the Mucsanyi, Kirchhof and Oh method)
+        # sigma_epi = torch.mean(
+        #     y_hats**2 - y_hats_avg**2, dim=0
+        # )  # epistemic uncertainty (this one is also unsatisafactory, and interestingly also very similar to the Mucsanyi, Kirchhof and Oh method, second variant)
+        # sigma_tot = (
+        #     sigma_ale + sigma_epi
+        # )  # total uncertainty as the sum of aleatoric and epistemic uncertainty
 
-        # # Kendall and Gal
-        # sigma_ale = torch.mean(torch.square(stddevs), dim=0)  # mean of the variance of the logits
-        # sigma_epi = torch.var(logits, dim=0)  # variance of the logits
-        # sigma_tot = sigma_ale + sigma_epi  # total uncertainty as the sum of aleatoric and epistemic uncertainty
+        # # Mine
+        # sigma_ale = torch.mean(cls.compute_shannon_entropy(y_hats), dim=0)  # expected value of the shannon entropy of the sampled probabilities
+        # sigma_epi = abs(torch.std(torch.log(y_hats), dim=0) / torch.mean(torch.log(y_hats), dim=0)) # coefficient of variation 
+        # sigma_tot = cls.compute_shannon_entropy(y_hats_avg) # entropy of the BMA (see Gustafsson et al. 2020)
 
-        # Steffen
-        sigma_ale = torch.mean(
-            y_hats * (1 - y_hats), dim=0
-        )  # aleatoric uncertainty (this one also works quite well, and is very similar to the Mucsanyi, Kirchhof and Oh method)
-        sigma_epi = torch.mean(
-            y_hats**2 - y_hats_avg**2, dim=0
-        )  # epistemic uncertainty (this one is also unsatisafactory, and interestingly also very similar to the Mucsanyi, Kirchhof and Oh method, second variant)
-        sigma_tot = (
-            sigma_ale + sigma_epi
-        )  # total uncertainty as the sum of aleatoric and epistemic uncertainty
+        # Mukhoti et al. and Smith and Gal
+        sigma_tot = cls.compute_shannon_entropy(y_hats_avg)  # entropy of the BMA (a.k.a. predictive entropy)
+        sigma_ale = torch.mean(cls.compute_shannon_entropy(y_hats), dim=0)  # expected shannon entropy of the predictions given the parameters over the posterior distribution
+        sigma_epi = sigma_tot - sigma_ale  # mutual information (a.k.a. expected information gain)
 
         ranking = cls.compute_ranking(y_hats_avg, mol_id)
 
         y_hat_bin = (
-            y_hats_avg >= 0.3
-        ).int()  # predicted binary labels (assuming threshold = 0.5)
+            y_hats_avg >= THRESHOLD
+        ).int()
 
         with open(os.path.join(output_folder, "results.csv"), "w") as f:
             writer = csv.writer(f)

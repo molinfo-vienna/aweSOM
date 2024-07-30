@@ -43,7 +43,8 @@ class StochasticLoss(torch.nn.Module):
 
     def __init__(self):
         super(StochasticLoss, self).__init__()
-        self.loss = torch.nn.BCEWithLogitsLoss(reduction="none")
+        self.loss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(3, dtype=float), reduction="none")
+        # self.loss = torch.nn.BCEWithLogitsLoss(reduction="none")
         self.num_samples = 50
 
     def forward(self, logits, stddevs, targets):

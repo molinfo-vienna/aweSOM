@@ -42,6 +42,7 @@ def main():
         Path(Path(args.checkpointsPath, "lightning_logs"), "version_0"), "hparams.yaml"
     )
     hyperparams = yaml.safe_load(hyperparams_path.read_text())
+    hyperparams["hyperparams"]["mode"] = "mcdropout"
 
     model = GNN(
         params=hyperparams["params"],
