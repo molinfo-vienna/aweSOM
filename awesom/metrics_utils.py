@@ -64,10 +64,9 @@ class ValidationMetrics(BaseMetrics):
 
         for fold_id, preds in predictions.items():
             logits = preds[0][0]
-            stddevs = preds[0][1]
-            y = preds[0][2]
-            mol_id = preds[0][3]
-            atom_id = preds[0][4]
+            y = preds[0][1]
+            mol_id = preds[0][2]
+            atom_id = preds[0][3]
 
             y_hat = torch.sigmoid(logits)
             ranking = cls.compute_ranking(y_hat, mol_id)
@@ -148,7 +147,7 @@ class ValidationMetrics(BaseMetrics):
 class TestMetrics(BaseMetrics):
     @classmethod
     def compute_and_log_test_metrics(
-        cls, logits, stddevs, y, mol_id, atom_id, output_folder: str, true_labels: bool
+        cls, logits, y, mol_id, atom_id, output_folder: str, true_labels: bool
     ) -> None:
         y_hats = (
             torch.sigmoid(logits) + 1e-20

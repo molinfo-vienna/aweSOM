@@ -64,7 +64,6 @@ def main():
         predictions[1].to("cpu"),
         predictions[2].to("cpu"),
         predictions[3].to("cpu"),
-        predictions[4].to("cpu"),
         args.outputPath,
         args.test,
     )

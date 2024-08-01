@@ -15,7 +15,6 @@ from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
-
 from awesom.dataset import SOM
 from awesom.lightning_modules import GNN
 
