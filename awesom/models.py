@@ -45,14 +45,7 @@ class M1(torch.nn.Module):
             self.batch_norm.append(BatchNorm(in_channels))
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean = torch.nn.Sequential(
-            torch.nn.Linear(in_channels, mid_channels),
-            BatchNorm(mid_channels),
-            torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1),
-        )
-
-        self.compute_stddev = torch.nn.Sequential(
+        self.classifier = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
@@ -70,16 +63,13 @@ class M1(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            if self.mode == "ensemble" or "cvhpsearch":
-                x = F.dropout(x, p=0.2, training=False)
             if self.mode == "mcdropout":
-                x = F.dropout(x, p=0.2, training=True)
+                x = F.dropout(x, p=0.3, training=True)
 
         # Classification
-        mean = self.compute_mean(x)
-        stddev = self.compute_stddev(x)
+        x = self.classifier(x)
 
-        return torch.flatten(mean), torch.flatten(stddev)
+        return torch.flatten(x)
 
     @classmethod
     def get_params(self, trial):
@@ -132,14 +122,7 @@ class M2(torch.nn.Module):
             self.batch_norm.append(BatchNorm(in_channels))
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean = torch.nn.Sequential(
-            torch.nn.Linear(in_channels, mid_channels),
-            BatchNorm(mid_channels),
-            torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1),
-        )
-
-        self.compute_stddev = torch.nn.Sequential(
+        self.classifier = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
@@ -157,16 +140,13 @@ class M2(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            if self.mode == "ensemble" or "cvhpsearch":
-                x = F.dropout(x, p=0.2, training=False)
             if self.mode == "mcdropout":
-                x = F.dropout(x, p=0.2, training=True)
+                x = F.dropout(x, p=0.3, training=True)
 
         # Classification
-        mean = self.compute_mean(x)
-        stddev = self.compute_stddev(x)
+        x = self.classifier(x)
 
-        return torch.flatten(mean), torch.flatten(stddev)
+        return torch.flatten(x)
 
     @classmethod
     def get_params(self, trial):
@@ -219,14 +199,7 @@ class M3(torch.nn.Module):
             self.batch_norm.append(BatchNorm(in_channels))
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean = torch.nn.Sequential(
-            torch.nn.Linear(in_channels, mid_channels),
-            BatchNorm(mid_channels),
-            torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1),
-        )
-
-        self.compute_stddev = torch.nn.Sequential(
+        self.classifier = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
@@ -244,16 +217,13 @@ class M3(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            if self.mode == "ensemble" or "cvhpsearch":
-                x = F.dropout(x, p=0.2, training=False)
             if self.mode == "mcdropout":
-                x = F.dropout(x, p=0.2, training=True)
+                x = F.dropout(x, p=0.3, training=True)
 
         # Classification
-        mean = self.compute_mean(x)
-        stddev = self.compute_stddev(x)
+        x = self.classifier(x)
 
-        return torch.flatten(mean), torch.flatten(stddev)
+        return torch.flatten(x)
 
     @classmethod
     def get_params(self, trial):
@@ -304,14 +274,7 @@ class M4(torch.nn.Module):
             self.batch_norm.append(BatchNorm(in_channels))
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean = torch.nn.Sequential(
-            torch.nn.Linear(in_channels, mid_channels),
-            BatchNorm(mid_channels),
-            torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1),
-        )
-
-        self.compute_stddev = torch.nn.Sequential(
+        self.classifier = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
@@ -329,16 +292,13 @@ class M4(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            if self.mode == "ensemble" or "cvhpsearch":
-                x = F.dropout(x, p=0.2, training=False)
             if self.mode == "mcdropout":
-                x = F.dropout(x, p=0.2, training=True)
+                x = F.dropout(x, p=0.3, training=True)
 
         # Classification
-        mean = self.compute_mean(x)
-        stddev = self.compute_stddev(x)
+        x = self.classifier(x)
 
-        return torch.flatten(mean), torch.flatten(stddev)
+        return torch.flatten(x)
 
     @classmethod
     def get_params(self, trial):
@@ -388,14 +348,7 @@ class M5(torch.nn.Module):
             self.batch_norm.append(BatchNorm(in_channels))
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean = torch.nn.Sequential(
-            torch.nn.Linear(in_channels, mid_channels),
-            BatchNorm(mid_channels),
-            torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1),
-        )
-
-        self.compute_stddev = torch.nn.Sequential(
+        self.classifier = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
@@ -413,16 +366,13 @@ class M5(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            if self.mode == "ensemble" or "cvhpsearch":
-                x = F.dropout(x, p=0.2, training=False)
             if self.mode == "mcdropout":
-                x = F.dropout(x, p=0.2, training=True)
+                x = F.dropout(x, p=0.3, training=True)
 
         # Classification
-        mean = self.compute_mean(x)
-        stddev = self.compute_stddev(x)
+        x = self.classifier(x)
 
-        return torch.flatten(mean), torch.flatten(stddev)
+        return torch.flatten(x)
 
     @classmethod
     def get_params(self, trial):
@@ -478,14 +428,7 @@ class M7(torch.nn.Module):
             self.batch_norm.append(BatchNorm(in_channels))
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean = torch.nn.Sequential(
-            torch.nn.Linear(in_channels * 2, mid_channels),
-            BatchNorm(mid_channels),
-            torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1),
-        )
-
-        self.compute_stddev = torch.nn.Sequential(
+        self.classifier = torch.nn.Sequential(
             torch.nn.Linear(in_channels * 2, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
@@ -503,10 +446,8 @@ class M7(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            if self.mode == "ensemble" or "cvhpsearch":
-                x = F.dropout(x, p=0.2, training=False)
             if self.mode == "mcdropout":
-                x = F.dropout(x, p=0.2, training=True)
+                x = F.dropout(x, p=0.3, training=True)
 
         # Pooling for context
         x_pool = global_add_pool(x, data.batch)
@@ -519,10 +460,9 @@ class M7(torch.nn.Module):
         x = torch.cat((x, x_pool_expanded), dim=1)
 
         # Classification
-        mean = self.compute_mean(x)
-        stddev = self.compute_stddev(x)
+        x = self.classifier(x)
 
-        return torch.flatten(mean), torch.flatten(stddev)
+        return torch.flatten(x)
 
     @classmethod
     def get_params(self, trial):
@@ -577,14 +517,7 @@ class M9(torch.nn.Module):
 
         in_channels = in_channels + params["num_mol_features"]
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean = torch.nn.Sequential(
-            torch.nn.Linear(in_channels, mid_channels),
-            BatchNorm(mid_channels),
-            torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1),
-        )
-
-        self.compute_stddev = torch.nn.Sequential(
+        self.classifier = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
@@ -602,7 +535,8 @@ class M9(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x_atom = batch_norm(x_atom)
                 x_atom = self.activation(x_atom)
-            x_atom = F.dropout(x_atom, p=0.2, training=True)
+            if self.mode == "mcdropout":
+                x_atom = F.dropout(x_atom, p=0.3, training=True)
 
         # Normalize molecular features
         x_mol = self.norm_mol_x(data.mol_x)
@@ -611,10 +545,9 @@ class M9(torch.nn.Module):
         x = torch.cat((x_atom, x_mol), dim=1)
 
         # Classification
-        mean = self.compute_mean(x)
-        stddev = self.compute_stddev(x)
+        x = self.classifier(x)
 
-        return torch.flatten(mean), torch.flatten(stddev)
+        return torch.flatten(x)
 
     @classmethod
     def get_params(self, trial):
@@ -667,14 +600,7 @@ class M11(torch.nn.Module):
             in_channels = (i + 1) * out_channels + params["num_node_features"]
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean = torch.nn.Sequential(
-            torch.nn.Linear(in_channels, mid_channels),
-            BatchNorm(mid_channels),
-            torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1),
-        )
-
-        self.compute_stddev = torch.nn.Sequential(
+        self.classifier = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
@@ -691,18 +617,17 @@ class M11(torch.nn.Module):
             h_norm = batch_norm(h)
             if i == 0:
                 h_prime = conv(h_norm, data.edge_index, data.edge_attr)
-                h_prime = F.dropout(h_prime, p=0.2, training=True)
             else:
                 h_act = self.activation(h_norm)
                 h_prime = conv(h_act, data.edge_index, data.edge_attr)
-                h_prime = F.dropout(h_prime, p=0.2, training=True)
             h = torch.cat((h, h_prime), dim=1)
-
+            if self.mode == "mcdropout":
+                h_prime = F.dropout(h_prime, p=0.3, training=True)
+            
         # Classification
-        mean = self.compute_mean(h)
-        stddev = self.compute_stddev(h)
+        x = self.classifier(h)
 
-        return torch.flatten(mean), torch.flatten(stddev)
+        return torch.flatten(x)
 
     @classmethod
     def get_params(self, trial):
@@ -755,14 +680,7 @@ class M12(torch.nn.Module):
             in_channels = out_channels
 
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean = torch.nn.Sequential(
-            torch.nn.Linear(in_channels, mid_channels),
-            BatchNorm(mid_channels),
-            torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1),
-        )
-
-        self.compute_stddev = torch.nn.Sequential(
+        self.classifier = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
@@ -779,18 +697,17 @@ class M12(torch.nn.Module):
             h_norm = batch_norm(h)
             if i == 0:
                 h = conv(h_norm, data.edge_index, data.edge_attr)
-                h = F.dropout(h, p=0.2, training=True)
             else:
                 h_act = self.activation(h_norm)
                 h_prime = conv(h_act, data.edge_index, data.edge_attr)
-                h_prime = F.dropout(h_prime, p=0.2, training=True)
                 h = torch.add(h, h_prime)
+            if self.mode == "mcdropout":
+                h = F.dropout(h, p=0.3, training=True)
 
         # Classification
-        mean = self.compute_mean(h)
-        stddev = self.compute_stddev(h)
+        x = self.classifier(h)
 
-        return torch.flatten(mean), torch.flatten(stddev)
+        return torch.flatten(x)
 
     @classmethod
     def get_params(self, trial):
@@ -846,14 +763,7 @@ class M13(torch.nn.Module):
             params["num_node_features"] + in_channels * hyperparams["num_conv_layers"]
         )
         mid_channels = hyperparams["size_final_mlp_layers"]
-        self.compute_mean = torch.nn.Sequential(
-            torch.nn.Linear(in_channels, mid_channels),
-            BatchNorm(mid_channels),
-            torch.nn.LeakyReLU(),
-            torch.nn.Linear(mid_channels, 1),
-        )
-
-        self.compute_stddev = torch.nn.Sequential(
+        self.classifier = torch.nn.Sequential(
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
@@ -872,17 +782,17 @@ class M13(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = self.activation(x)
-            x = F.dropout(x, p=0.2, training=True)
             xs.append(x)
+            if self.mode == "mcdropout":
+                x = F.dropout(x, p=0.3, training=True)
 
         # Concatenate final embedding and pooled representation
         x = torch.cat(xs, dim=1)
 
         # Classification
-        mean = self.compute_mean(x)
-        stddev = self.compute_stddev(x)
+        x = self.classifier(x)
 
-        return torch.flatten(mean), torch.flatten(stddev)
+        return torch.flatten(x)
 
     @classmethod
     def get_params(self, trial):

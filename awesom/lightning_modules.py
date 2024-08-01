@@ -4,7 +4,6 @@ from lightning import LightningModule
 from torchmetrics import AUROC, MatthewsCorrCoef
 
 from awesom.models import M1, M2, M3, M4, M5, M7, M9, M11, M12, M13
-from awesom.stochastic_loss import StochasticLoss
 
 MODELS = {
     "M1": M1,
@@ -40,7 +39,6 @@ class GNN(LightningModule):
 
         self.save_hyperparameters()
 
-        # self.loss_function = StochasticLoss()
         self.loss_function = torch.nn.BCEWithLogitsLoss(reduction="mean")
 
         self.model = MODELS[architecture](params, hyperparams)
@@ -69,10 +67,9 @@ class GNN(LightningModule):
         }
 
     def step(self, batch):
-        logits, stddevs = self.model(batch)
-        # loss = self.loss_function(logits, stddevs, batch.y.float())
+        logits = self.model(batch)
         loss = self.loss_function(logits, batch.y.float())
-        return loss, logits, stddevs
+        return loss, logits
 
     def on_train_start(self) -> None:
         self.logger.log_hyperparams(
@@ -88,7 +85,7 @@ class GNN(LightningModule):
         )
 
     def training_step(self, batch, batch_idx):
-        loss, logits, _ = self.step(batch)
+        loss, logits = self.step(batch)
         y_hats = torch.sigmoid(logits)
         self.train_auroc(y_hats, batch.y)
         self.train_mcc(y_hats, batch.y)
@@ -116,7 +113,7 @@ class GNN(LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, logits, _ = self.step(batch)
+        loss, logits = self.step(batch)
         y_hats = torch.sigmoid(logits)
         self.val_auroc(y_hats, batch.y)
         self.val_mcc(y_hats, batch.y)
@@ -143,8 +140,8 @@ class GNN(LightningModule):
         )
 
     def predict_step(self, batch, batch_idx):
-        logits, stddevs = self.model(batch)
-        return logits, stddevs, batch.y, batch.mol_id, batch.atom_id
+        logits = self.model(batch)
+        return logits, batch.y, batch.mol_id, batch.atom_id
 
 
 class EnsembleGNN(LightningModule):
@@ -170,7 +167,6 @@ class EnsembleGNN(LightningModule):
         self.number_monte_carlo_samples = 10
 
         self.loss_function = torch.nn.BCEWithLogitsLoss(reduction="mean")
-        # self.loss_function = StochasticLoss()
 
         self.model = MODELS[architecture](params, hyperparams)
 
@@ -206,19 +202,12 @@ class EnsembleGNN(LightningModule):
             dtype=torch.float32,
             device=self.device,
         )
-        stddevs_lst = torch.empty(
-            (self.number_monte_carlo_samples, batch.y.size(0)),
-            dtype=torch.float32,
-            device=self.device,
-        )
         for i in range(self.number_monte_carlo_samples):
-            logits, stddevs = self.model(batch)
-            # loss = self.loss_function(logits, stddevs, batch.y.float())
+            logits = self.model(batch)
             loss = self.loss_function(logits, batch.y.float())
             loss_lst[i] = loss
             logits_lst[i, :] = logits
-            stddevs_lst[i, :] = stddevs
-        return torch.sum(loss), logits_lst, stddevs_lst
+        return torch.sum(loss), logits_lst
 
     def on_train_start(self) -> None:
         self.logger.log_hyperparams(
@@ -296,13 +285,7 @@ class EnsembleGNN(LightningModule):
             dtype=torch.float32,
             device=self.device,
         )
-        stddevs_lst = torch.empty(
-            (self.number_monte_carlo_samples, batch.y.size(0)),
-            dtype=torch.float32,
-            device=self.device,
-        )
         for i in range(self.number_monte_carlo_samples):
-            logits, stddevs = self.model(batch)
+            logits = self.model(batch)
             logits_lst[i, :] = logits
-            stddevs_lst[i, :] = stddevs
-        return logits_lst, stddevs_lst, batch.y, batch.mol_id, batch.atom_id
+        return logits_lst, batch.y, batch.mol_id, batch.atom_id

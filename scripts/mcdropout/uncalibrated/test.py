@@ -56,9 +56,6 @@ def main():
     logits_mcsampled = torch.empty(
         (NUM_MONTE_CARLO_SAMPLES, len(data.x)), dtype=torch.float32, device="cpu"
     )
-    stddevs_mcsampled = torch.empty(
-        (NUM_MONTE_CARLO_SAMPLES, len(data.x)), dtype=torch.float32, device="cpu"
-    )
     y_mcsampled = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
     mol_id_mcsampled = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
     atom_id_mcsampled = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
@@ -68,13 +65,11 @@ def main():
         trainer = Trainer(accelerator="auto", logger=False)
 
         # Make predictions
-        logits, stddevs, y, mol_id, atom_id = trainer.predict(
+        logits, y, mol_id, atom_id = trainer.predict(
             model=model, dataloaders=DataLoader(data, batch_size=len(data.x))
         )[0]
 
         logits_mcsampled[i, :] = logits
-        stddevs_mcsampled[i, :] = stddevs
-
         if i == 0:
             y_mcsampled[:] = y
             mol_id_mcsampled[:] = mol_id
@@ -86,7 +81,6 @@ def main():
 
     TestMetrics.compute_and_log_test_metrics(
         logits_mcsampled,
-        stddevs_mcsampled,
         y_mcsampled,
         mol_id_mcsampled,
         atom_id_mcsampled,

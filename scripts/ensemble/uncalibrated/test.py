@@ -40,9 +40,6 @@ def main():
     logits_ensemble = torch.empty(
         len(version_paths), len(data.x), dtype=torch.float32, device="cpu"
     )
-    stddevs_ensemble = torch.empty(
-        len(version_paths), len(data.x), dtype=torch.float32, device="cpu"
-    )
     y_ensemble = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
     mol_id_ensemble = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
     atom_id_ensemble = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
@@ -66,13 +63,11 @@ def main():
 
         # Predict SoMs
         trainer = Trainer(accelerator="auto", logger=False)
-        logits, stddevs, y, mol_id, atom_id = trainer.predict(
+        logits, y, mol_id, atom_id = trainer.predict(
             model=model, dataloaders=DataLoader(data, batch_size=len(data))
         )[0]
 
         logits_ensemble[i, :] = logits
-        stddevs_ensemble[i, :] = stddevs
-
         if i == 0:
             y_ensemble[:] = y
             mol_id_ensemble[:] = mol_id
@@ -84,7 +79,6 @@ def main():
 
     TestMetrics.compute_and_log_test_metrics(
         logits_ensemble,
-        stddevs_ensemble,
         y_ensemble,
         mol_id_ensemble,
         atom_id_ensemble,
