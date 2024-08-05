@@ -1,4 +1,6 @@
 **/__pycache__/
 .vscode/
 output/
+experiments/
+data/metaqsar23/
 *.sh
