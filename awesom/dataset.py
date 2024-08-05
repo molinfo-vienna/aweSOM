@@ -121,7 +121,7 @@ class SOM(InMemoryDataset):
             node_features[i, :] = current_node["node_features"]
         node_features = torch.from_numpy(node_features).to(torch.float)
 
-        # Compute mol features matrix
+        # # Compute mol features matrix
         # mol_features = np.empty((num_nodes, len(G.nodes()[0]["mol_features"])))
         # for i in range(num_nodes):
         #     current_node = G.nodes[i]

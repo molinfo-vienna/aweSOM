@@ -492,6 +492,8 @@ class M9(torch.nn.Module):
     def __init__(self, params, hyperparams) -> None:
         super(M9, self).__init__()
 
+        self.mode = hyperparams["mode"]
+
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
 
@@ -534,7 +536,7 @@ class M9(torch.nn.Module):
             x_atom = conv(x_atom, data.edge_index, data.edge_attr)
             if i != len(self.conv) - 1:
                 x_atom = batch_norm(x_atom)
-                x_atom = self.activation(x_atom)
+                x_atom = F.leaky_relu(x_atom)
             if self.mode == "mcdropout":
                 x_atom = F.dropout(x_atom, p=0.3, training=True)
 
@@ -575,6 +577,8 @@ class M11(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M11, self).__init__()
+
+        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -656,6 +660,8 @@ class M12(torch.nn.Module):
     def __init__(self, params, hyperparams) -> None:
         super(M12, self).__init__()
 
+        self.mode = hyperparams["mode"]
+
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
         self.activation = torch.nn.LeakyReLU()
@@ -735,6 +741,8 @@ class M13(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M13, self).__init__()
+
+        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()

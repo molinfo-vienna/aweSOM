@@ -39,7 +39,7 @@ class GNN(LightningModule):
 
         self.save_hyperparameters()
 
-        self.loss_function = torch.nn.BCEWithLogitsLoss(reduction="mean")
+        self.loss_function = torch.nn.BCEWithLogitsLoss(reduction="mean", pos_weight=torch.tensor(3.0, dtype=torch.float32))
 
         self.model = MODELS[architecture](params, hyperparams)
 
