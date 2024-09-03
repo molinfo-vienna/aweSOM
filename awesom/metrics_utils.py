@@ -7,7 +7,7 @@ from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from statistics import mean, stdev
 from sklearn.metrics import RocCurveDisplay
 
-NUM_BOOTSTRAPS = 100
+NUM_BOOTSTRAPS = 1000
 THRESHOLD = 0.5
 
 class BaseMetrics:
@@ -233,19 +233,20 @@ class TestLogger(BaseMetrics):
             aurocs = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
             top2s = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
 
-            num_mols = len(torch.unique(mol_id))
-            num_sampled_mols = int(0.5 * num_mols)
-            for i in range(100):
-                # Get a random 50% of the data (by molecular ID so that a substrate is not split across different bootstrap iterations)
-                sampled_mol_ids = torch.randperm(num_mols)[:num_sampled_mols]
-                mask = torch.zeros_like(mol_id, dtype=torch.bool)
-                for id in sampled_mol_ids:
-                    mask = mask | (mol_id == id)
-                    mol_id_sample = mol_id[mask]
-                    y_true_sample = y_true[mask]
-                    y_prob_sample = y_prob[mask]
-                    y_pred_sample = y_pred[mask]
-                    
+            unique_mol_ids = torch.unique(mol_id)
+            for i in range(NUM_BOOTSTRAPS):
+                # Sample molecule IDs with replacement
+                sampled_mol_ids = unique_mol_ids[torch.randint(len(unique_mol_ids), (len(unique_mol_ids),))]
+
+                # Create a mask to select atoms of the sampled molecules
+                mask = torch.isin(mol_id, sampled_mol_ids)
+
+                # Select the atoms of the sampled molecules
+                mol_id_sample = mol_id[mask]
+                y_true_sample = y_true[mask]
+                y_prob_sample = y_prob[mask]
+                y_pred_sample = y_pred[mask]
+
                 # Compute metrics
                 mccs[i] = cls.compute_mcc(y_pred_sample, y_true_sample)
                 precisions[i] = cls.compute_precision(y_pred_sample, y_true_sample)
