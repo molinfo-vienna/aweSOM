@@ -10,19 +10,20 @@ from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
-from awesom import LabeledData, UnlabeledData, GNN, TestMetrics
+from awesom.dataset import LabeledData, UnlabeledData
+from awesom.lightning_modules import GNN
+from awesom.metrics_utils import TestMetrics
 
 
 def main():
+    torch.manual_seed(42)
     seed_everything(42)
     geometric_seed_everything(42)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
 
-    if not os.path.exists(args.outputPath):
-        os.makedirs(args.outputPath)
-
+    # Load data
     if args.test:
         data = LabeledData(root=args.inputPath, transform=T.ToUndirected())
     else:
@@ -30,12 +31,19 @@ def main():
 
     print(f"Number of molecules: {len(data)}")
 
-    predictions = {}
     checkpoints_path = Path(args.checkpointsPath, "lightning_logs")
     version_paths = [
         Path(checkpoints_path, f"version_{i}")
         for i, _ in enumerate(os.listdir(checkpoints_path))
     ]
+
+    logits_ensemble = torch.empty(
+        len(version_paths), len(data.x), dtype=torch.float32, device="cpu"
+    )
+    y_ensemble = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
+    mol_id_ensemble = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
+    atom_id_ensemble = torch.empty(len(data.x), dtype=torch.int64, device="cpu")
+
     for i, version_path in enumerate(version_paths):
         checkpoint_path = [
             Path(Path(version_path, "checkpoints"), file)
@@ -43,22 +51,40 @@ def main():
             if file.endswith(".ckpt")
         ][0]
         hyperparams = yaml.safe_load(Path(version_path, "hparams.yaml").read_text())
+        hyperparams["hyperparams"]["mode"] = "ensemble"
 
+        # Load model
         model = GNN(
             params=hyperparams["params"],
             hyperparams=hyperparams["hyperparams"],
             architecture=hyperparams["architecture"],
-            pos_weight=hyperparams["pos_weight"],
         )
-
         model = GNN.load_from_checkpoint(checkpoint_path)
 
+        # Predict SoMs
         trainer = Trainer(accelerator="auto", logger=False)
-        predictions[i] = trainer.predict(
+        logits, y, mol_id, atom_id = trainer.predict(
             model=model, dataloaders=DataLoader(data, batch_size=len(data))
-        )
+        )[0]
 
-    TestMetrics.compute_and_log_test_metrics(predictions, args.outputPath, args.test)
+        logits_ensemble[i, :] = logits
+        if i == 0:
+            y_ensemble[:] = y
+            mol_id_ensemble[:] = mol_id
+            atom_id_ensemble[:] = atom_id
+
+    # Compute and log test metrics
+    if not os.path.exists(args.outputPath):
+        os.makedirs(args.outputPath)
+
+    TestMetrics.compute_and_log_test_metrics(
+        logits_ensemble,
+        y_ensemble,
+        mol_id_ensemble,
+        atom_id_ensemble,
+        args.outputPath,
+        args.test,
+    )
 
 
 if __name__ == "__main__":
