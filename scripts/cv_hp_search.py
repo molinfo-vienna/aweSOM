@@ -26,14 +26,12 @@ from awesom.models import (
     M3,
     M4,
     M5,
-    M6,
     M7,
     M9,
     M11,
     M12,
-    M13,
 )
-from awesom.metrics_utils import ValidationMetrics
+from awesom.metrics_utils import ValidationLogger
 
 
 MODELS = {
@@ -42,12 +40,10 @@ MODELS = {
     "M3": M3,
     "M4": M4,
     "M5": M5,
-    "M6": M6,
     "M7": M7,
     "M9": M9,
     "M11": M11,
     "M12": M12,
-    "M13": M13,
 }
 
 BATCH_SIZE = 32
@@ -180,7 +176,7 @@ def main():
             model=model, dataloaders=val_loader
         )
 
-    ValidationMetrics.compute_and_log_validation_metrics(
+    ValidationLogger.compute_and_log_validation_results(
         collected_validation_outputs, args.outputPath
     )
 

@@ -36,7 +36,7 @@ A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (So
 
 ```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file. The individual validation metrics of each fold will be stored in a CSV file. The best model's checkpoints will be stored in a directory. The averaged predictions made with the best hyp.erparameters will be stored in a text file
 
-```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M4```, ```M6```, ```M7```, ```M8```, ```M11```, ```M12```, ```M13```, ```M14```.
+```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M4```, ```M7```, ```M9```, ```M11```, ```M12```.
 
 ```EPOCHS```: The maximum number of training epochs.
 
@@ -48,7 +48,7 @@ There is the possibility to choose between ```RDKit``` and ```CDPKit``` for prep
 
 Example:
 
-```python scripts/cv_hp_search.py -i /data/train -o output/M4 -m M4 -e 1000 -n 10 -t 50```
+```python scripts/cv_hp_search.py -i /data/train -o output/M7 -m M7 -e 1000 -n 10 -t 50```
 
 #### Model Training
 
@@ -60,7 +60,7 @@ Example:
 
 ```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file. The individual validation metrics of each fold will be stored in a CSV file. The best model's checkpoints will be stored in a directory. The averaged predictions made with the best hyp.erparameters will be stored in a text file
 
-```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M4```, ```M6```, ```M7```, ```M8```, ```M11```, ```M12```, ```M13```, ```M14```.
+```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M4```, ```M7```, ```M9```, ```M11```, ```M12```.
 
 ```EPOCHS```: The maximum number of training epochs.
 
@@ -68,13 +68,13 @@ Example:
 
 Example:
 
-```python scripts/train.py -i data/train -y output/M4 -o output/M4/ensemble -m M4 -e 1000 -s 100```
+```python scripts/train.py -i data/train -y output/M7 -o output/M7/ensemble -m M7 -e 1000 -s 100```
 
-#### Model testing (predicting SoMs for unseen, labeled data)
+#### Model testing (predicting SoMs for labeled data)
 
 To predict the SoMs of one or multiple *labeled* molecules and output the predictions and the performance metrics run:
 
-```python scripts/infer.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -t TEST```
+```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH```
 
 ```INPUT_PATH```: The path to the input data. For model testing, only .sdf files are currently supported. Please place your file into a subfolder named ```raw/```. Example: the path to the input data is ```data/test/raw/xxx.sdf```, so ```INPUT_PATH``` should be ```data/test```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
 
@@ -82,13 +82,11 @@ To predict the SoMs of one or multiple *labeled* molecules and output the predic
 
 ```OUTPUT_PATH```: The desired output's location. The performance metrics are written to ```results.txt``` and the individual predictions to ```results.csv```.
 
-```TEST```: Whether to perform inference on non-labeled data (default: False) or testing on labeled data (True). If set to true, the script assumes that true labels are provided and computes the classification metrics (MCC, precision, recall, top2 correctness rate, atomic and molecular AUROCs, and atomic and molecular R-precisions), which are then written to ```OUTPUT_PATH/results.txt```.
-
 Example:
 
-```python scripts/infer.py -i data/test -c output/M4/ensemble/ -o output/M4/test -t```
+```python scripts/infer.py -i data/test -c output/M7/ensemble/ -o output/M7/test```
 
-#### Inference (predicting SoMs for unseen, unlabeled data)
+#### Inference (predicting SoMs for unlabeled data)
 
 To predict the SoMs of one or multiple *unlabeled* molecules and output the predictions run:
 
@@ -102,7 +100,7 @@ To predict the SoMs of one or multiple *unlabeled* molecules and output the pred
 
 Example:
 
-```python scripts/infer.py -i data/fipronil -c output/M4/ensemble/ -o output/M4/fipronil```
+```python scripts/infer.py -i data/fipronil -c output/M7/ensemble/ -o output/M7/fipronil```
 
 ### License
 
