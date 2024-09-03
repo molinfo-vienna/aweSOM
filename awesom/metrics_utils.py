@@ -2,28 +2,22 @@ import csv
 import matplotlib.pyplot as plt
 import os
 import torch
-from torchmetrics import MatthewsCorrCoef, AUROC, ROC
+from torchmetrics import MatthewsCorrCoef, AUROC
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from statistics import mean, stdev
 from sklearn.metrics import RocCurveDisplay
 
+NUM_BOOTSTRAPS = 100
 THRESHOLD = 0.5
 
-
 class BaseMetrics:
-    mcc = MatthewsCorrCoef(task="binary")
-    auroc = AUROC(task="binary")
-    precision = BinaryPrecision()
-    recall = BinaryRecall()
-    roc = ROC(task="binary")
-
     @classmethod
-    def compute_ranking(cls, y_hat, mol_id):
+    def compute_ranking(cls, y_prob, mol_id):
         ranking = torch.cat(
             [
                 torch.argsort(
                     torch.argsort(
-                        torch.index_select(y_hat, 0, torch.where(mol_id == mid)[0]),
+                        torch.index_select(y_prob, 0, torch.where(mol_id == mid)[0]),
                         dim=0,
                         descending=True,
                     ),
@@ -44,37 +38,97 @@ class BaseMetrics:
     @classmethod
     def compute_uncertainty_score(cls, p):
         return -(abs(2*p - 1)) + 1
+    
+    @classmethod
+    def compute_uncertainties(cls, y_probs, y_probs_avg):
+        # # Steffen
+        # u_ale = torch.mean(
+        #     y_probs * (1 - y_probs), dim=0
+        # )  # aleatoric uncertainty
+        # u_epi = torch.mean(
+        #     y_probs**2 - y_probs_avg**2, dim=0
+        # )  # epistemic uncertainty
+        # u_tot = (
+        #     u_ale + u_epi
+        # )
+
+        # Mukhoti et al. and Smith and Gal
+        u_tot = cls.compute_shannon_entropy(y_probs_avg)  # entropy of the BMA (a.k.a. predictive entropy)
+        u_ale = torch.mean(cls.compute_shannon_entropy(y_probs), dim=0)  # expected shannon entropy of the predictions given the parameters over the posterior distribution
+        u_epi = u_tot - u_ale  # mutual information (a.k.a. expected information gain)
+
+        # Map uncertainties to uncertainty scores
+        # u_tot = cls.compute_uncertainty_score(y_probs_avg)
+        # u_ale = torch.mean(cls.compute_uncertainty_score(y_probs), dim=0)
+        # u_epi = u_tot - u_ale
+
+        return u_ale, u_epi, u_tot
 
     @classmethod
     def scale(cls, x, min, max):
         return (x - min) / (max - min)
-
-
-class ValidationMetrics(BaseMetrics):
+    
     @classmethod
-    def compute_and_log_validation_metrics(
+    def compute_mcc(cls, y_pred, y_true):
+        mcc = MatthewsCorrCoef(task="binary")
+        return mcc(y_pred, y_true).item()
+    
+    @classmethod
+    def compute_precision(cls, y_pred, y_true):
+        precision = BinaryPrecision()
+        return precision(y_pred, y_true).item()
+    
+    @classmethod
+    def compute_recall(cls, y_pred, y_true):
+        recall = BinaryRecall()
+        return recall(y_pred, y_true).item()
+    
+    @classmethod
+    def compute_auroc(cls, y_prob, y_true):
+        auroc = AUROC(task="binary")
+        return auroc(y_prob, y_true).item()
+    
+    @classmethod
+    def compute_top2(cls, y_prob, y_true, mol_id):
+        top2 = 0
+        for id in list(
+            dict.fromkeys(mol_id.tolist())
+        ):  # This is a somewhat complicated way to get an ordered set (masked_sorted_y), but it works.
+            mask = torch.where(mol_id == id)[0]
+            masked_y = y_true[mask]
+            masked_y_prob = y_prob[mask]
+            masked_sorted_y = torch.index_select(
+                masked_y,
+                dim=0,
+                index=torch.sort(masked_y_prob, descending=True)[1],
+            )
+            if torch.sum(masked_sorted_y[:2]).item() > 0: top2 += 1
+        top2 /= len(set(mol_id.tolist()))
+        return top2
+    
+
+class ValidationLogger(BaseMetrics):
+    @classmethod
+    def compute_and_log_validation_results(
         cls, predictions: dict, output_folder: str
     ) -> None:
         metrics = {
             "MCC": [],
             "Precision": [],
             "Recall": [],
-            "Molecular R-Precision": [],
-            "Molecular AUROC": [],
-            "Top-2 Correctness Rate": [],
-            "Atomic R-Precision": [],
-            "Atomic AUROC": [],
+            "AUROC": [],
+            "Top-2 correctness rate": [],
         }
 
         for fold_id, preds in predictions.items():
             logits = preds[0][0]
-            y = preds[0][1]
+            y_true = preds[0][1]
             mol_id = preds[0][2]
             atom_id = preds[0][3]
 
-            y_hat = torch.sigmoid(logits)
-            ranking = cls.compute_ranking(y_hat, mol_id)
-            y_hat_bin = (y_hat >= THRESHOLD).int()
+            y_prob = torch.sigmoid(logits)
+            ranking = cls.compute_ranking(y_prob, mol_id)
+            y_pred = (y_prob >= THRESHOLD).int()
 
             with open(
                 os.path.join(output_folder, f"validation_fold{fold_id}.csv"), "w"
@@ -82,64 +136,29 @@ class ValidationMetrics(BaseMetrics):
                 writer = csv.writer(f)
                 writer.writerow(
                     (
-                        "probabilities",
-                        "ranking",
-                        "predicted_labels",
-                        "true_labels",
                         "mol_id",
                         "atom_id",
+                        "y_true",
+                        "y_prob",
+                        "y_pred",
+                        "ranking",
                     )
                 )
                 for row in zip(
-                    y_hat.tolist(),
-                    ranking.tolist(),
-                    y_hat_bin.tolist(),
-                    y.tolist(),
                     mol_id.tolist(),
                     atom_id.tolist(),
+                    y_true.tolist(),
+                    y_prob.tolist(),
+                    y_pred.tolist(),
+                    ranking.tolist(),
                 ):
                     writer.writerow(row)
 
-            metrics["MCC"].append(cls.mcc(y_hat_bin, y).item())
-            metrics["Precision"].append(cls.precision(y_hat_bin, y).item())
-            metrics["Recall"].append(cls.recall(y_hat_bin, y).item())
-            metrics["Atomic AUROC"].append(cls.auroc(y_hat, y).item())
-
-            sorted_y = torch.index_select(
-                y, dim=0, index=torch.sort(y_hat, descending=True)[1]
-            )
-            total_num_soms_in_validation_split = torch.sum(y).item()
-            metrics["Atomic R-Precision"].append(
-                torch.sum(sorted_y[:total_num_soms_in_validation_split]).item()
-                / total_num_soms_in_validation_split
-            )
-
-            top2_correctness_rate = 0
-            per_molecule_aurocs = []
-            per_molecule_r_precisions = []
-            for id in list(
-                dict.fromkeys(mol_id.tolist())
-            ):  # This is a somewhat complicated way to get an ordered set, but it works
-                mask = torch.where(mol_id == id)[0]
-                masked_y = y[mask]
-                masked_y_hat = y_hat[mask]
-                masked_sorted_y = torch.index_select(
-                    masked_y,
-                    dim=0,
-                    index=torch.sort(masked_y_hat, descending=True)[1],
-                )
-                num_soms_in_current_mol = torch.sum(masked_y).item()
-                if torch.sum(masked_sorted_y[:2]).item() > 0:
-                    top2_correctness_rate += 1
-                per_molecule_aurocs.append(cls.auroc(masked_y_hat, masked_y).item())
-                per_molecule_r_precisions.append(
-                    torch.sum(masked_sorted_y[:num_soms_in_current_mol]).item()
-                    / num_soms_in_current_mol
-                )
-            top2_correctness_rate /= len(set(mol_id.tolist()))
-            metrics["Top-2 Correctness Rate"].append(top2_correctness_rate)
-            metrics["Molecular AUROC"].append(mean(per_molecule_aurocs))
-            metrics["Molecular R-Precision"].append(mean(per_molecule_r_precisions))
+            metrics["MCC"].append(cls.compute_mcc(y_pred, y_true))
+            metrics["Precision"].append(cls.compute_precision(y_pred, y_true))
+            metrics["Recall"].append(cls.compute_recall(y_pred, y_true))
+            metrics["AUROC"].append(cls.compute_auroc(y_prob, y_true))
+            metrics["Top-2 correctness rate"].append(cls.compute_top2(y_prob, y_true, mol_id))
 
         with open(os.path.join(output_folder, "validation.txt"), "w") as f:
             for key, value in metrics.items():
@@ -147,119 +166,101 @@ class ValidationMetrics(BaseMetrics):
                     f"{key}: {round(mean(value), 4)} +/- {round(stdev(value), 4)}\n"
                 )
 
-
-class TestMetrics(BaseMetrics):
+class TestLogger(BaseMetrics):
     @classmethod
-    def compute_and_log_test_metrics(
-        cls, logits, y, mol_id, atom_id, output_folder: str, true_labels: bool
+    def compute_and_log_test_results(
+        cls,
+        mol_id: torch.Tensor,
+        atom_id: torch.Tensor,
+        y_true: torch.Tensor,
+        logits: torch.Tensor,
+        output_path: str, 
+        mode: str,
     ) -> None:
-        y_hats = (
-            torch.sigmoid(logits) + 1e-20
-        )  # add epsilon  to avoid issues when computing the log2 of 0 later
 
-        y_hats_avg = torch.mean(
-            y_hats, dim=0
-        )  # mean predicted probabilities of ensemble (predicted SoM probabilities)
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
 
-        # # Steffen
-        # sigma_ale = torch.mean(
-        #     y_hats * (1 - y_hats), dim=0
-        # )  # aleatoric uncertainty
-        # sigma_epi = torch.mean(
-        #     y_hats**2 - y_hats_avg**2, dim=0
-        # )  # epistemic uncertainty
-        # sigma_tot = (
-        #     sigma_ale + sigma_epi
-        # )
+        # Compute predicted SoM-probabilities from logits
+        y_probs = (torch.sigmoid(logits) + 1e-14)  # add epsilon  to avoid issues when computing the log2 of 0 later
 
-        # Mukhoti et al. and Smith and Gal
-        sigma_tot = cls.compute_shannon_entropy(y_hats_avg)  # entropy of the BMA (a.k.a. predictive entropy)
-        sigma_ale = torch.mean(cls.compute_shannon_entropy(y_hats), dim=0)  # expected shannon entropy of the predictions given the parameters over the posterior distribution
-        sigma_epi = sigma_tot - sigma_ale  # mutual information (a.k.a. expected information gain)
+        # Compute the averaged predicted SoM-probability for the ensemble
+        y_prob= torch.mean(y_probs, dim=0)
 
-        # Map uncertainties to uncertainty scores
-        # sigma_tot = cls.compute_uncertainty_score(y_hats_avg)
-        # sigma_ale = torch.mean(cls.compute_uncertainty_score(y_hats), dim=0)
-        # sigma_epi = sigma_tot - sigma_ale
+        # Compute uncertainties
+        u_ale, u_epi, u_tot = cls.compute_uncertainties(y_probs, y_prob)
 
-        ranking = cls.compute_ranking(y_hats_avg, mol_id)
+        # Compute atom rankings
+        ranking = cls.compute_ranking(y_prob, mol_id)
 
-        y_hat_bin = (
-            y_hats_avg >= THRESHOLD
-        ).int()
+        # Compute binary predictions
+        y_pred = (y_prob >= THRESHOLD).int()
 
-        with open(os.path.join(output_folder, "results.csv"), "w") as f:
+        # Write results to csv file
+        with open(os.path.join(output_path, "results.csv"), "w") as f:
             writer = csv.writer(f)
             writer.writerow(
                 (
-                    "averaged_probabilities",
-                    "aleatoric_uncertainty",
-                    "epistemic_uncertainty",
-                    "total_uncertainty",
-                    "ranking",
-                    "predicted_binary_labels",
-                    "true_labels",
                     "mol_id",
                     "atom_id",
+                    "y_true",
+                    "y_prob",
+                    "y_pred",
+                    "ranking",
+                    "u_ale",
+                    "u_epi",
+                    "u_tot",
                 )
             )
             for row in zip(
-                y_hats_avg.tolist(),
-                sigma_ale.tolist(),
-                sigma_epi.tolist(),
-                sigma_tot.tolist(),
-                ranking.tolist(),
-                y_hat_bin.tolist(),
-                y.tolist(),
                 mol_id.tolist(),
                 atom_id.tolist(),
+                y_true.tolist(),
+                y_prob.tolist(),
+                y_pred.tolist(),
+                ranking.tolist(),
+                u_ale.tolist(),
+                u_epi.tolist(),
+                u_tot.tolist(),
             ):
                 writer.writerow(row)
 
-        if true_labels:
-            sorted_y = torch.index_select(
-                y, dim=0, index=torch.sort(y_hats_avg, descending=True)[1]
-            )
-            total_num_soms = torch.sum(y).item()
-            atom_r_precision = (
-                torch.sum(sorted_y[:total_num_soms]).item() / total_num_soms
-            )
+        if mode == "test":
+            # Initialize empty tensors to hold the metrics for each bootstrap iteration
+            mccs = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
+            precisions = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
+            recalls = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
+            aurocs = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
+            top2s = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
 
-            top2_correctness_rate = 0
-            per_molecule_aurocs = []
-            per_molecule_r_precisions = []
-            for id in list(
-                dict.fromkeys(mol_id.tolist())
-            ):  # This is a somewhat complicated way to get an ordered set, but it works
-                mask = torch.where(mol_id == id)[0]
-                masked_y = y[mask]
-                masked_y_hat = y_hats_avg[mask]
-                masked_sorted_y = torch.index_select(
-                    masked_y,
-                    dim=0,
-                    index=torch.sort(masked_y_hat, descending=True)[1],
-                )
-                num_soms_in_current_mol = torch.sum(masked_y).item()
-                if torch.sum(masked_sorted_y[:2]).item() > 0:
-                    top2_correctness_rate += 1
-                per_molecule_aurocs.append(cls.auroc(masked_y_hat, masked_y).item())
-                per_molecule_r_precisions.append(
-                    torch.sum(masked_sorted_y[:num_soms_in_current_mol]).item()
-                    / num_soms_in_current_mol
-                )
-            top2_correctness_rate /= len(set(mol_id.tolist()))
-            mol_auroc = mean(per_molecule_aurocs)
-            mol_r_precision = mean(per_molecule_r_precisions)
+            num_mols = len(torch.unique(mol_id))
+            num_sampled_mols = int(0.9 * num_mols)
+            for i in range(100):
+                # Get a random 90% of the data (by molecular ID so that a substrate is not split across different bootstrap iterations)
+                sampled_mol_ids = torch.randperm(num_mols)[:num_sampled_mols]
+                mask = torch.zeros_like(mol_id, dtype=torch.bool)
+                for id in sampled_mol_ids:
+                    mask = mask | (mol_id == id)
+                    mol_id_sample = mol_id[mask]
+                    y_true_sample = y_true[mask]
+                    y_prob_sample = y_prob[mask]
+                    y_pred_sample = y_pred[mask]
+                    
+                # Compute metrics
+                mccs[i] = cls.compute_mcc(y_pred_sample, y_true_sample)
+                precisions[i] = cls.compute_precision(y_pred_sample, y_true_sample)
+                recalls[i] = cls.compute_recall(y_pred_sample, y_true_sample)
+                aurocs[i] = cls.compute_auroc(y_prob_sample, y_true_sample)
+                top2s[i] = cls.compute_top2(y_prob_sample, y_true_sample, mol_id_sample)
 
-            with open(os.path.join(output_folder, "results.txt"), "w") as f:
-                f.write(f"MCC: {round(cls.mcc(y_hat_bin, y).item(), 4)}\n")
-                f.write(f"Precision: {round(cls.precision(y_hat_bin, y).item(), 4)}\n")
-                f.write(f"Recall: {round(cls.recall(y_hat_bin, y).item(), 4)}\n")
-                f.write(f"Molecular R-Precision: {round(mol_r_precision, 4)}\n")
-                f.write(f"Molecular AUROC:  {round(mol_auroc, 4)}\n")
-                f.write(f"Top-2 Correctness Rate: {round(top2_correctness_rate, 4)}\n")
-                f.write(f"Atomic R-Precision: {round(atom_r_precision, 4)}\n")
-                f.write(f"Atomic AUROC: {round(cls.auroc(y_hats_avg, y).item(), 4)}\n")
+            # Write results to txt file
+            with open(os.path.join(output_path, "results.txt"), "w") as f:
+                f.write(f"MCC: {round(mccs.mean().item(), 4)} +/- {round(mccs.std().item(), 4)}\n")
+                f.write(f"Precision: {round(precisions.mean().item(), 4)} +/- {round(precisions.std().item(), 4)}\n")
+                f.write(f"Recall: {round(recalls.mean().item(), 4)} +/- {round(recalls.std().item(), 4)}\n")
+                f.write(f"AUROC: {round(aurocs.mean().item(), 4)} +/- {round(aurocs.std().item(), 4)}\n")
+                f.write(f"Top-2 correctness rate: {round(top2s.mean().item(), 4)} +/- {round(top2s.std().item(), 4)}\n")
 
-            RocCurveDisplay.from_predictions(y, y_hats_avg)
-            plt.savefig(str(os.path.join(output_folder, "roc.png")), dpi=300)
+            # Plot ROC curve  
+            RocCurveDisplay.from_predictions(y_true, y_prob)
+            plt.savefig(str(os.path.join(output_path, "roc.png")), dpi=300)
