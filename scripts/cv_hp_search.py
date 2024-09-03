@@ -26,6 +26,7 @@ from awesom.models import (
     M3,
     M4,
     M5,
+    M6,
     M7,
     M9,
     M11,
@@ -41,6 +42,7 @@ MODELS = {
     "M3": M3,
     "M4": M4,
     "M5": M5,
+    "M6": M6,
     "M7": M7,
     "M9": M9,
     "M11": M11,
@@ -48,7 +50,7 @@ MODELS = {
     "M13": M13,
 }
 
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 
 
 def main():
