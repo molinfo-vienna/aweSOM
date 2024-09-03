@@ -74,7 +74,7 @@ Example:
 
 To predict the SoMs of one or multiple *labeled* molecules and output the predictions and the performance metrics run:
 
-```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH```
+```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m test```
 
 ```INPUT_PATH```: The path to the input data. For model testing, only .sdf files are currently supported. Please place your file into a subfolder named ```raw/```. Example: the path to the input data is ```data/test/raw/xxx.sdf```, so ```INPUT_PATH``` should be ```data/test```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
 
@@ -84,13 +84,13 @@ To predict the SoMs of one or multiple *labeled* molecules and output the predic
 
 Example:
 
-```python scripts/infer.py -i data/test -c output/M7/ensemble/ -o output/M7/test```
+```python scripts/infer.py -i data/test -c output/M7/ensemble/ -o output/M7/test -m test```
 
 #### Inference (predicting SoMs for unlabeled data)
 
 To predict the SoMs of one or multiple *unlabeled* molecules and output the predictions run:
 
-```python scripts/infer.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH```
+```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m infer```
 
 ```INPUT_PATH```: The path to the input data. For inference, both .sdf and .smi files and are currently supported. Please and place your data into a subfolder named ```raw/```. Example: the data input path is ```data/fipronil/raw/data.smi```, so ```INPUT_PATH``` should be ```data/fipronil```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
 
@@ -100,7 +100,7 @@ To predict the SoMs of one or multiple *unlabeled* molecules and output the pred
 
 Example:
 
-```python scripts/infer.py -i data/fipronil -c output/M7/ensemble/ -o output/M7/fipronil```
+```python scripts/infer.py -i data/fipronil -c output/M7/ensemble/ -o output/M7/fipronil -m infer```
 
 ### License
 
