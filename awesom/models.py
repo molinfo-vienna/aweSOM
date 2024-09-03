@@ -74,7 +74,7 @@ class M1(torch.nn.Module):
     @classmethod
     def get_params(self, trial):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
 
@@ -151,7 +151,7 @@ class M2(torch.nn.Module):
     @classmethod
     def get_params(self, trial):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
 
@@ -228,7 +228,7 @@ class M3(torch.nn.Module):
     @classmethod
     def get_params(self, trial):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
         heads = trial.suggest_int("heads", 1, 4)
@@ -303,7 +303,7 @@ class M4(torch.nn.Module):
     @classmethod
     def get_params(self, trial):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
         max_degree = trial.suggest_int("max_degree", 1, 6)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
@@ -377,7 +377,7 @@ class M5(torch.nn.Module):
     @classmethod
     def get_params(self, trial):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
         filter_size = trial.suggest_int("filter_size", 1, 10)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
@@ -387,6 +387,45 @@ class M5(torch.nn.Module):
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
             filter_size=filter_size,
+            size_final_mlp_layers=size_final_mlp_layers,
+        )
+
+        return hyperparams
+
+
+class M6(torch.nn.Module):
+    """
+    No convolutional layers, only a final MLP.
+    """
+
+    def __init__(self, params, hyperparams) -> None:
+        super(M6, self).__init__()
+
+        self.mode = hyperparams["mode"]
+
+        in_channels = params["num_node_features"]
+        mid_channels = hyperparams["size_final_mlp_layers"]
+        self.classifier = torch.nn.Sequential(
+            torch.nn.Linear(in_channels, mid_channels),
+            BatchNorm(mid_channels),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1),
+        )
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+    ) -> torch.Tensor:
+        x = self.classifier(data.x)
+        return torch.flatten(x)
+
+    @classmethod
+    def get_params(self, trial):
+        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
+        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
+
+        hyperparams = dict(
+            learning_rate=learning_rate,
             size_final_mlp_layers=size_final_mlp_layers,
         )
 
@@ -467,7 +506,7 @@ class M7(torch.nn.Module):
     @classmethod
     def get_params(self, trial):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
 
@@ -554,7 +593,7 @@ class M9(torch.nn.Module):
     @classmethod
     def get_params(self, trial):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
 
@@ -805,7 +844,7 @@ class M13(torch.nn.Module):
     @classmethod
     def get_params(self, trial):
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 5)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
         size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
         size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
 

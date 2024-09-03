@@ -7,7 +7,7 @@ from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from statistics import mean, stdev
 from sklearn.metrics import RocCurveDisplay
 
-THRESHOLD = 0.3
+THRESHOLD = 0.5
 
 
 class BaseMetrics:
@@ -40,6 +40,10 @@ class BaseMetrics:
     @classmethod
     def compute_shannon_entropy(cls, p):
         return -(p * torch.log2(p) + (1 - p) * torch.log2(1 - p))
+    
+    @classmethod
+    def compute_uncertainty_score(cls, p):
+        return -(abs(2*p - 1)) + 1
 
     @classmethod
     def scale(cls, x, min, max):
@@ -160,23 +164,23 @@ class TestMetrics(BaseMetrics):
         # # Steffen
         # sigma_ale = torch.mean(
         #     y_hats * (1 - y_hats), dim=0
-        # )  # aleatoric uncertainty (this one also works quite well, and is very similar to the Mucsanyi, Kirchhof and Oh method)
+        # )  # aleatoric uncertainty
         # sigma_epi = torch.mean(
         #     y_hats**2 - y_hats_avg**2, dim=0
-        # )  # epistemic uncertainty (this one is also unsatisafactory, and interestingly also very similar to the Mucsanyi, Kirchhof and Oh method, second variant)
+        # )  # epistemic uncertainty
         # sigma_tot = (
         #     sigma_ale + sigma_epi
-        # )  # total uncertainty as the sum of aleatoric and epistemic uncertainty
-
-        # # Mine
-        # sigma_ale = torch.mean(cls.compute_shannon_entropy(y_hats), dim=0)  # expected value of the shannon entropy of the sampled probabilities
-        # sigma_epi = abs(torch.std(torch.log(y_hats), dim=0) / torch.mean(torch.log(y_hats), dim=0)) # coefficient of variation 
-        # sigma_tot = cls.compute_shannon_entropy(y_hats_avg) # entropy of the BMA (see Gustafsson et al. 2020)
+        # )
 
         # Mukhoti et al. and Smith and Gal
         sigma_tot = cls.compute_shannon_entropy(y_hats_avg)  # entropy of the BMA (a.k.a. predictive entropy)
         sigma_ale = torch.mean(cls.compute_shannon_entropy(y_hats), dim=0)  # expected shannon entropy of the predictions given the parameters over the posterior distribution
         sigma_epi = sigma_tot - sigma_ale  # mutual information (a.k.a. expected information gain)
+
+        # Map uncertainties to uncertainty scores
+        # sigma_tot = cls.compute_uncertainty_score(y_hats_avg)
+        # sigma_ale = torch.mean(cls.compute_uncertainty_score(y_hats), dim=0)
+        # sigma_epi = sigma_tot - sigma_ale
 
         ranking = cls.compute_ranking(y_hats_avg, mol_id)
 

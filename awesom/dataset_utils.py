@@ -540,28 +540,28 @@ def generate_mol_features_RDKit(mol: RDKitMol) -> List[float]:
     Returns:
         (list[float]): list of molecular features
     """
-    # return [
-    #     rdMolDescriptors.CalcExactMolWt(mol),
-    #     rdMolDescriptors.CalcCrippenDescriptors(mol)[0],  # logP
-    #     rdMolDescriptors.CalcLabuteASA(mol),
-    #     rdMolDescriptors.CalcTPSA(mol),
-    #     rdMolDescriptors.CalcNumHBA(mol),
-    #     rdMolDescriptors.CalcNumHBD(mol),
-    #     rdMolDescriptors.CalcNumHeavyAtoms(mol),
-    #     rdMolDescriptors.CalcNumHeteroatoms(mol),
-    #     rdMolDescriptors.CalcFractionCSP3(mol),
-    #     rdMolDescriptors.CalcNumRings(mol),
-    #     rdMolDescriptors.CalcNumHeterocycles(mol),
-    #     rdMolDescriptors.CalcNumAliphaticCarbocycles(mol),
-    #     rdMolDescriptors.CalcNumAliphaticHeterocycles(mol),
-    #     rdMolDescriptors.CalcNumAromaticCarbocycles(mol),
-    #     rdMolDescriptors.CalcNumAromaticHeterocycles(mol),
-    #     rdMolDescriptors.CalcNumSaturatedCarbocycles(mol),
-    #     rdMolDescriptors.CalcNumRotatableBonds(mol),
-    #     rdMolDescriptors.CalcNumAmideBonds(mol),
-    # ]
+    return [
+        rdMolDescriptors.CalcExactMolWt(mol),
+        rdMolDescriptors.CalcCrippenDescriptors(mol)[0],  # logP
+        rdMolDescriptors.CalcLabuteASA(mol),
+        rdMolDescriptors.CalcTPSA(mol),
+        rdMolDescriptors.CalcNumHBA(mol),
+        rdMolDescriptors.CalcNumHBD(mol),
+        rdMolDescriptors.CalcNumHeavyAtoms(mol),
+        rdMolDescriptors.CalcNumHeteroatoms(mol),
+        rdMolDescriptors.CalcFractionCSP3(mol),
+        rdMolDescriptors.CalcNumRings(mol),
+        rdMolDescriptors.CalcNumHeterocycles(mol),
+        rdMolDescriptors.CalcNumAliphaticCarbocycles(mol),
+        rdMolDescriptors.CalcNumAliphaticHeterocycles(mol),
+        rdMolDescriptors.CalcNumAromaticCarbocycles(mol),
+        rdMolDescriptors.CalcNumAromaticHeterocycles(mol),
+        rdMolDescriptors.CalcNumSaturatedCarbocycles(mol),
+        rdMolDescriptors.CalcNumRotatableBonds(mol),
+        rdMolDescriptors.CalcNumAmideBonds(mol),
+    ]
     # return np.array(AllChem.GetMorganFingerprintAsBitVect(mol, useChirality=False, radius=2, nBits = 2048))
-    return np.array(MACCSkeys.GenMACCSKeys(mol))
+    # return np.array(MACCSkeys.GenMACCSKeys(mol))
 
 
 def generate_node_features_RDKit(atom: RDKitAtom) -> List[float]:

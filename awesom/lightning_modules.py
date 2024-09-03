@@ -3,7 +3,7 @@ import torch
 from lightning import LightningModule
 from torchmetrics import AUROC, MatthewsCorrCoef
 
-from awesom.models import M1, M2, M3, M4, M5, M7, M9, M11, M12, M13
+from awesom.models import M1, M2, M3, M4, M5, M6, M7, M9, M11, M12, M13
 
 MODELS = {
     "M1": M1,
@@ -11,6 +11,7 @@ MODELS = {
     "M3": M3,
     "M4": M4,
     "M5": M5,
+    "M6": M6,
     "M7": M7,
     "M9": M9,
     "M11": M11,
@@ -39,7 +40,7 @@ class GNN(LightningModule):
 
         self.save_hyperparameters()
 
-        self.loss_function = torch.nn.BCEWithLogitsLoss(reduction="mean", pos_weight=torch.tensor(3.0, dtype=torch.float32))
+        self.loss_function = torch.nn.BCEWithLogitsLoss(reduction="mean", pos_weight=torch.tensor(2.8, dtype=torch.float32))
 
         self.model = MODELS[architecture](params, hyperparams)
 
