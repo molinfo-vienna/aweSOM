@@ -234,9 +234,9 @@ class TestLogger(BaseMetrics):
             top2s = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
 
             num_mols = len(torch.unique(mol_id))
-            num_sampled_mols = int(0.9 * num_mols)
+            num_sampled_mols = int(0.5 * num_mols)
             for i in range(100):
-                # Get a random 90% of the data (by molecular ID so that a substrate is not split across different bootstrap iterations)
+                # Get a random 50% of the data (by molecular ID so that a substrate is not split across different bootstrap iterations)
                 sampled_mol_ids = torch.randperm(num_mols)[:num_sampled_mols]
                 mask = torch.zeros_like(mol_id, dtype=torch.bool)
                 for id in sampled_mol_ids:
