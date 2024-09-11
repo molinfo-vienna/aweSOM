@@ -10,6 +10,7 @@ from pytorch_lightning.core.saving import save_hparams_to_yaml
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
+from multiprocessing import cpu_count
 from operator import itemgetter
 from pathlib import Path
 from sklearn.model_selection import KFold
@@ -85,8 +86,8 @@ def main():
                 architecture=args.model,
             )
 
-            train_loader = DataLoader(train_data, batch_size=BATCH_SIZE)
-            val_loader = DataLoader(val_data, batch_size=BATCH_SIZE)
+            train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, num_workers=cpu_count(), persistent_workers=True)
+            val_loader = DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=True, num_workers=cpu_count(), persistent_workers=True)
 
             tbl = TensorBoardLogger(
                 save_dir=Path(args.outputPath, "logs"),
@@ -146,7 +147,7 @@ def main():
     kfold = KFold(n_splits=args.numCVFolds, shuffle=True, random_state=42)
     for fold_id, (_, val_idx) in enumerate(kfold.split(range(len(data)))):
         val_data = itemgetter(*val_idx)(data)
-        val_loader = DataLoader(val_data, batch_size=BATCH_SIZE)
+        val_loader = DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=True, num_workers=12, persistent_workers=True)
         hyperparams = study.best_trial.params
         hyperparams["mode"] = "cvhpsearch"
         model = GNN(
