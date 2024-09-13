@@ -10,6 +10,7 @@ from sklearn.metrics import RocCurveDisplay
 NUM_BOOTSTRAPS = 1000
 THRESHOLD = 0.5
 
+
 class BaseMetrics:
     @classmethod
     def compute_ranking(cls, y_prob, mol_id):
@@ -34,11 +35,11 @@ class BaseMetrics:
     @classmethod
     def compute_shannon_entropy(cls, p):
         return -(p * torch.log2(p) + (1 - p) * torch.log2(1 - p))
-    
+
     @classmethod
     def compute_uncertainty_score(cls, p):
-        return -(abs(2*p - 1)) + 1
-    
+        return -(abs(2 * p - 1)) + 1
+
     @classmethod
     def compute_uncertainties(cls, y_probs, y_probs_avg):
         # # Steffen
@@ -53,8 +54,12 @@ class BaseMetrics:
         # )
 
         # Mukhoti et al. and Smith and Gal
-        u_tot = cls.compute_shannon_entropy(y_probs_avg)  # entropy of the BMA (a.k.a. predictive entropy)
-        u_ale = torch.mean(cls.compute_shannon_entropy(y_probs), dim=0)  # expected shannon entropy of the predictions given the parameters over the posterior distribution
+        u_tot = cls.compute_shannon_entropy(
+            y_probs_avg
+        )  # entropy of the BMA (a.k.a. predictive entropy)
+        u_ale = torch.mean(
+            cls.compute_shannon_entropy(y_probs), dim=0
+        )  # expected shannon entropy of the predictions given the parameters over the posterior distribution
         u_epi = u_tot - u_ale  # mutual information (a.k.a. expected information gain)
 
         # Map uncertainties to uncertainty scores
@@ -67,27 +72,27 @@ class BaseMetrics:
     @classmethod
     def scale(cls, x, min, max):
         return (x - min) / (max - min)
-    
+
     @classmethod
     def compute_mcc(cls, y_pred, y_true):
         mcc = MatthewsCorrCoef(task="binary")
         return mcc(y_pred, y_true).item()
-    
+
     @classmethod
     def compute_precision(cls, y_pred, y_true):
         precision = BinaryPrecision()
         return precision(y_pred, y_true).item()
-    
+
     @classmethod
     def compute_recall(cls, y_pred, y_true):
         recall = BinaryRecall()
         return recall(y_pred, y_true).item()
-    
+
     @classmethod
     def compute_auroc(cls, y_prob, y_true):
         auroc = AUROC(task="binary")
         return auroc(y_prob, y_true).item()
-    
+
     @classmethod
     def compute_top2(cls, y_prob, y_true, mol_id):
         top2 = 0
@@ -102,10 +107,11 @@ class BaseMetrics:
                 dim=0,
                 index=torch.sort(masked_y_prob, descending=True)[1],
             )
-            if torch.sum(masked_sorted_y[:2]).item() > 0: top2 += 1
+            if torch.sum(masked_sorted_y[:2]).item() > 0:
+                top2 += 1
         top2 /= len(set(mol_id.tolist()))
         return top2
-    
+
 
 class ValidationLogger(BaseMetrics):
     @classmethod
@@ -158,13 +164,16 @@ class ValidationLogger(BaseMetrics):
             metrics["Precision"].append(cls.compute_precision(y_pred, y_true))
             metrics["Recall"].append(cls.compute_recall(y_pred, y_true))
             metrics["AUROC"].append(cls.compute_auroc(y_prob, y_true))
-            metrics["Top-2 correctness rate"].append(cls.compute_top2(y_prob, y_true, mol_id))
+            metrics["Top-2 correctness rate"].append(
+                cls.compute_top2(y_prob, y_true, mol_id)
+            )
 
         with open(os.path.join(output_folder, "validation.txt"), "w") as f:
             for key, value in metrics.items():
                 f.write(
                     f"{key}: {round(mean(value), 4)} +/- {round(stdev(value), 4)}\n"
                 )
+
 
 class TestLogger(BaseMetrics):
     @classmethod
@@ -174,18 +183,19 @@ class TestLogger(BaseMetrics):
         atom_id: torch.Tensor,
         y_true: torch.Tensor,
         logits: torch.Tensor,
-        output_path: str, 
+        output_path: str,
         mode: str,
     ) -> None:
-
         if not os.path.exists(output_path):
             os.makedirs(output_path)
 
         # Compute predicted SoM-probabilities from logits
-        y_probs = (torch.sigmoid(logits) + 1e-14)  # add epsilon  to avoid issues when computing the log2 of 0 later
+        y_probs = (
+            torch.sigmoid(logits) + 1e-14
+        )  # add epsilon  to avoid issues when computing the log2 of 0 later
 
         # Compute the averaged predicted SoM-probability for the ensemble
-        y_prob= torch.mean(y_probs, dim=0)
+        y_prob = torch.mean(y_probs, dim=0)
 
         # Compute uncertainties
         u_ale, u_epi, u_tot = cls.compute_uncertainties(y_probs, y_prob)
@@ -236,7 +246,9 @@ class TestLogger(BaseMetrics):
             unique_mol_ids = torch.unique(mol_id)
             for i in range(NUM_BOOTSTRAPS):
                 # Sample molecule IDs with replacement
-                sampled_mol_ids = unique_mol_ids[torch.randint(len(unique_mol_ids), (len(unique_mol_ids),))]
+                sampled_mol_ids = unique_mol_ids[
+                    torch.randint(len(unique_mol_ids), (len(unique_mol_ids),))
+                ]
 
                 # Create a mask to select atoms of the sampled molecules
                 mask = torch.isin(mol_id, sampled_mol_ids)
@@ -256,12 +268,22 @@ class TestLogger(BaseMetrics):
 
             # Write results to txt file
             with open(os.path.join(output_path, "results.txt"), "w") as f:
-                f.write(f"MCC: {round(mccs.mean().item(), 4)} +/- {round(mccs.std().item(), 4)}\n")
-                f.write(f"Precision: {round(precisions.mean().item(), 4)} +/- {round(precisions.std().item(), 4)}\n")
-                f.write(f"Recall: {round(recalls.mean().item(), 4)} +/- {round(recalls.std().item(), 4)}\n")
-                f.write(f"AUROC: {round(aurocs.mean().item(), 4)} +/- {round(aurocs.std().item(), 4)}\n")
-                f.write(f"Top-2 correctness rate: {round(top2s.mean().item(), 4)} +/- {round(top2s.std().item(), 4)}\n")
+                f.write(
+                    f"MCC: {round(mccs.mean().item(), 4)} +/- {round(mccs.std().item(), 4)}\n"
+                )
+                f.write(
+                    f"Precision: {round(precisions.mean().item(), 4)} +/- {round(precisions.std().item(), 4)}\n"
+                )
+                f.write(
+                    f"Recall: {round(recalls.mean().item(), 4)} +/- {round(recalls.std().item(), 4)}\n"
+                )
+                f.write(
+                    f"AUROC: {round(aurocs.mean().item(), 4)} +/- {round(aurocs.std().item(), 4)}\n"
+                )
+                f.write(
+                    f"Top-2 correctness rate: {round(top2s.mean().item(), 4)} +/- {round(top2s.std().item(), 4)}\n"
+                )
 
-            # Plot ROC curve  
+            # Plot ROC curve
             RocCurveDisplay.from_predictions(y_true, y_prob)
             plt.savefig(str(os.path.join(output_path, "roc.png")), dpi=300)

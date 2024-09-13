@@ -35,10 +35,18 @@ def main():
     ]
 
     # Initialize empty prediction tensors
-    mol_id_ensemble = torch.empty(len(data.x), dtype=torch.int64, device="cpu")  # 1D tensor
-    atom_id_ensemble = torch.empty(len(data.x), dtype=torch.int64, device="cpu")  # 1D tensor
-    y_true_ensemble = torch.empty(len(data.x), dtype=torch.int64, device="cpu")  # 1D tensor
-    logits_ensemble = torch.empty((len(version_paths), len(data.x)), dtype=torch.float32, device="cpu")  # 2D tensor
+    mol_id_ensemble = torch.empty(
+        len(data.x), dtype=torch.int64, device="cpu"
+    )  # 1D tensor
+    atom_id_ensemble = torch.empty(
+        len(data.x), dtype=torch.int64, device="cpu"
+    )  # 1D tensor
+    y_true_ensemble = torch.empty(
+        len(data.x), dtype=torch.int64, device="cpu"
+    )  # 1D tensor
+    logits_ensemble = torch.empty(
+        (len(version_paths), len(data.x)), dtype=torch.float32, device="cpu"
+    )  # 2D tensor
 
     # Predict SoMs for each model in the ensemble
     for i, version_path in enumerate(version_paths):
@@ -69,7 +77,7 @@ def main():
             atom_id_ensemble[:] = atom_id
             y_true_ensemble[:] = y_true
         logits_ensemble[i, :] = logits
-    
+
     # Compute and log test results
     TestLogger.compute_and_log_test_results(
         mol_id_ensemble,
@@ -80,8 +88,11 @@ def main():
         args.mode,
     )
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Predicting SoMs for labeled (test) and unlabeled (infer) data.")
+    parser = argparse.ArgumentParser(
+        "Predicting SoMs for labeled (test) and unlabeled (infer) data."
+    )
 
     parser.add_argument(
         "-i",

@@ -49,11 +49,19 @@ def main():
     model = GNN.load_from_checkpoint(checkpoints_file)
 
     # Predict SoMs
-    mol_id_mcsampled = torch.empty(len(data.x), dtype=torch.int64, device="cpu")  # 1D tensor
-    atom_id_mcsampled = torch.empty(len(data.x), dtype=torch.int64, device="cpu")  # 1D tensor
-    y_true_mcsampled = torch.empty(len(data.x), dtype=torch.int64, device="cpu")  # 1D tensor
-    logits_mcsampled = torch.empty((NUM_MONTE_CARLO_SAMPLES, len(data.x)), dtype=torch.float32, device="cpu")  # 2D tensor
-    
+    mol_id_mcsampled = torch.empty(
+        len(data.x), dtype=torch.int64, device="cpu"
+    )  # 1D tensor
+    atom_id_mcsampled = torch.empty(
+        len(data.x), dtype=torch.int64, device="cpu"
+    )  # 1D tensor
+    y_true_mcsampled = torch.empty(
+        len(data.x), dtype=torch.int64, device="cpu"
+    )  # 1D tensor
+    logits_mcsampled = torch.empty(
+        (NUM_MONTE_CARLO_SAMPLES, len(data.x)), dtype=torch.float32, device="cpu"
+    )  # 2D tensor
+
     for i in range(NUM_MONTE_CARLO_SAMPLES):
         # Initialize trainer
         trainer = Trainer(accelerator="auto", logger=False)
@@ -63,7 +71,6 @@ def main():
             model=model, dataloaders=DataLoader(data, batch_size=len(data.x))
         )[0]
 
-        
         if i == 0:
             mol_id_mcsampled[:] = mol_id
             atom_id_mcsampled[:] = atom_id
@@ -74,14 +81,16 @@ def main():
         mol_id_mcsampled,
         atom_id_mcsampled,
         y_true_mcsampled,
-        logits_mcsampled,      
+        logits_mcsampled,
         args.outputPath,
         args.mode,
     )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Predicting SoMs for labeled (test) and unlabeled (infer) data.")
+    parser = argparse.ArgumentParser(
+        "Predicting SoMs for labeled (test) and unlabeled (infer) data."
+    )
 
     parser.add_argument(
         "-i",

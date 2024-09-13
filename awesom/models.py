@@ -402,7 +402,7 @@ class M7(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M7, self).__init__()
-        
+
         self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
@@ -627,7 +627,7 @@ class M11(torch.nn.Module):
             h = torch.cat((h, h_prime), dim=1)
             if self.mode == "mcdropout":
                 h_prime = F.dropout(h_prime, p=0.3, training=True)
-            
+
         # Classification
         x = self.classifier(h)
 
