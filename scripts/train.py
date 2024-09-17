@@ -1,4 +1,5 @@
 import argparse
+import random
 import torch
 import yaml
 
@@ -8,8 +9,8 @@ from lightning import Trainer
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
-from multiprocessing import cpu_count
 from pathlib import Path
+from multiprocessing import cpu_count
 from sklearn.model_selection import train_test_split
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
@@ -19,15 +20,14 @@ from awesom.dataset import SOM
 from awesom.lightning_modules import GNN
 
 BATCH_SIZE = 32
+ENSEMBLE_SIZE = 50
 
 
 def main():
-    torch.manual_seed(42)
-    lightning_seed_everything(42)
-    geometric_seed_everything(42)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
+    random_seeds = random.sample(range(0, 1000), ENSEMBLE_SIZE)
 
     # Load data
     data = SOM(root=args.inputPath, transform=T.ToUndirected())
@@ -37,58 +37,68 @@ def main():
         # num_mol_features=data.mol_x.shape[1],  # uncomment if using M9
     )
 
-    train_data, val_data = train_test_split(data, test_size=0.1, random_state=42)
+    for seed in random_seeds:
+        torch.manual_seed(42)
+        lightning_seed_everything(seed)
+        geometric_seed_everything(seed)
 
-    print(f"Number of training instances: {len(train_data)}")
-    print(f"Number of validation instances: {len(val_data)}")
+        train_data, val_data = train_test_split(data, test_size=0.1, random_state=seed)
 
-    train_loader = DataLoader(
-        train_data,
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        num_workers=cpu_count(),
-        persistent_workers=True,
-    )
-    val_loader = DataLoader(
-        val_data,
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        num_workers=cpu_count(),
-        persistent_workers=True,
-    )
+        print(f"Number of training instances: {len(train_data)}")
+        print(f"Number of validation instances: {len(val_data)}")
 
-    # Load model
-    hyperparams = yaml.safe_load(
-        Path(args.hparamsYamlPath, "best_hparams.yaml").read_text()
-    )
-    hyperparams["mode"] = "mcdropout"
-    model = GNN(
-        params=data_params,
-        hyperparams=hyperparams,
-        architecture=args.model,
-    )
+        train_loader = DataLoader(
+            train_data,
+            batch_size=BATCH_SIZE,
+            shuffle=True,
+            num_workers=cpu_count(),
+            persistent_workers=True,
+        )
+        val_loader = DataLoader(
+            val_data,
+            batch_size=BATCH_SIZE,
+            shuffle=True,
+            num_workers=cpu_count(),
+            persistent_workers=True,
+        )
 
-    # Initialize trainer
-    tbl = TensorBoardLogger(
-        save_dir=Path(args.outputPath),
-        default_hp_metric=False,
-    )
+        # Load model
+        hyperparams = yaml.safe_load(
+            Path(args.hparamsYamlPath, "best_hparams.yaml").read_text()
+        )
+        hyperparams["mode"] = "ensemble"
+        model = GNN(
+            params=data_params,
+            hyperparams=hyperparams,
+            architecture=args.model,
+        )
 
-    callbacks = [
-        EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=20),
-        ModelCheckpoint(monitor="val/loss", mode="min"),
-    ]
+        # Initialize trainer
+        tbl = TensorBoardLogger(
+            save_dir=Path(args.outputPath),
+            default_hp_metric=False,
+        )
 
-    trainer = Trainer(
-        accelerator="auto",
-        max_epochs=args.epochs,
-        logger=tbl,
-        log_every_n_steps=1,
-        callbacks=callbacks,
-    )
+        callbacks = [
+            EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=20),
+            ModelCheckpoint(monitor="val/loss", mode="min"),
+        ]
 
-    # Train model
-    trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=val_loader)
+        trainer = Trainer(
+            accelerator="auto",
+            max_epochs=args.epochs,
+            logger=tbl,
+            log_every_n_steps=1,
+            callbacks=callbacks,
+        )
+
+        trainer.fit(
+            model=model, train_dataloaders=train_loader, val_dataloaders=val_loader
+        )
+
+    with open(Path(args.outputPath, "random_seeds.txt"), "w+") as f:
+        for seed in random_seeds:
+            f.write(f"{seed}\n")
 
 
 if __name__ == "__main__":
@@ -120,6 +130,7 @@ if __name__ == "__main__":
         "--model",
         type=str,
         required=True,
+        default="M7",
         help="The desired model architecture.",
     )
     parser.add_argument(
@@ -127,6 +138,7 @@ if __name__ == "__main__":
         dest="epochs",
         type=int,
         required=True,
+        default=1000,
         help="The maximum number of training epochs (will be subjected to early stopping).",
     )
 

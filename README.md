@@ -32,19 +32,17 @@ A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (So
 
 ```python scripts/cv_hp_search.py -i INPUT_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -n NUM_FOLDS -t NUM_TRIALS```
 
-```INPUT_PATH```: The path to the input data. For model training, only ```.sdf``` input files are currently supported. Please place your file into a subfolder named ```raw/```. Example: the path to the input data is ```data/train/raw/xxx.sdf```, so ```INPUT_PATH``` should be ```data/train```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
+```INPUT_PATH```: The path to the input data. For model training, only ```.sdf``` input files are currently supported. Please place your file into a subfolder named ```raw/```. Example: the path to the input data is ```data/train/raw/xxx.sdf```, so ```INPUT_PATH``` should be ```data/train```. Running any script (cv_hp_search.py, train.py, test.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
 
 ```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file. The individual validation metrics of each fold will be stored in a CSV file. The best model's checkpoints will be stored in a directory. The averaged predictions made with the best hyp.erparameters will be stored in a text file
 
-```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M4```, ```M7```, ```M9```, ```M11```, ```M12```.
+```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M3```, ```M4```, ```M7```, ```M9```, ```M11```, ```M12```.  Default is ```M7```.
 
-```EPOCHS```: The maximum number of training epochs.
+```EPOCHS```: The maximum number of training epochs. Default is ```1000```.
 
-```NUM_FOLDS```: The number of cross-validation folds.
+```NUM_FOLDS```: The number of cross-validation folds. Default is ```10```.
 
-```NUM_TRIALS```: The number of Optuna trials.
-
-There is the possibility to choose between ```RDKit``` and ```CDPKit``` for preprocessing the input data. ```RDKit``` is set as default, but if you prefer to use ```CDPKit``` then change the ```KIT``` variable in ```dataset.py``` from ```RDKIT``` to ```CDPKIT```.
+```NUM_TRIALS```: The number of Optuna trials. Default is ```50```.
 
 Example:
 
@@ -52,23 +50,21 @@ Example:
 
 #### Model Training
 
-```python scripts/train.py -i INPUT_PATH -y HYPERPARAMETERS_YAML_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -s ENSEMBLE_SIZE```
+```python scripts/train.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS```
 
 ```INPUT_PATH```: The path to the input data. For model training, only ```.sdf``` input files are currently supported. Please place your file into a subfolder named ```raw/```. Example: the path to the input data is ```data/train/raw/xxx.sdf```, so ```INPUT_PATH``` should be ```data/train```. Running any script (cv_hp_search.py, train.py, infer.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
 
-```HYPERPARAMETERS_YAML_PATH```: The path to the yaml file containing the hyperparameters that were previously determined by running the cv_hp_search.py script on the training data.
+```CHECKPOINTS_PATH```: The path to the yaml file containing the hyperparameters that were previously determined by running the cv_hp_search.py script on the training data.
 
 ```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file. The individual validation metrics of each fold will be stored in a CSV file. The best model's checkpoints will be stored in a directory. The averaged predictions made with the best hyp.erparameters will be stored in a text file
 
-```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M4```, ```M7```, ```M9```, ```M11```, ```M12```.
+```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M3```, ```M4```, ```M7```, ```M9```, ```M11```, ```M12```.   Default is ```M7```.
 
-```EPOCHS```: The maximum number of training epochs.
-
-```ENSEMBLE_SIZE```: The desired number of models in the final deep ensemble model.
+```EPOCHS```: The maximum number of training epochs.  Default is ```1000```.
 
 Example:
 
-```python scripts/train.py -i data/train -y output/M7 -o output/M7/ensemble -m M7 -e 1000 -s 100```
+```python scripts/train.py -i data/train -c output/M7 -o output/M7/ensemble -m M7 -e 1000```
 
 #### Model testing (predicting SoMs for labeled data)
 
