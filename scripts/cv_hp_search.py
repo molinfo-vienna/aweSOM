@@ -26,7 +26,6 @@ from awesom.models import (
     M2,
     M3,
     M4,
-    M5,
     M7,
     M9,
     M11,
@@ -40,7 +39,6 @@ MODELS = {
     "M2": M2,
     "M3": M3,
     "M4": M4,
-    "M5": M5,
     "M7": M7,
     "M9": M9,
     "M11": M11,
@@ -228,6 +226,7 @@ if __name__ == "__main__":
         "--model",
         type=str,
         required=True,
+        default="M7",
         help="The desired model architecture.",
     )
     parser.add_argument(
@@ -235,6 +234,7 @@ if __name__ == "__main__":
         "--epochs",
         type=int,
         required=True,
+        default=1000,
         help="The maximum number of training epochs.",
     )
     parser.add_argument(
@@ -242,6 +242,7 @@ if __name__ == "__main__":
         "--numCVFolds",
         type=int,
         required=True,
+        default=10,
         help="The number of cross-validation folds.",
     )
     parser.add_argument(
@@ -249,6 +250,7 @@ if __name__ == "__main__":
         "--numberOptunaTrials",
         type=int,
         required=True,
+        default=50,
         help="The number of Optuna trials.",
     )
 
