@@ -62,59 +62,9 @@ def _get_one_hot_encoded_element(x: Any, allowable_set: list[Any]) -> List[float
     return list(map(lambda s: float(x == s), allowable_set))
 
 
-def _get_one_hot_encoded_list(lst: list[int], allowable_set: list[int]) -> List[float]:
-    """
-    PRIVATE method generates a one-hot encoded list for a list of inputs lst.
-    Args:
-        lst (list): list of target values
-        allowable_set (list): the allowed set
-    Returns:
-        (list): one-hot encoded list
-    """
-    return [1.0 if x in lst else 0.0 for x in allowable_set]
-
-
 """
 CDPKit Utilities
 """
-
-
-def _get_atom_degree(atom: Chem.Atom, mol: Chem.BasicMolecule) -> int:
-    """
-    PRIVATE method that takes an CDPKit atom as input and returns an int or str value ('OTHER')
-    for the total degree of the atom.
-    It includes hydrogens. MolProp.getHeavyBondCount(atom) reports degree without hydrogens.
-    A string value is returned when its another element than in the TOTAL_DEGREE.
-    Args:
-        atom (CDPKit Atom): the atom to calculate the property
-    Returns:
-        degree (int): degree
-        degree (str): 'OTHER'
-    """
-    degree = MolProp.getBondCount(atom, mol)
-    if degree not in TOTAL_DEGREE:
-        degree = "OTHER"
-
-    return degree
-
-
-def _get_atom_type(atom: Chem.Atom) -> int:
-    """
-    PRIVATE method that takes an CDPKit atom as input and returns an int or str value ('OTHER')
-    for the atom type.
-    A string value is returned when its another element than in the ELEM_LIST.
-    Args:
-        atom (CDPKit Atom): the atom to calculate the property
-    Returns:
-        atomic_no (int): atomic_no
-        atomic_no (str): 'OTHER'
-    """
-    atomic_no = Chem.getType(atom)
-
-    if atomic_no not in ELEM_LIST:
-        atomic_no = "OTHER"
-
-    return atomic_no
 
 
 def _get_file_length(dir: str) -> int:
@@ -128,48 +78,6 @@ def _get_file_length(dir: str) -> int:
     reader = _get_reader_by_file_extention(dir)
     file_length = reader.getNumRecords()
     return file_length
-
-
-def _get_formal_charge(atom: Chem.Atom) -> int:
-    """
-    PRIVATE method that takes an CDPKit atom as input and returns an int or str value ('OTHER')
-    for the formal charge of the atom.
-    A string value is returned when its another element than in the FORMAL_CHARGE.
-    Args:
-        atom (CDPKit Atom): the atom to calculate the property
-    Returns:
-        form_chg (int): form_chg
-        form_chg (str): 'OTHER'
-    """
-    form_chg = Chem.getFormalCharge(atom)
-
-    if form_chg not in FORMAL_CHARGE:
-        form_chg = "OTHER"
-
-    return form_chg
-
-
-def _get_hybridization_type(atom: Chem.Atom) -> int:
-    """
-    PRIVATE method that takes an CDPKit atom as input and returns a str value
-    for the hybridization type of the atom as in HYBRIDIZATION_TYPE.
-    Args:
-        atom (CDPKit Atom): the atom to calculate the property
-    Returns:
-        form_chg (int): form_chg
-        form_chg (str): 'OTHER'
-    """
-    hyb_state = Chem.getHybridizationState(atom)
-    if hyb_state == Chem.HybridizationState.SP1:
-        hyb_state = "SP"
-    elif hyb_state == Chem.HybridizationState.SP2:
-        hyb_state = "SP2"
-    elif hyb_state == Chem.HybridizationState.SP3:
-        hyb_state = "SP3"
-    else:
-        hyb_state = "OTHER"
-
-    return hyb_state
 
 
 def _get_reader_by_file_extention(dir: str) -> Chem.MoleculeReader:
@@ -284,29 +192,10 @@ def generate_node_features_CDPKit(
     Generates the node features for each atom
     Args:
         atom (CDPKit Atom): atom for the features calculation
-        atm_ring_length (int)
         mol (CDPKit Molecule): molecule that is host of the atoms and used for the atom features calculations.
     Returns:
         (list[float]): one-hot encoded atom feature list
     """
-    # features = {
-    #     "atom_type": _get_one_hot_encoded_element(_get_atom_type(atom), ELEM_LIST),
-    #     "formal_charge": _get_one_hot_encoded_element(_get_formal_charge(atom), FORMAL_CHARGE),
-    #     "hybridization_state": _get_one_hot_encoded_element(
-    #         _get_hybridization_type(atom), HYBRIDIZATION_TYPE
-    #     ),
-    #     "ring_size": _get_one_hot_encoded_element(atm_ring_length, RING_SIZE),
-    #     "aromaticity": list([float(Chem.getAromaticityFlag(atom))]),
-    #     "degree": _get_one_hot_encoded_element(_get_atom_degree(atom, mol), TOTAL_DEGREE),
-    # }
-    # return (
-    #     features["atom_type"]
-    #     + features["formal_charge"]
-    #     + features["hybridization_state"]
-    #     + features["ring_size"]
-    #     + features["aromaticity"]
-    #     + features["degree"]
-    # )
 
     features = {
         "SybylType": [Chem.getSybylType(atom)],
@@ -423,8 +312,6 @@ def load_mol_input(dir: str, labels: bool, indices: List[int]) -> Tuple[List[nx.
                 mol, False, False
             )  # calculate MMFF94 atom charges (tolerant mode) set corresponding property for all atoms
 
-            # Chem.makeHydrogenDeplete(mol)  # remove explicit hydrogens
-
             Chem.perceiveComponents(mol, True)
 
             G = mol_to_nx_CDPKit(Chem.getName(mol), mol, soms)
@@ -463,7 +350,6 @@ def mol_to_nx_CDPKit(mol_id: int, mol: CDPKitMol, soms: List[int]) -> nx.Graph:
             # predicted labels but are of course not used as features!
             mol_id=int(mol_id),
             atom_id=int(atom_idx),
-            # coordinates = torch.tensor(Chem.get3DCoordinates(atom))
         )
     for bond in mol.getBonds():
         G.add_edge(
@@ -560,8 +446,6 @@ def generate_mol_features_RDKit(mol: RDKitMol) -> List[float]:
         rdMolDescriptors.CalcNumRotatableBonds(mol),
         rdMolDescriptors.CalcNumAmideBonds(mol),
     ]
-    # return np.array(AllChem.GetMorganFingerprintAsBitVect(mol, useChirality=False, radius=2, nBits = 2048))
-    # return np.array(MACCSkeys.GenMACCSKeys(mol))
 
 
 def generate_node_features_RDKit(atom: RDKitAtom) -> List[float]:
@@ -599,7 +483,7 @@ def mol_to_nx_RDKit(mol_id: int, mol: RDKitMol, soms: list[int]) -> nx.Graph:
         G.add_node(
             atom_idx,  # node identifier
             node_features=generate_node_features_RDKit(atom),
-            mol_features=generate_mol_features_RDKit(mol),
+            mol_features=generate_mol_features_RDKit(mol),  # the molecular features are generated by default and are used, or not, depending on the model architecture
             smiles=MolToSmiles(mol),
             is_som=(atom_idx in soms),  # label
             # the next two elements are later used to assign the
