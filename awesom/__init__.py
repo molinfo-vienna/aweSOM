@@ -12,7 +12,6 @@ from .models import (
     M11,
     M12,
 )
-from .stochastic_loss import StochasticLoss
 
 __all__ = [
     "LabeledData",
@@ -27,7 +26,6 @@ __all__ = [
     "M11",
     "M12",
     "SOM",
-    "StochasticLoss",
     "TestLogger",
     "UnlabeledData",
     "ValidationLogger",

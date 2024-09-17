@@ -42,18 +42,6 @@ class BaseMetrics:
 
     @classmethod
     def compute_uncertainties(cls, y_probs, y_probs_avg):
-        # # Steffen
-        # u_ale = torch.mean(
-        #     y_probs * (1 - y_probs), dim=0
-        # )  # aleatoric uncertainty
-        # u_epi = torch.mean(
-        #     y_probs**2 - y_probs_avg**2, dim=0
-        # )  # epistemic uncertainty
-        # u_tot = (
-        #     u_ale + u_epi
-        # )
-
-        # Mukhoti et al. and Smith and Gal
         u_tot = cls.compute_shannon_entropy(
             y_probs_avg
         )  # entropy of the BMA (a.k.a. predictive entropy)
@@ -61,11 +49,6 @@ class BaseMetrics:
             cls.compute_shannon_entropy(y_probs), dim=0
         )  # expected shannon entropy of the predictions given the parameters over the posterior distribution
         u_epi = u_tot - u_ale  # mutual information (a.k.a. expected information gain)
-
-        # Map uncertainties to uncertainty scores
-        # u_tot = cls.compute_uncertainty_score(y_probs_avg)
-        # u_ale = torch.mean(cls.compute_uncertainty_score(y_probs), dim=0)
-        # u_epi = u_tot - u_ale
 
         return u_ale, u_epi, u_tot
 
