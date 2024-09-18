@@ -94,7 +94,7 @@ def main():
             val_loader = DataLoader(
                 val_data,
                 batch_size=BATCH_SIZE,
-                shuffle=True,
+                shuffle=False,
                 num_workers=cpu_count(),
                 persistent_workers=True,
             )
@@ -250,7 +250,7 @@ if __name__ == "__main__":
         "--numberOptunaTrials",
         type=int,
         required=True,
-        default=50,
+        default=20,
         help="The number of Optuna trials.",
     )
 

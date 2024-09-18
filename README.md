@@ -42,11 +42,11 @@ A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (So
 
 ```NUM_FOLDS```: The number of cross-validation folds. Default is ```10```.
 
-```NUM_TRIALS```: The number of Optuna trials. Default is ```50```.
+```NUM_TRIALS```: The number of Optuna trials. Default is ```20```.
 
 Example:
 
-```python scripts/cv_hp_search.py -i /data/train -o output/M7 -m M7 -e 1000 -n 10 -t 50```
+```python scripts/cv_hp_search.py -i /data/train -o output/M7 -m M7 -e 1000 -n 10 -t 20```
 
 #### Model Training
 

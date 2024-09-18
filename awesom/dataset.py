@@ -75,7 +75,7 @@ class SOM(InMemoryDataset):
             df["soms"] = "[]"
             df["soms"] = df["soms"].map(literal_eval)
 
-            G = generate_preprocessed_data_RDKit(df, min(len(df), cpu_count()))
+        G = generate_preprocessed_data_RDKit(df, min(len(df), cpu_count()))
 
         return self.create_data_list(G)
 
