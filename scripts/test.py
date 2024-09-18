@@ -10,7 +10,7 @@ from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
-from awesom.dataset import LabeledData
+from awesom.dataset import LabeledData, UnlabeledData   
 from awesom.lightning_modules import GNN
 from awesom.metrics_utils import TestLogger
 
@@ -24,7 +24,12 @@ def main():
     torch.set_float32_matmul_precision("medium")
 
     # Load data
-    data = LabeledData(root=args.inputPath, transform=T.ToUndirected())
+    if args.mode == "test":
+        data = LabeledData(root=args.inputPath, transform=T.ToUndirected())
+    elif args.mode == "infer":
+        data = UnlabeledData(root=args.inputPath, transform=T.ToUndirected())
+    else:
+        raise ValueError("The mode must be either 'test' or 'infer'.")
     print(f"Number of molecules: {len(data)}")
 
     # Load ensemble's checkpoints
