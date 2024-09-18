@@ -1,0 +1,10 @@
+architecture: M7
+hyperparams:
+  learning_rate: 2.627515790872161e-05
+  mode: cvhpsearch
+  num_conv_layers: 2
+  size_conv_layers: 363
+  size_final_mlp_layers: 384
+params:
+  num_edge_features: 7
+  num_node_features: 12
