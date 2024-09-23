@@ -63,8 +63,6 @@ class M1(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            if self.mode == "mcdropout":
-                x = F.dropout(x, p=0.3, training=True)
 
         # Classification
         x = self.classifier(x)
@@ -140,8 +138,6 @@ class M2(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            if self.mode == "mcdropout":
-                x = F.dropout(x, p=0.3, training=True)
 
         # Classification
         x = self.classifier(x)
@@ -217,8 +213,6 @@ class M3(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            if self.mode == "mcdropout":
-                x = F.dropout(x, p=0.3, training=True)
 
         # Classification
         x = self.classifier(x)
@@ -292,8 +286,6 @@ class M4(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            if self.mode == "mcdropout":
-                x = F.dropout(x, p=0.3, training=True)
 
         # Classification
         x = self.classifier(x)
@@ -313,6 +305,78 @@ class M4(torch.nn.Module):
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
             max_degree=max_degree,
+            size_final_mlp_layers=size_final_mlp_layers,
+        )
+
+        return hyperparams
+
+
+class M5(torch.nn.Module):
+    """The chebyshev spectral graph convolutional operator from the
+    “Convolutional Neural Networks on Graphs with Fast Localized Spectral Filtering” paper.
+    https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.ChebConv.html
+    """
+
+    def __init__(self, params, hyperparams) -> None:
+        super(M5, self).__init__()
+
+        self.mode = hyperparams["mode"]
+
+        self.conv = torch.nn.ModuleList()
+        self.batch_norm = torch.nn.ModuleList()
+
+        in_channels = params["num_node_features"]
+        out_channels = hyperparams["size_conv_layers"]
+
+        for _ in range(hyperparams["num_conv_layers"]):
+            self.conv.append(
+                ChebConv(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    K=hyperparams["filter_size"],
+                )
+            )
+            in_channels = out_channels
+            self.batch_norm.append(BatchNorm(in_channels))
+
+        mid_channels = hyperparams["size_final_mlp_layers"]
+        self.classifier = torch.nn.Sequential(
+            torch.nn.Linear(in_channels, mid_channels),
+            BatchNorm(mid_channels),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(mid_channels, 1),
+        )
+
+    def forward(
+        self,
+        data: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+    ) -> torch.Tensor:
+        # Convolutions
+        x = data.x
+        for i, (conv, batch_norm) in enumerate(zip(self.conv, self.batch_norm)):
+            x = conv(x, data.edge_index)
+            if i != len(self.conv) - 1:
+                x = batch_norm(x)
+                x = F.leaky_relu(x)
+
+        # Classification
+        x = self.classifier(x)
+
+        return torch.flatten(x)
+    
+    @classmethod
+    def get_params(self, trial):
+        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
+        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+        filter_size = trial.suggest_int("filter_size", 1, 10)
+        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
+
+        hyperparams = dict(
+            learning_rate=learning_rate,
+            num_conv_layers=num_conv_layers,
+            size_conv_layers=size_conv_layers,
+            filter_size=filter_size,
             size_final_mlp_layers=size_final_mlp_layers,
         )
 
@@ -372,8 +436,6 @@ class M7(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
                 x = F.leaky_relu(x)
-            if self.mode == "mcdropout":
-                x = F.dropout(x, p=0.3, training=True)
 
         # Pooling for context
         x_pool = global_add_pool(x, data.batch)
@@ -463,8 +525,6 @@ class M9(torch.nn.Module):
             if i != len(self.conv) - 1:
                 x_atom = batch_norm(x_atom)
                 x_atom = F.leaky_relu(x_atom)
-            if self.mode == "mcdropout":
-                x_atom = F.dropout(x_atom, p=0.3, training=True)
 
         # Normalize molecular features
         x_mol = self.norm_mol_x(data.mol_x)
@@ -551,8 +611,6 @@ class M11(torch.nn.Module):
                 h_act = self.activation(h_norm)
                 h_prime = conv(h_act, data.edge_index, data.edge_attr)
             h = torch.cat((h, h_prime), dim=1)
-            if self.mode == "mcdropout":
-                h_prime = F.dropout(h_prime, p=0.3, training=True)
 
         # Classification
         x = self.classifier(h)
@@ -633,8 +691,6 @@ class M12(torch.nn.Module):
                 h_act = self.activation(h_norm)
                 h_prime = conv(h_act, data.edge_index, data.edge_attr)
                 h = torch.add(h, h_prime)
-            if self.mode == "mcdropout":
-                h = F.dropout(h, p=0.3, training=True)
 
         # Classification
         x = self.classifier(h)

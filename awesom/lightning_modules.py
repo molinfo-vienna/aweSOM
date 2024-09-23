@@ -3,13 +3,14 @@ import torch
 from lightning import LightningModule
 from torchmetrics import AUROC, MatthewsCorrCoef
 
-from awesom.models import M1, M2, M3, M4, M7, M9, M11, M12
+from awesom.models import M1, M2, M3, M4, M5, M7, M9, M11, M12
 
 MODELS = {
     "M1": M1,
     "M2": M2,
     "M3": M3,
     "M4": M4,
+    "M5": M5,
     "M7": M7,
     "M9": M9,
     "M11": M11,
