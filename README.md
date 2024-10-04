@@ -80,7 +80,7 @@ To predict the SoMs of one or multiple *labeled* molecules and output the predic
 
 Example:
 
-```python scripts/infer.py -i data/test -c output/M7/ensemble/ -o output/M7/test -m test```
+```python scripts/infer.py -i data/test -c output/M7/ensemble -o output/M7/test -m test```
 
 #### Inference (predicting SoMs for unlabeled data)
 
@@ -96,7 +96,7 @@ To predict the SoMs of one or multiple *unlabeled* molecules and output the pred
 
 Example:
 
-```python scripts/infer.py -i data/abemaciclib -c output/M7/ensemble/ -o output/M7/abemaciclib -m infer```
+```python scripts/test.py -i data/abemaciclib -c output/M7/ensemble -o output/M7/abemaciclib -m infer```
 
 ### License
 
