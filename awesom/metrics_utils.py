@@ -27,7 +27,7 @@ class BaseMetrics:
                 )
                 for mid in list(
                     dict.fromkeys(mol_id.tolist())
-                )  # This is a somewhat complicated way to get an ordered set, but it works...
+                )  # Get an ordered set
             ]
         )
         return ranking
@@ -44,7 +44,7 @@ class BaseMetrics:
     def compute_uncertainties(cls, y_probs, y_probs_avg):
         u_tot = cls.compute_shannon_entropy(
             y_probs_avg
-        )  # entropy of the BMA (a.k.a. predictive entropy)
+        )  # entropy of the Bayesian model average (a.k.a. predictive entropy)
         u_ale = torch.mean(
             cls.compute_shannon_entropy(y_probs), dim=0
         )  # expected shannon entropy of the predictions given the parameters over the posterior distribution
