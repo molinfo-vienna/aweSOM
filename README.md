@@ -17,7 +17,7 @@ A GNN model for the prediction of sites of metabolism (SOMs) in xenobiotics.
 
 2. Create a conda environment with the required dependencies:
 
-```conda env create --name awesom-env python=3.10```
+```conda create --name awesom-env python=3.10```
 
 3. Activate the environment:
 
