@@ -5,6 +5,7 @@ import yaml
 
 from datetime import datetime
 from lightning import Trainer, seed_everything
+from multiprocessing import cpu_count
 from pathlib import Path
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
@@ -74,7 +75,11 @@ def main():
         # Predict SoMs
         trainer = Trainer(accelerator="auto", logger=False)
         logits, y_true, mol_id, atom_id = trainer.predict(
-            model=model, dataloaders=DataLoader(data, batch_size=len(data))
+            model=model, dataloaders=DataLoader(data, 
+                                                batch_size=len(data),
+                                                shuffle=False,
+                                                num_workers=cpu_count(),
+                                                persistent_workers=True,)
         )[0]
 
         if i == 0:
