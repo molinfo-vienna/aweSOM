@@ -5,7 +5,7 @@ aweSOM
 [![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main)
 
 
-A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (SoMs) in small organic molecules.
+A GNN model for the prediction of sites of metabolism (SOMs) in xenobiotics.
 
 ### Installation
 
@@ -37,6 +37,15 @@ A Graph Neural Network (GNN) model for the prediction of Sites of Metabolism (So
 ```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file. The individual validation metrics of each fold will be stored in a CSV file. The best model's checkpoints will be stored in a directory. The averaged predictions made with the best hyp.erparameters will be stored in a text file
 
 ```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M3```, ```M4```, ```M7```, ```M9```, ```M11```, ```M12```.  Default is ```M7```.
+
+* ```M1```: GINConv (https://pytorch-geometric.readthedocs.io/en/2.4.0/generated/torch_geometric.nn.conv.GINConv.html)
+* ```M2```: GINEConv (https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html)
+* ```M3```: GATv2Conv (https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html#torch_geometric.nn.conv.GATv2Conv)
+* ```M4```: MFConv (https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv)
+* ```M7```: GINEConv + context pooling. This architecture led to the best results on the validation set and was used in the final model.
+* ```M9```: GINEConv + molecular features
+* ```M11```: GINEConv + DenseNet-inspired skip connections
+* ```M12```: GINEConv + ResNet inspired skip connections
 
 ```EPOCHS```: The maximum number of training epochs. Default is ```1000```.
 
