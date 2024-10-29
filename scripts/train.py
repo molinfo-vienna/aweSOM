@@ -58,8 +58,6 @@ def main():
             val_data,
             batch_size=BATCH_SIZE,
             shuffle=False,
-            num_workers=cpu_count(),
-            persistent_workers=True,
         )
 
         # Load model
