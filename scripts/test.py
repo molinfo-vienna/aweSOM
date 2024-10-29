@@ -77,9 +77,7 @@ def main():
         logits, y_true, mol_id, atom_id = trainer.predict(
             model=model, dataloaders=DataLoader(data, 
                                                 batch_size=len(data),
-                                                shuffle=False,
-                                                num_workers=cpu_count(),
-                                                persistent_workers=True,)
+                                                shuffle=False,)
         )[0]
 
         if i == 0:

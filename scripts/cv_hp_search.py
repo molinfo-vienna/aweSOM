@@ -88,15 +88,11 @@ def main():
                 train_data,
                 batch_size=BATCH_SIZE,
                 shuffle=True,
-                num_workers=cpu_count(),
-                persistent_workers=True,
             )
             val_loader = DataLoader(
                 val_data,
                 batch_size=BATCH_SIZE,
                 shuffle=False,
-                num_workers=cpu_count(),
-                persistent_workers=True,
             )
 
             tbl = TensorBoardLogger(
