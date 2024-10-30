@@ -1,4 +1,4 @@
-from .dataset import SOM, LabeledData, UnlabeledData
+from .create_dataset import SOM, LabeledData, UnlabeledData
 from .lightning_modules import GNN
 from .metrics_utils import ValidationLogger, TestLogger
 from .models import (
