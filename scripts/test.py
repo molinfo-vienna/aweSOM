@@ -34,10 +34,6 @@ def main():
 
     # Load ensemble's checkpoints
     checkpoints_path = Path(args.checkpointsPath, "lightning_logs")
-    # version_paths = [
-    #     Path(checkpoints_path, f"version_{i}")
-    #     for i, _ in enumerate(os.listdir(checkpoints_path))
-    # ]
     version_paths = sorted(
             [
                 Path(checkpoints_path, item)

@@ -67,8 +67,8 @@ class SOM(InMemoryDataset):
                 print(
                     f"Warning: {len(df_out)} entries have no SoMs and will be removed from the dataset."
                 )
-                for i in df_out["ID"]:
-                    print(f"Entry {i} has no SoMs.")
+                for id in df_out["ID"]:
+                    print(f"Entry {id} has no SoMs.")
             df = df[df["soms"].map(len) > 0]
         else:
             # If there is no SoM information, create an empty list for each entry
@@ -109,12 +109,6 @@ class SOM(InMemoryDataset):
         #     current_node = G.nodes[i]
         #     mol_features[i, :] = current_node["mol_features"]
         # mol_features = torch.from_numpy(mol_features).to(torch.float)
-
-        # # Generates molecular unimol embedding
-        # # (512 dimensional embedding that is supposed to capture the 3D molecular structure)
-        # clf = UniMolRepr(data_type='molecule', remove_hs=False)
-        # smiles_lst = [G.nodes[i]["smiles"] for i in range(num_nodes)]
-        # mol_features = torch.tensor(clf.get_repr(smiles_lst, return_atomic_reprs=False)['cls_repr']).to(torch.float)
 
         data_list = []
 
