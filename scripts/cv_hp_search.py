@@ -2,6 +2,7 @@ import argparse
 import optuna
 import os
 import torch
+import warnings
 
 from datetime import datetime
 from lightning import seed_everything as lightning_seed_everything
@@ -10,7 +11,6 @@ from pytorch_lightning.core.saving import save_hparams_to_yaml
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
-from multiprocessing import cpu_count
 from operator import itemgetter
 from pathlib import Path
 from sklearn.model_selection import KFold
@@ -19,7 +19,7 @@ from torch_geometric import transforms as T
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric.loader import DataLoader
 
-from awesom.dataset import SOM
+from awesom.create_dataset import SOM
 from awesom.lightning_modules import GNN
 from awesom.models import (
     M1,
@@ -32,6 +32,8 @@ from awesom.models import (
     M12,
 )
 from awesom.metrics_utils import ValidationLogger
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
 MODELS = {

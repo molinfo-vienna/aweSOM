@@ -2,6 +2,7 @@ import argparse
 import random
 import torch
 import yaml
+import warnings
 
 from datetime import datetime
 from lightning import seed_everything as lightning_seed_everything
@@ -10,14 +11,15 @@ from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from pathlib import Path
-from multiprocessing import cpu_count
 from sklearn.model_selection import train_test_split
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
-from awesom.dataset import SOM
+from awesom.create_dataset import SOM
 from awesom.lightning_modules import GNN
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 BATCH_SIZE = 32
 ENSEMBLE_SIZE = 50
@@ -51,8 +53,6 @@ def main():
             train_data,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            num_workers=cpu_count(),
-            persistent_workers=True,
         )
         val_loader = DataLoader(
             val_data,

@@ -2,6 +2,7 @@ import argparse
 import os
 import torch
 import yaml
+import warnings
 
 from datetime import datetime
 from lightning import Trainer, seed_everything
@@ -10,9 +11,11 @@ from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
-from awesom.dataset import LabeledData, UnlabeledData   
+from awesom.create_dataset import LabeledData, UnlabeledData   
 from awesom.lightning_modules import GNN
 from awesom.metrics_utils import TestLogger
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
 def main():
