@@ -5,7 +5,6 @@ import yaml
 
 from datetime import datetime
 from lightning import Trainer, seed_everything
-from multiprocessing import cpu_count
 from pathlib import Path
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
@@ -35,10 +34,18 @@ def main():
 
     # Load ensemble's checkpoints
     checkpoints_path = Path(args.checkpointsPath, "lightning_logs")
-    version_paths = [
-        Path(checkpoints_path, f"version_{i}")
-        for i, _ in enumerate(os.listdir(checkpoints_path))
-    ]
+    # version_paths = [
+    #     Path(checkpoints_path, f"version_{i}")
+    #     for i, _ in enumerate(os.listdir(checkpoints_path))
+    # ]
+    version_paths = sorted(
+            [
+                Path(checkpoints_path, item)
+                for item in os.listdir(checkpoints_path)
+                if item.startswith("version_")
+            ],
+            key=lambda x: int(x.stem.split("_")[1]),
+        )
 
     # Initialize empty prediction tensors
     mol_id_ensemble = torch.empty(
