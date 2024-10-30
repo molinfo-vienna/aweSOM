@@ -15,7 +15,7 @@ A GNN model for the prediction of sites of metabolism (SOMs) in xenobiotics.
 
 ```cd aweSOM```
 
-2. Create a conda environment with the required dependencies:
+2. Create a conda environment with the required python version:
 
 ```conda create --name awesom-env python=3.10```
 
@@ -97,7 +97,7 @@ To predict the SoMs of one or multiple *unlabeled* molecules and output the pred
 
 ```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m infer```
 
-```INPUT_PATH```: The path to the input data. For inference, both .sdf and .smi files and are currently supported. Please and place your data into a subfolder named ```raw/```. Example: the data input path is ```data/fipronil/raw/data.smi```, so ```INPUT_PATH``` should be ```data/fipronil```. Running any script (cv_hp_search.py, train.py, test.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
+```INPUT_PATH```: The path to the input data. For inference, both .sdf and .smi files and are currently supported. Please and place your data into a subfolder named ```raw/```. Example: the data input path is ```data/abemaciclib/raw/data.smi```, so ```INPUT_PATH``` should be ```data/abemaciclib```. Running any script (cv_hp_search.py, train.py, test.py) for the first time will create a processed version of the data and place into ```INPUT_PATH/processed``` directory. If such directory already exists, then the already processed data is used. Note that this processed data is not updated with every run. If you wish to modify the input data for which processed data already exists, delete the processed folder prior to reruning your experiments!
 
 ```CHECKPOINTS_PATH```: The path to the trained ensemble model's checkpoints.
 
