@@ -1,37 +1,30 @@
 import argparse
-import optuna
 import os
-import torch
 import warnings
-
 from datetime import datetime
-from lightning import seed_everything as lightning_seed_everything
-from lightning import Trainer
-from pytorch_lightning.core.saving import save_hparams_to_yaml
-from lightning.pytorch.callbacks.early_stopping import EarlyStopping
-from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
-from lightning.pytorch.callbacks import ModelCheckpoint
 from operator import itemgetter
 from pathlib import Path
-from sklearn.model_selection import KFold
 from statistics import mean
-from torch_geometric import transforms as T
+from typing import Tuple
+
+import optuna
+import torch
+from lightning import Trainer
+from lightning import seed_everything as lightning_seed_everything
+from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
+from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
+from pytorch_lightning.core.saving import save_hparams_to_yaml
+from sklearn.model_selection import KFold
 from torch_geometric import seed_everything as geometric_seed_everything
+from torch_geometric import transforms as T
+from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
 from awesom.lightning_modules import GNN
-from awesom.models import (
-    M1,
-    M2,
-    M3,
-    M4,
-    M7,
-    M9,
-    M11,
-    M12,
-)
 from awesom.metrics_utils import ValidationLogger
+from awesom.models import M1, M2, M3, M4, M7, M9, M11, M12
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -50,20 +43,33 @@ MODELS = {
 BATCH_SIZE = 32
 
 
-def main():
-    torch.manual_seed(42)
-    lightning_seed_everything(42)
-    geometric_seed_everything(42)
+def set_seeds(seed: int = 42) -> None:
+    """Set all random seeds for reproducibility."""
+    torch.manual_seed(seed)
+    lightning_seed_everything(seed)
+    geometric_seed_everything(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
+
+
+def prepare_data_loaders(
+    train_data: Dataset, val_data: Dataset
+) -> Tuple[DataLoader, DataLoader]:
+    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=False)
+    return train_loader, val_loader
+
+
+def main():
+    set_seeds()
 
     data = SOM(root=args.inputPath, transform=T.ToUndirected()).shuffle()
 
     data_params = dict(
         num_node_features=data.num_node_features,
         num_edge_features=data.num_edge_features,
-        # num_mol_features=data.mol_x.shape[1],  # uncomment if using M9
+        # num_mol_features=data.mol_x.shape[1],
     )
 
     def objective(trial):
@@ -86,16 +92,7 @@ def main():
                 architecture=args.model,
             )
 
-            train_loader = DataLoader(
-                train_data,
-                batch_size=BATCH_SIZE,
-                shuffle=True,
-            )
-            val_loader = DataLoader(
-                val_data,
-                batch_size=BATCH_SIZE,
-                shuffle=False,
-            )
+            train_loader, val_loader = prepare_data_loaders(train_data, val_data)
 
             tbl = TensorBoardLogger(
                 save_dir=Path(args.outputPath, "logs"),
@@ -206,14 +203,14 @@ if __name__ == "__main__":
         "--inputPath",
         type=str,
         required=True,
-        help="The path to the input data.",
+        help="Folder holding the input data.",
     )
     parser.add_argument(
         "-o",
         "--outputPath",
         type=str,
         required=True,
-        help="The desired output's location. \
+        help="Folder to which the output will be written. \
             The best hyperparameters will be stored in a YAML file. \
                 The individual validation metrics of each fold will be stored in a CSV file. \
                     The best model's checkpoints will be stored in a directory. \
@@ -225,7 +222,7 @@ if __name__ == "__main__":
         type=str,
         required=True,
         default="M7",
-        help="The desired model architecture.",
+        help="Model architecture.",
     )
     parser.add_argument(
         "-e",
@@ -233,7 +230,7 @@ if __name__ == "__main__":
         type=int,
         required=True,
         default=1000,
-        help="The maximum number of training epochs.",
+        help="Maximum number of training epochs.",
     )
     parser.add_argument(
         "-n",
@@ -241,7 +238,7 @@ if __name__ == "__main__":
         type=int,
         required=True,
         default=10,
-        help="The number of cross-validation folds.",
+        help="Number of cross-validation folds.",
     )
     parser.add_argument(
         "-t",
@@ -249,7 +246,7 @@ if __name__ == "__main__":
         type=int,
         required=True,
         default=20,
-        help="The number of Optuna trials.",
+        help="Number of optuna trials.",
     )
 
     args = parser.parse_args()

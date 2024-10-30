@@ -1,5 +1,4 @@
 import torch
-
 from lightning import LightningModule
 from torchmetrics import AUROC, MatthewsCorrCoef
 

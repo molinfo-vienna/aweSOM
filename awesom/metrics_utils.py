@@ -1,11 +1,12 @@
 import csv
-import matplotlib.pyplot as plt
 import os
-import torch
-from torchmetrics import MatthewsCorrCoef, AUROC
-from torchmetrics.classification import BinaryPrecision, BinaryRecall
 from statistics import mean, stdev
+
+import matplotlib.pyplot as plt
+import torch
 from sklearn.metrics import RocCurveDisplay
+from torchmetrics import AUROC, MatthewsCorrCoef
+from torchmetrics.classification import BinaryPrecision, BinaryRecall
 
 NUM_BOOTSTRAPS = 1000
 THRESHOLD = 0.5
@@ -25,9 +26,7 @@ class BaseMetrics:
                     dim=0,
                     descending=False,
                 )
-                for mid in list(
-                    dict.fromkeys(mol_id.tolist())
-                )  # Get an ordered set
+                for mid in list(dict.fromkeys(mol_id.tolist()))  # Get an ordered set
             ]
         )
         return ranking
