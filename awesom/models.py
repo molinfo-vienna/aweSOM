@@ -1,15 +1,9 @@
+from typing import Tuple, Union
+
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import (
-    BatchNorm,
-    GATv2Conv,
-    GINConv,
-    GINEConv,
-    MFConv,
-    ChebConv,
-    global_add_pool,
-)
-from typing import Tuple, Union
+from torch_geometric.nn import (BatchNorm, ChebConv, GATv2Conv, GINConv,
+                                GINEConv, MFConv, global_add_pool)
 
 
 class M1(torch.nn.Module):

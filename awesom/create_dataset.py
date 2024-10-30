@@ -1,14 +1,14 @@
-import numpy as np
 import os
-import pandas as pd
 import shutil
-import torch
-
 from ast import literal_eval
 from multiprocessing import cpu_count
-from rdkit.Chem import PandasTools
-from torch_geometric.data import InMemoryDataset, Data
 from typing import List, Optional
+
+import numpy as np
+import pandas as pd
+import torch
+from rdkit.Chem import PandasTools
+from torch_geometric.data import Data, InMemoryDataset
 
 from awesom.dataset_utils import generate_preprocessed_data
 
@@ -24,7 +24,7 @@ class SOM(InMemoryDataset):
         if os.path.exists(processed_folder):
             shutil.rmtree(processed_folder)
             print(f"Deleted existing processed folder at: {processed_folder}")
-        
+
         # Call the superclass constructor
         super().__init__(root, transform, pre_transform, pre_filter)
 
@@ -106,7 +106,7 @@ class SOM(InMemoryDataset):
 
         node_features = torch.tensor(
             [G.nodes[i]["node_features"] for i in range(len(G.nodes))],
-            dtype=torch.float,
+            dtype=torch.float32,
         )
 
         # # Compute mol features matrix

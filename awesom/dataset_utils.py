@@ -1,15 +1,13 @@
 from __future__ import annotations
+
+from multiprocessing import Pool
+from typing import Any, List
+
 import networkx as nx
 import numpy as np
 import pandas as pd
-
-from multiprocessing import Pool
-from rdkit.Chem import Mol
-from rdkit.Chem.rdchem import Atom
-from rdkit.Chem.rdchem import Bond
-from rdkit.Chem import MolToSmiles, rdMolDescriptors
-from typing import Any, List
-
+from rdkit.Chem import Mol, MolToSmiles, rdMolDescriptors
+from rdkit.Chem.rdchem import Atom, Bond
 
 ELEM_LIST = [
     5,
