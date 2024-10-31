@@ -63,8 +63,8 @@ class SOM(InMemoryDataset):
 
         # Load data from the file
         if file_extension == ".sdf":
-            # Load the SD-File without removing the hydrogens.
-            # The hydrogens are removed later in the process,
+            # Load the SD-File without removing the hydrogen atoms.
+            # Hydrogens are removed later in the process,
             # by taking care of re-assigning the correct SOM-atom indices.
             df = PandasTools.LoadSDF(input_file, removeHs=False)
         elif file_extension == ".smi" or file_extension == ".smiles":
@@ -74,7 +74,7 @@ class SOM(InMemoryDataset):
             raise NotImplementedError(f"Invalid file extension: {file_extension}")
 
         # Set an ID column if not already present
-        df["ID"] = df.get("ID", df.index)
+        df["ID"] = df.get("ID", df.index).astype(str)
 
         # Process SoM information based on the presence of labels
         if labels:
@@ -89,13 +89,16 @@ class SOM(InMemoryDataset):
                     print(f"Entry with ID {mol_id} has no SoMs.")
 
             # Filter out entries without SoMs
-            df = df[df["soms"].map(len) > 0]
+            df = df[df["soms"].map(len) > 0].reset_index(drop=True)
         else:
             # If no SoM info is available, initialize empty lists for each molecule
             df["soms"] = [[] for _ in range(len(df))]
 
         # Remove implicit hydrogens
         df[['ROMol', 'soms']] = df.apply(remove_implicit_Hs, axis=1, result_type='expand')
+
+        # Set a numerical (integer) mol_id for each molecule
+        df["mol_id"] = df.index
 
         # Generate preprocessed data
         G = generate_preprocessed_data(df, min(len(df), cpu_count()))
@@ -112,7 +115,7 @@ class SOM(InMemoryDataset):
         labels = torch.tensor(
             [int(G.nodes[i]["is_som"]) for i in range(len(G.nodes))], dtype=torch.int32
         )
-
+        ids = [G.nodes[i]["id"] for i in range(len(G.nodes))]
         node_features = torch.tensor(
             [G.nodes[i]["node_features"] for i in range(len(G.nodes))],
             dtype=torch.float32,
@@ -143,9 +146,11 @@ class SOM(InMemoryDataset):
                     edge_attr=edge_attr,
                     # mol_x=mol_features[mask],
                     y=labels[mask],
-                    mol_id=torch.full((labels[mask].size(0),), mol_id),
+                    mol_id=mol_id,
                     atom_id=atom_ids[mask],
                 )
+
+                data.description = [d for d, m in zip(ids, mask) if m][0]
 
                 data_list.append(data)
 

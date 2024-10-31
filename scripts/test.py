@@ -14,7 +14,7 @@ from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import LabeledData, UnlabeledData
-from awesom.lightning_modules import GNN
+from awesom.lightning_module import GNN
 from awesom.metrics_utils import TestLogger
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -63,18 +63,16 @@ def load_model_from_checkpoint(checkpoint_path: Path) -> GNN:
 
 def predict_with_ensemble(data, version_paths: List[Path]) -> tuple:
     """Run predictions for each model checkpoint in the ensemble."""
-    num_samples = len(data)
+    num_molecules = len(data)
     num_atoms = data.x.size(0)
     num_models = len(version_paths)
     device = torch.device("cpu")
 
-    mol_id_ensemble = torch.empty(num_atoms, dtype=torch.int32, device=device)
-    atom_id_ensemble = torch.empty(num_atoms, dtype=torch.int32, device=device)
-    y_true_ensemble = torch.empty(num_atoms, dtype=torch.int32, device=device)
-    logits_ensemble = torch.empty(
-        (num_models, num_atoms), dtype=torch.float32, device=device
-    )
-
+    logits_ensemble = torch.empty((num_models, num_atoms), dtype=torch.float32, device=device)
+    y_trues = torch.empty(num_atoms, dtype=torch.int32, device=device)
+    mol_ids = torch.empty(num_molecules, dtype=torch.int32, device=device)
+    atom_ids = torch.empty(num_atoms, dtype=torch.int32, device=device)
+    
     for i, version_path in enumerate(version_paths):
         checkpoint_files = list(Path(version_path, "checkpoints").glob("*.ckpt"))
         if not checkpoint_files:
@@ -85,18 +83,19 @@ def predict_with_ensemble(data, version_paths: List[Path]) -> tuple:
         trainer = Trainer(accelerator="auto", logger=False)
         prediction = trainer.predict(
             model=model,
-            dataloaders=DataLoader(data, batch_size=num_samples, shuffle=False),
+            dataloaders=DataLoader(data, batch_size=num_molecules, shuffle=False),
         )[0]
 
-        logits, y_true, mol_id, atom_id = prediction
+        logits, y_true, mol_id, atom_id, description = prediction
 
-        if i == 0:
-            mol_id_ensemble.copy_(mol_id)
-            atom_id_ensemble.copy_(atom_id)
-            y_true_ensemble.copy_(y_true)
         logits_ensemble[i] = logits
+        if i == 0:
+            y_trues.copy_(y_true)
+            mol_ids.copy_(mol_id)
+            atom_ids.copy_(atom_id)
+        
 
-    return mol_id_ensemble, atom_id_ensemble, y_true_ensemble, logits_ensemble
+    return logits_ensemble, y_trues, mol_ids, atom_ids, description
 
 
 def main():
@@ -110,18 +109,20 @@ def main():
     version_paths = find_checkpoints(args.checkpointsPath)
     # Ensemble Prediction
     (
-        mol_id_ensemble,
-        atom_id_ensemble,
-        y_true_ensemble,
         logits_ensemble,
+        y_trues,
+        mol_ids,
+        atom_ids,
+        descriptions,
     ) = predict_with_ensemble(data, version_paths)
 
     # Compute and log test results
     TestLogger.compute_and_log_test_results(
-        mol_id_ensemble,
-        atom_id_ensemble,
-        y_true_ensemble,
         logits_ensemble,
+        y_trues,
+        mol_ids,
+        atom_ids,
+        descriptions,
         args.outputPath,
         args.mode,
     )

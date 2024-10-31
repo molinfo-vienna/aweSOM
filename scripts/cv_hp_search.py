@@ -22,7 +22,7 @@ from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
-from awesom.lightning_modules import GNN
+from awesom.lightning_module import GNN
 from awesom.metrics_utils import ValidationLogger
 from awesom.models import M1, M2, M3, M4, M7, M9, M11, M12
 

@@ -77,25 +77,26 @@ def generate_node_features(atom: Atom) -> List[float]:
     return _one_hot_encode(atom.GetAtomicNum(), ELEM_LIST)
 
 
-def mol_to_nx(mol_id: int, mol: Mol, soms: List[int]) -> nx.Graph:
+def mol_to_nx(mol_id: int, mol: Mol, soms: List[int], id: str) -> nx.Graph:
     """Converts a molecule (Mol) to a NetworkX graph with node and edge attributes."""
     G = nx.Graph()
 
     # Add nodes (atoms) to graph
     # mol_features = generate_mol_features(mol)
-    for atom_idx in range(mol.GetNumAtoms()):
-        atom = mol.GetAtomWithIdx(atom_idx)
+    for atom in mol.GetAtoms():
+        atom_id = atom.GetIdx()
         G.add_node(
-            atom_idx,
+            atom_id,
             node_features=generate_node_features(atom),
             # mol_features=mol_features,
             smiles=MolToSmiles(mol),
-            is_som=(atom_idx in soms),
+            is_som=(atom_id in soms),
             # The next two elements are only used later to assign
             # the predictions to the rights atoms.
             # They are **not** used a features.
-            mol_id=int(mol_id),
-            atom_id=int(atom_idx),
+            mol_id=mol_id,
+            atom_id=atom_id,
+            id=id,
         )
 
     # Add edges (bonds) to graph
@@ -112,7 +113,7 @@ def mol_to_nx(mol_id: int, mol: Mol, soms: List[int]) -> nx.Graph:
 
 def process_data_chunk(df_chunk: pd.DataFrame) -> nx.Graph:
     """Processes a chunk of data to generate molecular subgraphs."""
-    df_chunk["G"] = df_chunk.apply(lambda x: mol_to_nx(x.ID, x.ROMol, x.soms), axis=1)
+    df_chunk["G"] = df_chunk.apply(lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms, x.ID), axis=1)
     return nx.disjoint_union_all(df_chunk["G"].to_list())
 
 

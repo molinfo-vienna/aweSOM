@@ -140,4 +140,4 @@ class GNN(LightningModule):
 
     def predict_step(self, batch, batch_idx):
         logits = self.model(batch)
-        return logits, batch.y, batch.mol_id, batch.atom_id
+        return logits, batch.y, batch.mol_id, batch.atom_id, batch.description

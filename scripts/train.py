@@ -19,7 +19,7 @@ from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
-from awesom.lightning_modules import GNN
+from awesom.lightning_module import GNN
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
