@@ -12,9 +12,7 @@ from torch_geometric.data import Data, InMemoryDataset
 
 from awesom.dataset_utils import(
     generate_preprocessed_data, 
-    reset_som_indices, 
-    set_label_property, 
-    standardize_mol
+    remove_implicit_Hs,
 )
 
 
@@ -96,10 +94,8 @@ class SOM(InMemoryDataset):
             # If no SoM info is available, initialize empty lists for each molecule
             df["soms"] = [[] for _ in range(len(df))]
 
-        # Standardize molecules and remove implicit hydrogens
-        df.apply(set_label_property, axis=1)
-        df["ROMol"] = df.ROMol.map(lambda x: standardize_mol(x))
-        df["soms"] = df.apply(reset_som_indices, axis=1)
+        # Remove implicit hydrogens
+        df[['ROMol', 'soms']] = df.apply(remove_implicit_Hs, axis=1, result_type='expand')
 
         # Generate preprocessed data
         G = generate_preprocessed_data(df, min(len(df), cpu_count()))
