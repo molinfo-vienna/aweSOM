@@ -10,7 +10,12 @@ import torch
 from rdkit.Chem import PandasTools
 from torch_geometric.data import Data, InMemoryDataset
 
-from awesom.dataset_utils import generate_preprocessed_data
+from awesom.dataset_utils import(
+    generate_preprocessed_data, 
+    reset_som_indices, 
+    set_label_property, 
+    standardize_mol
+)
 
 
 class SOM(InMemoryDataset):
@@ -60,6 +65,9 @@ class SOM(InMemoryDataset):
 
         # Load data from the file
         if file_extension == ".sdf":
+            # Load the SD-File without removing the hydrogens.
+            # The hydrogens are removed later in the process,
+            # by taking care of re-assigning the correct SOM-atom indices.
             df = PandasTools.LoadSDF(input_file, removeHs=False)
         elif file_extension == ".smi" or file_extension == ".smiles":
             df = pd.read_csv(input_file, names=["smiles"])
@@ -87,6 +95,11 @@ class SOM(InMemoryDataset):
         else:
             # If no SoM info is available, initialize empty lists for each molecule
             df["soms"] = [[] for _ in range(len(df))]
+
+        # Standardize molecules and remove implicit hydrogens
+        df.apply(set_label_property, axis=1)
+        df["ROMol"] = df.ROMol.map(lambda x: standardize_mol(x))
+        df["soms"] = df.apply(reset_som_indices, axis=1)
 
         # Generate preprocessed data
         G = generate_preprocessed_data(df, min(len(df), cpu_count()))

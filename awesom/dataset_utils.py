@@ -3,10 +3,18 @@ from __future__ import annotations
 from multiprocessing import Pool
 from typing import Any, List
 
+import chembl_structure_pipeline
 import networkx as nx
 import numpy as np
+import warnings
 import pandas as pd
-from rdkit.Chem import Mol, MolToSmiles, rdMolDescriptors
+from rdkit.Chem import(
+    AllChem, 
+    Mol, 
+    MolToSmiles, 
+    RemoveHs,
+    #, rdMolDescriptors,
+)
 from rdkit.Chem.rdchem import Atom, Bond
 
 ELEM_LIST = [
@@ -116,3 +124,33 @@ def generate_preprocessed_data(df: pd.DataFrame, num_workers: int) -> nx.Graph:
         chunks = np.array_split(df, num_workers)
         graphs = pool.map(process_data_chunk, chunks)
     return nx.disjoint_union_all(graphs)
+
+
+def set_label_property(row) -> None:
+    for atom in row.ROMol.GetAtoms():
+        atom_id = atom.GetIdx()
+        if atom_id in set(row.soms):
+            atom.SetIntProp("label", 1)
+        else:
+            atom.SetIntProp("label", 0)
+
+
+def reset_som_indices(row) -> List[int]:
+    new_soms = []
+    try:
+        for atom in row["ROMol"].GetAtoms():
+            if atom.GetIntProp("label") == 1:
+                new_soms.append(atom.GetIdx())
+        return new_soms
+    except:
+        molid = row["ID"]
+        warnings.warn(f"SoM label issue on molecule {molid}")
+        return []
+    
+
+def standardize_mol(mol: Mol) -> Mol:
+    AllChem.Compute2DCoords(mol)
+    mol = chembl_structure_pipeline.standardize_mol(mol)
+    mol, _ = chembl_structure_pipeline.get_parent_mol(mol)
+    RemoveHs(mol)
+    return mol
