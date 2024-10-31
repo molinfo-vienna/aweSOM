@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 from multiprocessing import Pool
-from typing import Any, List
+from typing import Any, List, Tuple
 
-import chembl_structure_pipeline
 import networkx as nx
 import numpy as np
 import warnings
 import pandas as pd
 from rdkit.Chem import(
-    AllChem, 
     Mol, 
-    MolToSmiles, 
+    MolToSmiles,
     RemoveHs,
     #, rdMolDescriptors,
 )
@@ -126,7 +124,9 @@ def generate_preprocessed_data(df: pd.DataFrame, num_workers: int) -> nx.Graph:
     return nx.disjoint_union_all(graphs)
 
 
-def set_label_property(row) -> None:
+def remove_implicit_Hs(row) -> Tuple[Mol, List[int]]:
+    """Removes implicit hydrogens from a molecule and updates the SoM indices."""
+    # Set the label property to whether the atom is a SoM or not
     for atom in row.ROMol.GetAtoms():
         atom_id = atom.GetIdx()
         if atom_id in set(row.soms):
@@ -134,23 +134,15 @@ def set_label_property(row) -> None:
         else:
             atom.SetIntProp("label", 0)
 
-
-def reset_som_indices(row) -> List[int]:
-    new_soms = []
+    # Remove hydrogens
+    mol = RemoveHs(row.ROMol)
+        
+    # Reset the SOM list to the new indices
     try:
-        for atom in row["ROMol"].GetAtoms():
-            if atom.GetIntProp("label") == 1:
-                new_soms.append(atom.GetIdx())
-        return new_soms
+        new_soms = [atom.GetIdx() for atom in row["ROMol"].GetAtoms() if atom.GetIntProp("label") == 1]
+        return mol, new_soms
     except:
         molid = row["ID"]
         warnings.warn(f"SoM label issue on molecule {molid}")
-        return []
+        return mol, []
     
-
-def standardize_mol(mol: Mol) -> Mol:
-    AllChem.Compute2DCoords(mol)
-    mol = chembl_structure_pipeline.standardize_mol(mol)
-    mol, _ = chembl_structure_pipeline.get_parent_mol(mol)
-    RemoveHs(mol)
-    return mol
