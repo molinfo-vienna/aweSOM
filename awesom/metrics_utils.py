@@ -7,6 +7,7 @@ import torch
 from sklearn.metrics import RocCurveDisplay
 from torchmetrics import AUROC, MatthewsCorrCoef
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
+from typing import List
 
 NUM_BOOTSTRAPS = 1000
 THRESHOLD = 0.5
@@ -161,10 +162,11 @@ class TestLogger(BaseMetrics):
     @classmethod
     def compute_and_log_test_results(
         cls,
-        mol_id: torch.Tensor,
-        atom_id: torch.Tensor,
-        y_true: torch.Tensor,
-        logits: torch.Tensor,
+        logits_ensemble: torch.Tensor,
+        y_trues: torch.Tensor,
+        mol_ids: torch.Tensor,
+        atom_ids: torch.Tensor,
+        descriptions: List[str],
         output_path: str,
         mode: str,
     ) -> None:
@@ -172,21 +174,30 @@ class TestLogger(BaseMetrics):
             os.makedirs(output_path)
 
         # Compute predicted SoM-probabilities from logits
-        y_probs = (
-            torch.sigmoid(logits) + 1e-14
+        y_probs_ensemble = (
+            torch.sigmoid(logits_ensemble) + 1e-14
         )  # add epsilon  to avoid issues when computing the log2 of 0 later
 
-        # Compute the averaged predicted SoM-probability for the ensemble
-        y_prob = torch.mean(y_probs, dim=0)
+        # Compute the averaged predicted SoM-probabilities per atom (i.e., the Bayesian model average)
+        y_probs = torch.mean(y_probs_ensemble, dim=0)
 
         # Compute uncertainties
-        u_ale, u_epi, u_tot = cls.compute_uncertainties(y_probs, y_prob)
+        u_ales, u_epis, u_tots = cls.compute_uncertainties(y_probs_ensemble, y_probs)
+
+        # Expand mol_ids to match the number of atoms
+        zero_indices = torch.where(atom_ids == 0)[0]
+        num_atoms_per_mol = zero_indices[1:] - zero_indices[:-1]
+        num_atoms_per_mol = torch.cat((num_atoms_per_mol, torch.tensor([len(atom_ids) - zero_indices[-1]])))  # Add the last molecule
+        mol_ids_expanded = torch.repeat_interleave(mol_ids, num_atoms_per_mol)
+
+        # Expand descriptions to match the number of atoms
+        descriptions_expanded = [desc for desc, count in zip(descriptions, num_atoms_per_mol) for _ in range(count)]
 
         # Compute atom rankings
-        ranking = cls.compute_ranking(y_prob, mol_id)
+        rankings = cls.compute_ranking(y_probs, mol_ids_expanded)
 
         # Compute binary predictions
-        y_pred = (y_prob >= THRESHOLD).int()
+        y_preds = (y_probs >= THRESHOLD).int()
 
         # Write results to csv file
         with open(os.path.join(output_path, "results.csv"), "w") as f:
@@ -205,15 +216,15 @@ class TestLogger(BaseMetrics):
                 )
             )
             for row in zip(
-                mol_id.tolist(),
-                atom_id.tolist(),
-                y_true.tolist(),
-                y_prob.tolist(),
-                y_pred.tolist(),
-                ranking.tolist(),
-                u_ale.tolist(),
-                u_epi.tolist(),
-                u_tot.tolist(),
+                descriptions_expanded,
+                atom_ids.tolist(),
+                y_trues.tolist(),
+                y_probs.tolist(),
+                y_preds.tolist(),
+                rankings.tolist(),
+                u_ales.tolist(),
+                u_epis.tolist(),
+                u_tots.tolist(),
             ):
                 writer.writerow(row)
 
@@ -225,28 +236,28 @@ class TestLogger(BaseMetrics):
             aurocs = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
             top2s = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
 
-            unique_mol_ids = torch.unique(mol_id)
+            mol_ids
             for i in range(NUM_BOOTSTRAPS):
                 # Sample molecule IDs with replacement
-                sampled_mol_ids = unique_mol_ids[
-                    torch.randint(len(unique_mol_ids), (len(unique_mol_ids),))
+                sampled_mol_ids = mol_ids[
+                    torch.randint(len(mol_ids), (len(mol_ids),))
                 ]
 
                 # Create a mask to select atoms of the sampled molecules
-                mask = torch.isin(mol_id, sampled_mol_ids)
+                mask = torch.isin(mol_ids_expanded, sampled_mol_ids)
 
-                # Select the atoms of the sampled molecules
-                mol_id_sample = mol_id[mask]
-                y_true_sample = y_true[mask]
-                y_prob_sample = y_prob[mask]
-                y_pred_sample = y_pred[mask]
+                # Select the values associated with the atoms of the sampled molecules
+                mol_id_sample = mol_ids_expanded[mask]
+                y_trues_sample = y_trues[mask]
+                y_probs_sample = y_probs[mask]
+                y_preds_sample = y_preds[mask]
 
                 # Compute metrics
-                mccs[i] = cls.compute_mcc(y_pred_sample, y_true_sample)
-                precisions[i] = cls.compute_precision(y_pred_sample, y_true_sample)
-                recalls[i] = cls.compute_recall(y_pred_sample, y_true_sample)
-                aurocs[i] = cls.compute_auroc(y_prob_sample, y_true_sample)
-                top2s[i] = cls.compute_top2(y_prob_sample, y_true_sample, mol_id_sample)
+                mccs[i] = cls.compute_mcc(y_preds_sample, y_trues_sample)
+                precisions[i] = cls.compute_precision(y_preds_sample, y_trues_sample)
+                recalls[i] = cls.compute_recall(y_preds_sample, y_trues_sample)
+                aurocs[i] = cls.compute_auroc(y_probs_sample, y_trues_sample)
+                top2s[i] = cls.compute_top2(y_probs_sample, y_trues_sample, mol_id_sample)
 
             # Write results to txt file
             with open(os.path.join(output_path, "results.txt"), "w") as f:
@@ -267,5 +278,5 @@ class TestLogger(BaseMetrics):
                 )
 
             # Plot ROC curve
-            RocCurveDisplay.from_predictions(y_true, y_prob)
+            RocCurveDisplay.from_predictions(y_trues, y_probs)
             plt.savefig(str(os.path.join(output_path, "roc.png")), dpi=300)

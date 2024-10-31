@@ -2,7 +2,7 @@ from typing import Tuple, Union
 
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import (BatchNorm, ChebConv, GATv2Conv, GINConv,
+from torch_geometric.nn import (BatchNorm, GATv2Conv, GINConv,
                                 GINEConv, MFConv, global_add_pool)
 
 
