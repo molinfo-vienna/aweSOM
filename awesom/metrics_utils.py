@@ -37,10 +37,6 @@ class BaseMetrics:
         return -(p * torch.log2(p) + (1 - p) * torch.log2(1 - p))
 
     @classmethod
-    def compute_uncertainty_score(cls, p):
-        return -(abs(2 * p - 1)) + 1
-
-    @classmethod
     def compute_uncertainties(cls, y_probs, y_probs_avg):
         u_tot = cls.compute_shannon_entropy(
             y_probs_avg
