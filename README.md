@@ -5,7 +5,11 @@ aweSOM
 [![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main)
 
 
-A GNN model for the prediction of sites of metabolism (SOMs) in xenobiotics.
+A GNN model predicting site-of-metabolism (SOM) in xenobiotics with aleatoric and epistemic uncertainty estimation.
+
+Preprint: https://chemrxiv.org/engage/chemrxiv/article-details/6703a2a851558a15ef56fbea
+
+Please note that the data, models, and outputs in this repository are derived from publicly available datasets and are intended solely to demonstrate the functionality of aweSOM. Consequently, the models in this repository will not achieve the performance reported in the preprint. Access to aweSOM's original training data and corresponding trained model weights requires a license. For further information, please refer to the preprint.
 
 ### Installation
 
