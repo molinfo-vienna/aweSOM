@@ -73,29 +73,32 @@ class BaseMetrics:
         return auroc(y_prob, y_true).item()
 
     @classmethod
-    def compute_top2(cls, y_prob, y_true, mol_id):
+    def compute_top2(cls, y_probs, y_trues, mol_ids_expanded):
         top2 = 0
         for id in list(
-            dict.fromkeys(mol_id.tolist())
+            dict.fromkeys(mol_ids_expanded.tolist())
         ):  # This is a somewhat complicated way to get an ordered set (masked_sorted_y), but it works.
-            mask = torch.where(mol_id == id)[0]
-            masked_y = y_true[mask]
-            masked_y_prob = y_prob[mask]
-            masked_sorted_y = torch.index_select(
-                masked_y,
+            mask = torch.where(mol_ids_expanded == id)[0]
+            masked_y_trues = y_trues[mask]
+            masked_y_probs = y_probs[mask]
+            masked_sorted_y_trues = torch.index_select(
+                masked_y_trues,
                 dim=0,
-                index=torch.sort(masked_y_prob, descending=True)[1],
+                index=torch.sort(masked_y_probs, descending=True)[1],
             )
-            if torch.sum(masked_sorted_y[:2]).item() > 0:
+            if torch.sum(masked_sorted_y_trues[:2]).item() > 0:
                 top2 += 1
-        top2 /= len(set(mol_id.tolist()))
+        top2 /= len(set(mol_ids_expanded.tolist()))
         return top2
 
 
 class ValidationLogger(BaseMetrics):
     @classmethod
     def compute_and_log_validation_results(
-        cls, predictions: dict, output_folder: str
+        cls, 
+        predictions: dict[int, List[torch.Tensor]],
+        descriptions: List[str],
+        output_folder: str
     ) -> None:
         metrics = {
             "MCC": [],
@@ -107,14 +110,29 @@ class ValidationLogger(BaseMetrics):
 
         for fold_id, preds in predictions.items():
             logits = preds[0][0]
-            y_true = preds[0][1]
-            mol_id = preds[0][2]
-            atom_id = preds[0][3]
+            y_trues = preds[0][1]
+            mol_ids = preds[0][2]
+            atom_ids = preds[0][3]
 
-            y_prob = torch.sigmoid(logits)
-            ranking = cls.compute_ranking(y_prob, mol_id)
-            y_pred = (y_prob >= THRESHOLD).int()
+            # Compute predicted SoM-probabilities from logits
+            y_probs = torch.sigmoid(logits)
 
+            # Expand mol_ids to match the number of atoms
+            zero_indices = torch.where(atom_ids == 0)[0]
+            num_atoms_per_mol = zero_indices[1:] - zero_indices[:-1]
+            num_atoms_per_mol = torch.cat((num_atoms_per_mol, torch.tensor([len(atom_ids) - zero_indices[-1]])))  # Add the last molecule
+            mol_ids_expanded = torch.repeat_interleave(mol_ids, num_atoms_per_mol)
+
+            # Expand descriptions to match the number of atoms
+            descriptions_expanded = [desc for desc, count in zip(descriptions, num_atoms_per_mol) for _ in range(count)]
+
+            # Compute atom rankings
+            rankings = cls.compute_ranking(y_probs, mol_ids_expanded)
+
+            # Compute binary predictions
+            y_preds = (y_probs >= THRESHOLD).int()
+
+            # Write results to csv file
             with open(
                 os.path.join(output_folder, f"validation_fold{fold_id}.csv"), "w"
             ) as f:
@@ -130,27 +148,28 @@ class ValidationLogger(BaseMetrics):
                     )
                 )
                 for row in zip(
-                    mol_id.tolist(),
-                    atom_id.tolist(),
-                    y_true.tolist(),
-                    y_prob.tolist(),
-                    y_pred.tolist(),
-                    ranking.tolist(),
+                    descriptions_expanded,
+                    atom_ids.tolist(),
+                    y_trues.tolist(),
+                    y_probs.tolist(),
+                    y_preds.tolist(),
+                    rankings.tolist(),
                 ):
                     writer.writerow(row)
 
-            metrics["MCC"].append(cls.compute_mcc(y_pred, y_true))
-            metrics["Precision"].append(cls.compute_precision(y_pred, y_true))
-            metrics["Recall"].append(cls.compute_recall(y_pred, y_true))
-            metrics["AUROC"].append(cls.compute_auroc(y_prob, y_true))
+            metrics["MCC"].append(cls.compute_mcc(y_preds, y_trues))
+            metrics["Precision"].append(cls.compute_precision(y_preds, y_trues))
+            metrics["Recall"].append(cls.compute_recall(y_preds, y_trues))
+            metrics["AUROC"].append(cls.compute_auroc(y_probs, y_trues))
             metrics["Top-2 correctness rate"].append(
-                cls.compute_top2(y_prob, y_true, mol_id)
+                cls.compute_top2(y_probs, y_trues, mol_ids_expanded)
             )
 
+        # Write results to txt file
         with open(os.path.join(output_folder, "validation.txt"), "w") as f:
             for key, value in metrics.items():
                 f.write(
-                    f"{key}: {round(mean(value), 4)} +/- {round(stdev(value), 4)}\n"
+                    f"{key}: {round(mean(value), 2)} +/- {round(stdev(value), 2)}\n"
                 )
 
 
@@ -258,19 +277,19 @@ class TestLogger(BaseMetrics):
             # Write results to txt file
             with open(os.path.join(output_path, "results.txt"), "w") as f:
                 f.write(
-                    f"MCC: {round(mccs.mean().item(), 4)} +/- {round(mccs.std().item(), 4)}\n"
+                    f"MCC: {round(mccs.mean().item(), 2)} +/- {round(mccs.std().item(), 2)}\n"
                 )
                 f.write(
-                    f"Precision: {round(precisions.mean().item(), 4)} +/- {round(precisions.std().item(), 4)}\n"
+                    f"Precision: {round(precisions.mean().item(), 2)} +/- {round(precisions.std().item(), 2)}\n"
                 )
                 f.write(
-                    f"Recall: {round(recalls.mean().item(), 4)} +/- {round(recalls.std().item(), 4)}\n"
+                    f"Recall: {round(recalls.mean().item(), 2)} +/- {round(recalls.std().item(), 2)}\n"
                 )
                 f.write(
-                    f"AUROC: {round(aurocs.mean().item(), 4)} +/- {round(aurocs.std().item(), 4)}\n"
+                    f"AUROC: {round(aurocs.mean().item(), 2)} +/- {round(aurocs.std().item(), 2)}\n"
                 )
                 f.write(
-                    f"Top-2 correctness rate: {round(top2s.mean().item(), 4)} +/- {round(top2s.std().item(), 4)}\n"
+                    f"Top-2 correctness rate: {round(top2s.mean().item(), 2)} +/- {round(top2s.std().item(), 2)}\n"
                 )
 
             # Plot ROC curve
