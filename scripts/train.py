@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Tuple
 
+import numpy as np
 import torch
 import yaml
 from lightning import Trainer
@@ -24,7 +25,7 @@ from awesom.lightning_module import GNN
 warnings.filterwarnings("ignore", category=UserWarning)
 
 BATCH_SIZE = 32
-ENSEMBLE_SIZE = 50
+ENSEMBLE_SIZE = 5
 VALIDATION_SET_SIZE = 0.1
 
 
@@ -33,6 +34,8 @@ def set_seeds(seed: int) -> None:
     torch.manual_seed(seed)
     lightning_seed_everything(seed)
     geometric_seed_everything(seed)
+    np.random.seed(seed)
+    random.seed(seed)
 
 
 def prepare_data_loaders(data: Dataset) -> Tuple[DataLoader, DataLoader]:
@@ -40,7 +43,6 @@ def prepare_data_loaders(data: Dataset) -> Tuple[DataLoader, DataLoader]:
     train_data, val_data = train_test_split(
         data,
         test_size=VALIDATION_SET_SIZE,
-        random_state=42,  # we always use the same seed here
     )
     print(
         f"Training instances: {len(train_data)}, Validation instances: {len(val_data)}"
@@ -75,7 +77,6 @@ def main():
         set_seeds(seed)
         train_loader, val_loader = prepare_data_loaders(data)
         hyperparams = load_hyperparams(args.hparamsYamlPath)
-        hyperparams["mode"] = "ensemble"
 
         model = GNN(
             params=data_params,

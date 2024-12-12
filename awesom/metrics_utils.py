@@ -32,14 +32,18 @@ class BaseMetrics:
         )
         return ranking
 
-    @classmethod
-    def compute_shannon_entropy(cls, p):
-        return -(p * torch.log2(p) + (1 - p) * torch.log2(1 - p))
+    # @classmethod
+    # def compute_shannon_entropy(cls, p):
+    #     return -(p * torch.log2(p) + (1 - p) * torch.log2(1 - p))
 
     @classmethod
-    def compute_uncertainties(cls, y_probs, y_probs_avg):
+    def compute_uncertainties(cls, y_probs):
         u_ale = torch.mean(y_probs*(1-y_probs), dim=0)
         u_epi = torch.mean(y_probs**2, dim=0) - torch.mean(y_probs, dim=0)**2
+
+        u_ale = cls.scale(u_ale, 0, 0.25)
+        u_epi = cls.scale(u_epi, 0, 0.24)
+
         u_tot = u_ale + u_epi
 
         return u_ale, u_epi, u_tot
@@ -193,7 +197,7 @@ class TestLogger(BaseMetrics):
         y_probs = torch.mean(y_probs_ensemble, dim=0)
 
         # Compute uncertainties
-        u_ales, u_epis, u_tots = cls.compute_uncertainties(y_probs_ensemble, y_probs)
+        u_ales, u_epis, u_tots = cls.compute_uncertainties(y_probs_ensemble)
 
         # Expand mol_ids to match the number of atoms
         zero_indices = torch.where(atom_ids == 0)[0]

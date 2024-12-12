@@ -61,11 +61,71 @@ def prepare_data_loaders(
     return train_loader, val_loader
 
 
-def main():
+if __name__ == "__main__":
+    start_time = datetime.now()
     set_seeds()
 
-    data = SOM(root=args.inputPath, transform=T.ToUndirected()).shuffle()
+    parser = argparse.ArgumentParser(
+        "Finding the optinal hyperparameters via Optuna k-fold-cross-validation."
+    )
 
+    parser.add_argument(
+        "-i",
+        "--inputPath",
+        type=str,
+        required=True,
+        help="Folder holding the input data.",
+    )
+    parser.add_argument(
+        "-o",
+        "--outputPath",
+        type=str,
+        required=True,
+        help="Folder to which the output will be written. \
+            The best hyperparameters will be stored in a YAML file. \
+                The individual validation metrics of each fold will be stored in a CSV file. \
+                    The best model's checkpoints will be stored in a directory. \
+                        The averaged predictions made with the best hyperparameters will be stored in a text file.",
+    )
+    parser.add_argument(
+        "-m",
+        "--model",
+        type=str,
+        required=True,
+        default="M7",
+        help="Model architecture.",
+    )
+    parser.add_argument(
+        "-e",
+        "--epochs",
+        type=int,
+        required=True,
+        default=1000,
+        help="Maximum number of training epochs.",
+    )
+    parser.add_argument(
+        "-n",
+        "--numCVFolds",
+        type=int,
+        required=True,
+        default=10,
+        help="Number of cross-validation folds.",
+    )
+    parser.add_argument(
+        "-t",
+        "--numberOptunaTrials",
+        type=int,
+        required=True,
+        default=20,
+        help="Number of optuna trials.",
+    )
+
+    args = parser.parse_args()
+
+    set_seeds()
+
+    # Load data
+    data = SOM(root=args.inputPath, transform=T.ToUndirected()).shuffle()
     data_params = dict(
         num_node_features=data.num_node_features,
         num_edge_features=data.num_edge_features,
@@ -85,7 +145,6 @@ def main():
             )
 
             hyperparams = MODELS[args.model].get_params(trial)
-            hyperparams["mode"] = "cvhpsearch"
             model = GNN(
                 params=data_params,
                 hyperparams=hyperparams,
@@ -156,11 +215,8 @@ def main():
             val_data,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            num_workers=12,
-            persistent_workers=True,
         )
         hyperparams = study.best_trial.params
-        hyperparams["mode"] = "cvhpsearch"
         model = GNN(
             params=data_params,
             hyperparams=hyperparams,
@@ -195,66 +251,5 @@ def main():
         collected_validation_outputs, descriptions, args.outputPath
     )
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        "Finding the optinal hyperparameters via Optuna k-fold-cross-validation."
-    )
-
-    parser.add_argument(
-        "-i",
-        "--inputPath",
-        type=str,
-        required=True,
-        help="Folder holding the input data.",
-    )
-    parser.add_argument(
-        "-o",
-        "--outputPath",
-        type=str,
-        required=True,
-        help="Folder to which the output will be written. \
-            The best hyperparameters will be stored in a YAML file. \
-                The individual validation metrics of each fold will be stored in a CSV file. \
-                    The best model's checkpoints will be stored in a directory. \
-                        The averaged predictions made with the best hyperparameters will be stored in a text file.",
-    )
-    parser.add_argument(
-        "-m",
-        "--model",
-        type=str,
-        required=True,
-        default="M7",
-        help="Model architecture.",
-    )
-    parser.add_argument(
-        "-e",
-        "--epochs",
-        type=int,
-        required=True,
-        default=1000,
-        help="Maximum number of training epochs.",
-    )
-    parser.add_argument(
-        "-n",
-        "--numCVFolds",
-        type=int,
-        required=True,
-        default=10,
-        help="Number of cross-validation folds.",
-    )
-    parser.add_argument(
-        "-t",
-        "--numberOptunaTrials",
-        type=int,
-        required=True,
-        default=20,
-        help="Number of optuna trials.",
-    )
-
-    args = parser.parse_args()
-
-    start_time = datetime.now()
-    main()
     print("Finished in:")
     print(datetime.now() - start_time)
