@@ -67,6 +67,9 @@ def predict_with_ensemble(data, version_paths: List[Path]) -> tuple:
     num_atoms = data.x.size(0)
     num_models = len(version_paths)
     device = torch.device("cpu")
+    # switching to CPU is necessary because "descriptions"
+    # (a.k.a. the molecular identifiers of the input SD-file)
+    # is a list of strings, which is not supported on GPU
 
     logits_ensemble = torch.empty((num_models, num_atoms), dtype=torch.float32, device=device)
     y_trues = torch.empty(num_atoms, dtype=torch.int32, device=device)
@@ -98,37 +101,10 @@ def predict_with_ensemble(data, version_paths: List[Path]) -> tuple:
     return logits_ensemble, y_trues, mol_ids, atom_ids, description
 
 
-def main():
+if __name__ == "__main__":
+    start_time = datetime.now()
     set_seeds()
 
-    # Load data
-    data = load_data(args.inputPath, args.mode)
-    print(f"Loaded dataset with {len(data)} instances.")
-
-    # Find model checkpoints
-    version_paths = find_checkpoints(args.checkpointsPath)
-    # Ensemble Prediction
-    (
-        logits_ensemble,
-        y_trues,
-        mol_ids,
-        atom_ids,
-        descriptions,
-    ) = predict_with_ensemble(data, version_paths)
-
-    # Compute and log test results
-    TestLogger.compute_and_log_test_results(
-        logits_ensemble,
-        y_trues,
-        mol_ids,
-        atom_ids,
-        descriptions,
-        args.outputPath,
-        args.mode,
-    )
-
-
-if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         "Predicting SoMs for labeled (test) and unlabeled (infer) data."
     )
@@ -165,6 +141,46 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    start_time = datetime.now()
-    main()
+    # Load data
+    data = load_data(args.inputPath, args.mode)
+    print(f"Loaded dataset with {len(data)} instances.")
+
+    # Record data and model loading time
+    load_time = datetime.now() - start_time
+    temptime = datetime.now()
+
+    # Find model checkpoints
+    version_paths = find_checkpoints(args.checkpointsPath)
+    # Ensemble Prediction
+    (
+        logits_ensemble,
+        y_trues,
+        mol_ids,
+        atom_ids,
+        descriptions,
+    ) = predict_with_ensemble(data, version_paths)
+
+    # Record prediction time
+    predict_time = datetime.now() - temptime
+    temptime = datetime.now()
+
+    # Compute and log test results
+    TestLogger.compute_and_log_test_results(
+        logits_ensemble,
+        y_trues,
+        mol_ids,
+        atom_ids,
+        descriptions,
+        args.outputPath,
+        args.mode,
+    )
+
+    # Record logging time
+    log_time = datetime.now() - temptime
+
+    # Record total time
+    total_time = datetime.now() - start_time
     print("Finished in:", datetime.now() - start_time)
+
+    with open(args.outputPath+'/runtime.csv', 'a') as f:
+        f.write(f"{total_time},{load_time},{predict_time},{log_time}\n")

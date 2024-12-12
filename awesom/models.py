@@ -15,8 +15,6 @@ class M1(torch.nn.Module):
     def __init__(self, params, hyperparams) -> None:
         super(M1, self).__init__()
 
-        self.mode = hyperparams["mode"]
-
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
 
@@ -43,6 +41,11 @@ class M1(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
+            torch.nn.Linear(mid_channels, mid_channels),
+            BatchNorm(mid_channels),
+            torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
             torch.nn.Linear(mid_channels, 1),
         )
 
@@ -65,13 +68,21 @@ class M1(torch.nn.Module):
 
     @classmethod
     def get_params(self, trial):
-        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
-        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
+        pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 6, log=False)
+        size_conv_layers = trial.suggest_int(
+            "size_conv_layers", low=64, high=1024, log=True
+        )
+        size_final_mlp_layers = trial.suggest_int(
+            "size_final_mlp_layers", low=64, high=1024, log=True
+        )
 
         hyperparams = dict(
             learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            pos_class_weight=pos_class_weight,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
             size_final_mlp_layers=size_final_mlp_layers,
@@ -88,8 +99,6 @@ class M2(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M2, self).__init__()
-
-        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -118,6 +127,11 @@ class M2(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
+            torch.nn.Linear(mid_channels, mid_channels),
+            BatchNorm(mid_channels),
+            torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
             torch.nn.Linear(mid_channels, 1),
         )
 
@@ -140,13 +154,21 @@ class M2(torch.nn.Module):
 
     @classmethod
     def get_params(self, trial):
-        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
-        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
+        pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 6, log=False)
+        size_conv_layers = trial.suggest_int(
+            "size_conv_layers", low=64, high=1024, log=True
+        )
+        size_final_mlp_layers = trial.suggest_int(
+            "size_final_mlp_layers", low=64, high=1024, log=True
+        )
 
         hyperparams = dict(
             learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            pos_class_weight=pos_class_weight,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
             size_final_mlp_layers=size_final_mlp_layers,
@@ -166,8 +188,6 @@ class M3(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M3, self).__init__()
-
-        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -193,6 +213,11 @@ class M3(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
+            torch.nn.Linear(mid_channels, mid_channels),
+            BatchNorm(mid_channels),
+            torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
             torch.nn.Linear(mid_channels, 1),
         )
 
@@ -215,15 +240,23 @@ class M3(torch.nn.Module):
 
     @classmethod
     def get_params(self, trial):
-        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
-        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
-        heads = trial.suggest_int("heads", 1, 4)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
+        pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 6, log=False)
+        size_conv_layers = trial.suggest_int(
+            "size_conv_layers", low=64, high=1024, log=True
+        )
+        size_final_mlp_layers = trial.suggest_int(
+            "size_final_mlp_layers", low=64, high=1024, log=True
+        )
+        heads = trial.suggest_int("heads", 1, 6)
         negative_slope = trial.suggest_float("negative_slope", 0.1, 0.9)
 
         hyperparams = dict(
             learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            pos_class_weight=pos_class_weight,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
             size_final_mlp_layers=size_final_mlp_layers,
@@ -241,8 +274,6 @@ class M4(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M4, self).__init__()
-
-        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -266,6 +297,11 @@ class M4(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
+            torch.nn.Linear(mid_channels, mid_channels),
+            BatchNorm(mid_channels),
+            torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
             torch.nn.Linear(mid_channels, 1),
         )
 
@@ -288,18 +324,26 @@ class M4(torch.nn.Module):
 
     @classmethod
     def get_params(self, trial):
-        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
+        pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 6, log=False)
+        size_conv_layers = trial.suggest_int(
+            "size_conv_layers", low=64, high=1024, log=True
+        )
+        size_final_mlp_layers = trial.suggest_int(
+            "size_final_mlp_layers", low=64, high=1024, log=True
+        )
         max_degree = trial.suggest_int("max_degree", 1, 6)
-        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
 
         hyperparams = dict(
             learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            pos_class_weight=pos_class_weight,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
-            max_degree=max_degree,
             size_final_mlp_layers=size_final_mlp_layers,
+            max_degree=max_degree,
         )
 
         return hyperparams
@@ -314,8 +358,6 @@ class M7(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M7, self).__init__()
-
-        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -344,6 +386,11 @@ class M7(torch.nn.Module):
             torch.nn.Linear(in_channels * 2, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
+            torch.nn.Linear(mid_channels, mid_channels),
+            BatchNorm(mid_channels),
+            torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
             torch.nn.Linear(mid_channels, 1),
         )
 
@@ -376,13 +423,21 @@ class M7(torch.nn.Module):
 
     @classmethod
     def get_params(self, trial):
-        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
-        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
+        pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 6, log=False)
+        size_conv_layers = trial.suggest_int(
+            "size_conv_layers", low=64, high=1024, log=True
+        )
+        size_final_mlp_layers = trial.suggest_int(
+            "size_final_mlp_layers", low=64, high=1024, log=True
+        )
 
         hyperparams = dict(
             learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            pos_class_weight=pos_class_weight,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
             size_final_mlp_layers=size_final_mlp_layers,
@@ -401,8 +456,6 @@ class M9(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M9, self).__init__()
-
-        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -433,6 +486,11 @@ class M9(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
+            torch.nn.Linear(mid_channels, mid_channels),
+            BatchNorm(mid_channels),
+            torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
             torch.nn.Linear(mid_channels, 1),
         )
 
@@ -461,13 +519,21 @@ class M9(torch.nn.Module):
 
     @classmethod
     def get_params(self, trial):
-        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
-        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
+        pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 6, log=False)
+        size_conv_layers = trial.suggest_int(
+            "size_conv_layers", low=64, high=1024, log=True
+        )
+        size_final_mlp_layers = trial.suggest_int(
+            "size_final_mlp_layers", low=64, high=1024, log=True
+        )
 
         hyperparams = dict(
             learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            pos_class_weight=pos_class_weight,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
             size_final_mlp_layers=size_final_mlp_layers,
@@ -485,8 +551,6 @@ class M11(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M11, self).__init__()
-
-        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -516,6 +580,11 @@ class M11(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
+            torch.nn.Linear(mid_channels, mid_channels),
+            BatchNorm(mid_channels),
+            torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
             torch.nn.Linear(mid_channels, 1),
         )
 
@@ -541,13 +610,21 @@ class M11(torch.nn.Module):
 
     @classmethod
     def get_params(self, trial):
-        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
-        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
+        pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 6, log=False)
+        size_conv_layers = trial.suggest_int(
+            "size_conv_layers", low=64, high=1024, log=True
+        )
+        size_final_mlp_layers = trial.suggest_int(
+            "size_final_mlp_layers", low=64, high=1024, log=True
+        )
 
         hyperparams = dict(
             learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            pos_class_weight=pos_class_weight,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
             size_final_mlp_layers=size_final_mlp_layers,
@@ -565,8 +642,6 @@ class M12(torch.nn.Module):
 
     def __init__(self, params, hyperparams) -> None:
         super(M12, self).__init__()
-
-        self.mode = hyperparams["mode"]
 
         self.conv = torch.nn.ModuleList()
         self.batch_norm = torch.nn.ModuleList()
@@ -596,6 +671,11 @@ class M12(torch.nn.Module):
             torch.nn.Linear(in_channels, mid_channels),
             BatchNorm(mid_channels),
             torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
+            torch.nn.Linear(mid_channels, mid_channels),
+            BatchNorm(mid_channels),
+            torch.nn.LeakyReLU(),
+            torch.nn.Dropout(0.2),
             torch.nn.Linear(mid_channels, 1),
         )
 
@@ -621,13 +701,21 @@ class M12(torch.nn.Module):
 
     @classmethod
     def get_params(self, trial):
-        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 8)
-        size_conv_layers = trial.suggest_int("size_conv_layers", 32, 512)
-        size_final_mlp_layers = trial.suggest_int("size_final_mlp_layers", 32, 512)
+        learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
+        pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
+        num_conv_layers = trial.suggest_int("num_conv_layers", 1, 6, log=False)
+        size_conv_layers = trial.suggest_int(
+            "size_conv_layers", low=64, high=1024, log=True
+        )
+        size_final_mlp_layers = trial.suggest_int(
+            "size_final_mlp_layers", low=64, high=1024, log=True
+        )
 
         hyperparams = dict(
             learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            pos_class_weight=pos_class_weight,
             num_conv_layers=num_conv_layers,
             size_conv_layers=size_conv_layers,
             size_final_mlp_layers=size_final_mlp_layers,
