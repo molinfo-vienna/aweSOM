@@ -32,8 +32,8 @@ class SOM(InMemoryDataset):
         super().__init__(root, transform, pre_transform, pre_filter)
 
         self.root = root
-        self.process()  # Process the data each time a script is run
-        self.data, self.slices = torch.load(self.processed_paths[0])
+        self.process()
+        self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
 
     @property
     def processed_file_names(self) -> List[str]:
