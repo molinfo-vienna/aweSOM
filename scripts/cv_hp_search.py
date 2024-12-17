@@ -121,9 +121,7 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
-    set_seeds()
-
+    
     # Load data
     data = SOM(root=args.inputPath, transform=T.ToUndirected()).shuffle()
     data_params = dict(
@@ -133,7 +131,11 @@ if __name__ == "__main__":
     )
 
     def objective(trial):
-        metric_lst = []
+        trial.set_user_attr("architecture", args.model)
+
+        performance_per_fold = []
+        num_epochs_per_fold = []
+
         kfold = KFold(n_splits=args.numCVFolds, shuffle=True, random_state=42)
 
         for fold_id, (train_idx, val_idx) in enumerate(kfold.split(range(len(data)))):
@@ -179,9 +181,15 @@ if __name__ == "__main__":
                 model=model, train_dataloaders=train_loader, val_dataloaders=val_loader
             )
 
-            metric_lst.append(trainer.callback_metrics["val/mcc"].item())
+            performance_per_fold.append(trainer.callback_metrics["val/mcc"].item())
+            num_epochs_per_fold.append(trainer.current_epoch + 1)
 
-        return mean(metric_lst)
+        avg_performance = mean(performance_per_fold)
+        avg_num_epochs = int(mean(num_epochs_per_fold))
+
+        trial.set_user_attr("epochs", avg_num_epochs)
+
+        return avg_performance
 
     if not os.path.exists(args.outputPath):
         os.makedirs(args.outputPath)
@@ -195,14 +203,19 @@ if __name__ == "__main__":
     )
     study.optimize(objective, n_trials=args.numberOptunaTrials, gc_after_trial=True)
 
+    best_trial = study.best_trial
+
     print(
-        f"Best trial is trial {study.best_trial._trial_id} with mean validation MCC {study.best_trial.value} and hyperparameters:"
+        f"Best trial is trial {best_trial._trial_id} with mean validation MCC {best_trial.value} and hyperparameters:"
     )
-    for key, value in study.best_trial.params.items():
+    for key, value in best_trial.params.items():
         print("   {}: {}".format(key, value))
 
+    best_trial.params["epochs"] = best_trial.user_attrs.get("epochs", "N/A")
+    best_trial.params["architecture"] = best_trial.user_attrs.get("architecture", "N/A")
+
     save_hparams_to_yaml(
-        Path(args.outputPath, "best_hparams.yaml"), study.best_trial.params
+        Path(args.outputPath, "best_hparams.yaml"), best_trial.params
     )
 
     # Compute and log all relevant validation metrics from models trained with optimal hparams
