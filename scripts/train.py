@@ -3,7 +3,6 @@ import random
 import warnings
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple
 
 import numpy as np
 import torch
@@ -11,12 +10,9 @@ import yaml
 from lightning import Trainer
 from lightning import seed_everything as lightning_seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
-from sklearn.model_selection import train_test_split
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
-from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
@@ -26,7 +22,6 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 BATCH_SIZE = 32
 ENSEMBLE_SIZE = 5
-VALIDATION_SET_SIZE = 0.1
 
 
 def set_seeds(seed: int) -> None:
@@ -36,20 +31,6 @@ def set_seeds(seed: int) -> None:
     geometric_seed_everything(seed)
     np.random.seed(seed)
     random.seed(seed)
-
-
-def prepare_data_loaders(data: Dataset) -> Tuple[DataLoader, DataLoader]:
-    """Split data and prepare train/validation loaders."""
-    train_data, val_data = train_test_split(
-        data,
-        test_size=VALIDATION_SET_SIZE,
-    )
-    print(
-        f"Training instances: {len(train_data)}, Validation instances: {len(val_data)}"
-    )
-    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=False)
-    return train_loader, val_loader
 
 
 def load_hyperparams(path: str) -> dict:
@@ -65,7 +46,7 @@ def main():
 
     # Load data
     data = SOM(root=args.inputPath, transform=T.ToUndirected())
-    print(f"Loaded dataset with {len(data)} instances.")
+    print(f"Loaded training data with {len(data)} instances.")
     data_params = dict(
         num_node_features=data.num_node_features,
         num_edge_features=data.num_edge_features,
@@ -75,31 +56,22 @@ def main():
     random_seeds = random.sample(range(0, 1000), ENSEMBLE_SIZE)
     for seed in random_seeds:
         set_seeds(seed)
-        train_loader, val_loader = prepare_data_loaders(data)
         hyperparams = load_hyperparams(args.hparamsYamlPath)
-
+        logger = TensorBoardLogger(save_dir=args.outputPath, default_hp_metric=False)
+        trainer = Trainer(
+            accelerator="auto",
+            max_epochs=hyperparams["epochs"],
+            logger=logger,
+            log_every_n_steps=1,
+        )
         model = GNN(
             params=data_params,
             hyperparams=hyperparams,
-            architecture=args.model,
+            architecture=hyperparams["architecture"],
         )
-
-        logger = TensorBoardLogger(save_dir=args.outputPath, default_hp_metric=False)
-        callbacks = [
-            EarlyStopping(monitor="val/loss", mode="min", patience=20),
-            ModelCheckpoint(monitor="val/loss", mode="min"),
-        ]
-
-        trainer = Trainer(
-            accelerator="auto",
-            max_epochs=args.epochs,
-            logger=logger,
-            log_every_n_steps=1,
-            callbacks=callbacks,
-        )
-
+        train_loader = DataLoader(data, batch_size=BATCH_SIZE, shuffle=True)
         trainer.fit(
-            model=model, train_dataloaders=train_loader, val_dataloaders=val_loader
+            model=model, train_dataloaders=train_loader,
         )
 
     with open(Path(args.outputPath, "random_seeds.txt"), "w") as f:
@@ -130,22 +102,6 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="Folder to which the output (trained model checkpoints, list of random seeds) will be written.",
-    )
-    parser.add_argument(
-        "-m",
-        "--model",
-        type=str,
-        required=True,
-        default="M7",
-        help="Model architecture.",
-    )
-    parser.add_argument(
-        "-e",
-        dest="epochs",
-        type=int,
-        required=True,
-        default=1000,
-        help="Maximum number of training epochs.",
     )
 
     args = parser.parse_args()
