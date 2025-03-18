@@ -2,8 +2,14 @@ from typing import Tuple, Union
 
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import (BatchNorm, GATv2Conv, GINConv,
-                                GINEConv, MFConv, global_add_pool)
+from torch_geometric.nn import (
+    BatchNorm,
+    GATv2Conv,
+    GINConv,
+    GINEConv,
+    MFConv,
+    global_add_pool,
+)
 
 
 class M1(torch.nn.Module):
@@ -59,7 +65,7 @@ class M1(torch.nn.Module):
             x = conv(x, data.edge_index)
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
-                x = F.leaky_relu(x)
+            x = F.leaky_relu(x)
 
         # Classification
         x = self.classifier(x)
@@ -145,7 +151,7 @@ class M2(torch.nn.Module):
             x = conv(x, data.edge_index, data.edge_attr)
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
-                x = F.leaky_relu(x)
+            x = F.leaky_relu(x)
 
         # Classification
         x = self.classifier(x)
@@ -231,7 +237,7 @@ class M3(torch.nn.Module):
             x = conv(x, data.edge_index, data.edge_attr)
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
-                x = F.leaky_relu(x)
+            x = F.leaky_relu(x)
 
         # Classification
         x = self.classifier(x)
@@ -268,7 +274,8 @@ class M3(torch.nn.Module):
 
 
 class M4(torch.nn.Module):
-    """The graph neural network operator from the “Convolutional Networks on Graphs for Learning Molecular Fingerprints” paper.
+    """The graph neural network operator from the
+    “Convolutional Networks on Graphs for Learning Molecular Fingerprints” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv
     """
 
@@ -315,7 +322,7 @@ class M4(torch.nn.Module):
             x = conv(x, data.edge_index)
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
-                x = F.leaky_relu(x)
+            x = F.leaky_relu(x)
 
         # Classification
         x = self.classifier(x)
@@ -404,7 +411,7 @@ class M7(torch.nn.Module):
             x = conv(x, data.edge_index, data.edge_attr)
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
-                x = F.leaky_relu(x)
+            x = F.leaky_relu(x)
 
         # Pooling for context
         x_pool = global_add_pool(x, data.batch)
@@ -447,7 +454,6 @@ class M7(torch.nn.Module):
 
 
 class M9(torch.nn.Module):
-
     """
     The modified GINConv operator from the “Strategies for Pre-training Graph Neural Networks” paper.
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
@@ -504,7 +510,7 @@ class M9(torch.nn.Module):
             x_atom = conv(x_atom, data.edge_index, data.edge_attr)
             if i != len(self.conv) - 1:
                 x_atom = batch_norm(x_atom)
-                x_atom = F.leaky_relu(x_atom)
+            x_atom = F.leaky_relu(x_atom)
 
         # Normalize molecular features
         x_mol = self.norm_mol_x(data.mol_x)

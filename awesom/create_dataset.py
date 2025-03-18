@@ -1,5 +1,4 @@
 import os
-import shutil
 from ast import literal_eval
 from multiprocessing import cpu_count
 from typing import List, Optional
@@ -10,10 +9,7 @@ import torch
 from rdkit.Chem import PandasTools
 from torch_geometric.data import Data, InMemoryDataset
 
-from awesom.dataset_utils import(
-    generate_preprocessed_data, 
-    remove_implicit_Hs,
-)
+from awesom.dataset_utils import generate_preprocessed_data, remove_implicit_Hs
 
 
 class SOM(InMemoryDataset):
@@ -95,7 +91,9 @@ class SOM(InMemoryDataset):
             df["soms"] = [[] for _ in range(len(df))]
 
         # Remove implicit hydrogens
-        df[['ROMol', 'soms']] = df.apply(remove_implicit_Hs, axis=1, result_type='expand')
+        df[["ROMol", "soms"]] = df.apply(
+            remove_implicit_Hs, axis=1, result_type="expand"
+        )
 
         # Set a numerical (integer) mol_id for each molecule
         df["mol_id"] = df.index

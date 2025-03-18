@@ -71,11 +71,13 @@ def predict_with_ensemble(data, version_paths: List[Path]) -> tuple:
     # (a.k.a. the molecular identifiers of the input SD-file)
     # is a list of strings, which is not supported on GPU
 
-    logits_ensemble = torch.empty((num_models, num_atoms), dtype=torch.float32, device=device)
+    logits_ensemble = torch.empty(
+        (num_models, num_atoms), dtype=torch.float32, device=device
+    )
     y_trues = torch.empty(num_atoms, dtype=torch.int32, device=device)
     mol_ids = torch.empty(num_molecules, dtype=torch.int32, device=device)
     atom_ids = torch.empty(num_atoms, dtype=torch.int32, device=device)
-    
+
     for i, version_path in enumerate(version_paths):
         checkpoint_files = list(Path(version_path, "checkpoints").glob("*.ckpt"))
         if not checkpoint_files:
@@ -96,7 +98,6 @@ def predict_with_ensemble(data, version_paths: List[Path]) -> tuple:
             y_trues.copy_(y_true)
             mol_ids.copy_(mol_id)
             atom_ids.copy_(atom_id)
-        
 
     return logits_ensemble, y_trues, mol_ids, atom_ids, description
 
@@ -182,5 +183,5 @@ if __name__ == "__main__":
     total_time = datetime.now() - start_time
     print("Finished in:", datetime.now() - start_time)
 
-    with open(args.outputPath+'/runtime.csv', 'a') as f:
+    with open(args.outputPath + "/runtime.csv", "a") as f:
         f.write(f"{total_time},{load_time},{predict_time},{log_time}\n")

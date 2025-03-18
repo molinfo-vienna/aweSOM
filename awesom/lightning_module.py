@@ -42,8 +42,8 @@ class GNN(LightningModule):
         self.weight_decay = hyperparams["weight_decay"]
 
         self.loss_function = torch.nn.BCEWithLogitsLoss(
-            reduction="mean", 
-            pos_weight=torch.tensor(self.pos_class_weight, dtype=torch.float32)
+            reduction="mean",
+            pos_weight=torch.tensor(self.pos_class_weight, dtype=torch.float32),
         )
 
         self.train_mcc = MatthewsCorrCoef(task="binary")
