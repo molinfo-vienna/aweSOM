@@ -121,7 +121,7 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    
+
     # Load data
     data = SOM(root=args.inputPath, transform=T.ToUndirected()).shuffle()
     data_params = dict(
@@ -143,7 +143,8 @@ if __name__ == "__main__":
             val_data = itemgetter(*val_idx)(data)
 
             print(
-                f"CV-fold {fold_id}/{args.numCVFolds}: number of training instances {len(train_data)}, number of validation instances {len(val_data)}"
+                f"CV-fold {fold_id}/{args.numCVFolds}: \
+                number of training instances {len(train_data)}, number of validation instances {len(val_data)}"
             )
 
             hyperparams = MODELS[args.model].get_params(trial)
@@ -214,9 +215,7 @@ if __name__ == "__main__":
     best_trial.params["epochs"] = best_trial.user_attrs.get("epochs", "N/A")
     best_trial.params["architecture"] = best_trial.user_attrs.get("architecture", "N/A")
 
-    save_hparams_to_yaml(
-        Path(args.outputPath, "best_hparams.yaml"), best_trial.params
-    )
+    save_hparams_to_yaml(Path(args.outputPath, "best_hparams.yaml"), best_trial.params)
 
     # Compute and log all relevant validation metrics from models trained with optimal hparams
     # for subsequent manual model analysis and selection
@@ -253,9 +252,7 @@ if __name__ == "__main__":
         model = GNN.load_from_checkpoint(checkpoint_path)
 
         trainer = Trainer(accelerator="auto", logger=False)
-        predictions = trainer.predict(
-            model=model, dataloaders=val_loader
-        )
+        predictions = trainer.predict(model=model, dataloaders=val_loader)
 
         collected_validation_outputs[fold_id] = predictions[:-1]
         descriptions = predictions[-1]

@@ -1,13 +1,13 @@
 import csv
 import os
 from statistics import mean, stdev
+from typing import List
 
 import matplotlib.pyplot as plt
 import torch
 from sklearn.metrics import RocCurveDisplay
-from torchmetrics import AUROC, MatthewsCorrCoef
+from torchmetrics import AUROC, AveragePrecision, F1Score, MatthewsCorrCoef
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
-from typing import List
 
 NUM_BOOTSTRAPS = 1000
 THRESHOLD = 0.5
@@ -32,25 +32,37 @@ class BaseMetrics:
         )
         return ranking
 
-    # @classmethod
-    # def compute_shannon_entropy(cls, p):
-    #     return -(p * torch.log2(p) + (1 - p) * torch.log2(1 - p))
+    @classmethod
+    def compute_shannon_entropy(cls, p):
+        return -(p * torch.log2(p) + (1 - p) * torch.log2(1 - p))
 
     @classmethod
     def compute_uncertainties(cls, y_probs):
-        u_ale = torch.mean(y_probs*(1-y_probs), dim=0)
-        u_epi = torch.mean(y_probs**2, dim=0) - torch.mean(y_probs, dim=0)**2
+        u_tot = cls.compute_shannon_entropy(torch.mean(y_probs, dim=0))
+        u_ale = torch.mean(cls.compute_shannon_entropy(y_probs), dim=0)
 
-        u_ale = cls.scale(u_ale, 0, 0.25)
-        u_epi = cls.scale(u_epi, 0, 0.24)
-
-        u_tot = u_ale + u_epi
+        u_epi = u_tot - u_ale
 
         return u_ale, u_epi, u_tot
 
     @classmethod
     def scale(cls, x, min, max):
         return (x - min) / (max - min)
+
+    @classmethod
+    def compute_auroc(cls, y_prob, y_true):
+        auroc = AUROC(task="binary")
+        return auroc(y_prob, y_true).item()
+
+    @classmethod
+    def compute_average_precision(cls, y_prob, y_true):
+        average_precision = AveragePrecision(task="binary")
+        return average_precision(y_prob, y_true).item()
+
+    @classmethod
+    def compute_f1(cls, y_pred, y_true):
+        f1 = F1Score(task="binary")
+        return f1(y_pred, y_true).item()
 
     @classmethod
     def compute_mcc(cls, y_pred, y_true):
@@ -66,11 +78,6 @@ class BaseMetrics:
     def compute_recall(cls, y_pred, y_true):
         recall = BinaryRecall()
         return recall(y_pred, y_true).item()
-
-    @classmethod
-    def compute_auroc(cls, y_prob, y_true):
-        auroc = AUROC(task="binary")
-        return auroc(y_prob, y_true).item()
 
     @classmethod
     def compute_top2(cls, y_probs, y_trues, mol_ids_expanded):
@@ -95,16 +102,18 @@ class BaseMetrics:
 class ValidationLogger(BaseMetrics):
     @classmethod
     def compute_and_log_validation_results(
-        cls, 
+        cls,
         predictions: dict[int, List[torch.Tensor]],
         descriptions: List[str],
-        output_folder: str
+        output_folder: str,
     ) -> None:
         metrics = {
+            "ROC-AUC": [],
+            "PR-AUC": [],
+            "F1": [],
             "MCC": [],
             "Precision": [],
             "Recall": [],
-            "AUROC": [],
             "Top-2 correctness rate": [],
         }
 
@@ -120,11 +129,17 @@ class ValidationLogger(BaseMetrics):
             # Expand mol_ids to match the number of atoms
             zero_indices = torch.where(atom_ids == 0)[0]
             num_atoms_per_mol = zero_indices[1:] - zero_indices[:-1]
-            num_atoms_per_mol = torch.cat((num_atoms_per_mol, torch.tensor([len(atom_ids) - zero_indices[-1]])))  # Add the last molecule
+            num_atoms_per_mol = torch.cat(
+                (num_atoms_per_mol, torch.tensor([len(atom_ids) - zero_indices[-1]]))
+            )  # Add the last molecule
             mol_ids_expanded = torch.repeat_interleave(mol_ids, num_atoms_per_mol)
 
             # Expand descriptions to match the number of atoms
-            descriptions_expanded = [desc for desc, count in zip(descriptions, num_atoms_per_mol) for _ in range(count)]
+            descriptions_expanded = [
+                desc
+                for desc, count in zip(descriptions, num_atoms_per_mol)
+                for _ in range(count)
+            ]
 
             # Compute atom rankings
             rankings = cls.compute_ranking(y_probs, mol_ids_expanded)
@@ -157,10 +172,12 @@ class ValidationLogger(BaseMetrics):
                 ):
                     writer.writerow(row)
 
+            metrics["ROC-AUC"].append(cls.compute_auroc(y_probs, y_trues))
+            metrics["PR-AUC"].append(cls.compute_average_precision(y_probs, y_trues))
+            metrics["F1"].append(cls.compute_f1(y_preds, y_trues))
             metrics["MCC"].append(cls.compute_mcc(y_preds, y_trues))
             metrics["Precision"].append(cls.compute_precision(y_preds, y_trues))
             metrics["Recall"].append(cls.compute_recall(y_preds, y_trues))
-            metrics["AUROC"].append(cls.compute_auroc(y_probs, y_trues))
             metrics["Top-2 correctness rate"].append(
                 cls.compute_top2(y_probs, y_trues, mol_ids_expanded)
             )
@@ -202,11 +219,17 @@ class TestLogger(BaseMetrics):
         # Expand mol_ids to match the number of atoms
         zero_indices = torch.where(atom_ids == 0)[0]
         num_atoms_per_mol = zero_indices[1:] - zero_indices[:-1]
-        num_atoms_per_mol = torch.cat((num_atoms_per_mol, torch.tensor([len(atom_ids) - zero_indices[-1]])))  # Add the last molecule
+        num_atoms_per_mol = torch.cat(
+            (num_atoms_per_mol, torch.tensor([len(atom_ids) - zero_indices[-1]]))
+        )  # Add the last molecule
         mol_ids_expanded = torch.repeat_interleave(mol_ids, num_atoms_per_mol)
 
         # Expand descriptions to match the number of atoms
-        descriptions_expanded = [desc for desc, count in zip(descriptions, num_atoms_per_mol) for _ in range(count)]
+        descriptions_expanded = [
+            desc
+            for desc, count in zip(descriptions, num_atoms_per_mol)
+            for _ in range(count)
+        ]
 
         # Compute atom rankings
         rankings = cls.compute_ranking(y_probs, mol_ids_expanded)
@@ -245,18 +268,20 @@ class TestLogger(BaseMetrics):
 
         if mode == "test":
             # Initialize empty tensors to hold the metrics for each bootstrap iteration
+            aurocs = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
+            average_precisions = torch.empty(
+                NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu"
+            )
+            f1s = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
             mccs = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
             precisions = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
             recalls = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
-            aurocs = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
             top2s = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
 
             mol_ids
             for i in range(NUM_BOOTSTRAPS):
                 # Sample molecule IDs with replacement
-                sampled_mol_ids = mol_ids[
-                    torch.randint(len(mol_ids), (len(mol_ids),))
-                ]
+                sampled_mol_ids = mol_ids[torch.randint(len(mol_ids), (len(mol_ids),))]
 
                 # Create a mask to select atoms of the sampled molecules
                 mask = torch.isin(mol_ids_expanded, sampled_mol_ids)
@@ -268,14 +293,32 @@ class TestLogger(BaseMetrics):
                 y_preds_sample = y_preds[mask]
 
                 # Compute metrics
+                aurocs[i] = cls.compute_auroc(y_probs_sample, y_trues_sample)
+                average_precisions[i] = cls.compute_average_precision(
+                    y_probs_sample, y_trues_sample
+                )
+                f1s[i] = cls.compute_f1(y_preds_sample, y_trues_sample)
                 mccs[i] = cls.compute_mcc(y_preds_sample, y_trues_sample)
                 precisions[i] = cls.compute_precision(y_preds_sample, y_trues_sample)
                 recalls[i] = cls.compute_recall(y_preds_sample, y_trues_sample)
-                aurocs[i] = cls.compute_auroc(y_probs_sample, y_trues_sample)
-                top2s[i] = cls.compute_top2(y_probs_sample, y_trues_sample, mol_id_sample)
+                top2s[i] = cls.compute_top2(
+                    y_probs_sample, y_trues_sample, mol_id_sample
+                )
 
             # Write results to txt file
             with open(os.path.join(output_path, "results.txt"), "w") as f:
+                f.write(
+                    f"ROC-AUC: {round(aurocs.mean().item(), 2)} +/- {round(aurocs.std().item(), 2)}\n"
+                )
+                f.write(
+                    f"PR-AUC: {round(average_precisions.mean().item(), 2)}"
+                )
+                f.write(
+                    f"+/- {round(average_precisions.std().item(), 2)}\n"
+                )
+                f.write(
+                    f"F1: {round(f1s.mean().item(), 2)} +/- {round(f1s.std().item(), 2)}\n"
+                )
                 f.write(
                     f"MCC: {round(mccs.mean().item(), 2)} +/- {round(mccs.std().item(), 2)}\n"
                 )
@@ -284,9 +327,6 @@ class TestLogger(BaseMetrics):
                 )
                 f.write(
                     f"Recall: {round(recalls.mean().item(), 2)} +/- {round(recalls.std().item(), 2)}\n"
-                )
-                f.write(
-                    f"AUROC: {round(aurocs.mean().item(), 2)} +/- {round(aurocs.std().item(), 2)}\n"
                 )
                 f.write(
                     f"Top-2 correctness rate: {round(top2s.mean().item(), 2)} +/- {round(top2s.std().item(), 2)}\n"

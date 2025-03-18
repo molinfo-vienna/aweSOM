@@ -9,7 +9,6 @@ import torch
 import yaml
 from lightning import Trainer
 from lightning import seed_everything as lightning_seed_everything
-from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
@@ -71,7 +70,8 @@ def main():
         )
         train_loader = DataLoader(data, batch_size=BATCH_SIZE, shuffle=True)
         trainer.fit(
-            model=model, train_dataloaders=train_loader,
+            model=model,
+            train_dataloaders=train_loader,
         )
 
     with open(Path(args.outputPath, "random_seeds.txt"), "w") as f:

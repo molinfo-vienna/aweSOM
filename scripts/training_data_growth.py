@@ -20,7 +20,7 @@ from torch_geometric import transforms as T
 from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
-from awesom.create_dataset import LabeledData, SOM
+from awesom.create_dataset import SOM, LabeledData
 from awesom.lightning_module import GNN
 from awesom.metrics_utils import TestLogger
 
@@ -58,7 +58,7 @@ def load_hyperparams(path: str) -> dict:
     """Load hyperparameters from YAML file."""
     with open(Path(path, "best_hparams.yaml"), "r") as file:
         return yaml.safe_load(file)
-    
+
 
 def find_checkpoints(checkpoints_path: str) -> List[Path]:
     """Retrieve sorted list of checkpoint paths."""
@@ -91,11 +91,13 @@ def predict_with_ensemble(data, version_paths: List[Path]) -> tuple:
     # (a.k.a. the molecular identifiers of the input SD-file)
     # is a list of strings, which is not supported on GPU
 
-    logits_ensemble = torch.empty((num_models, num_atoms), dtype=torch.float32, device=device)
+    logits_ensemble = torch.empty(
+        (num_models, num_atoms), dtype=torch.float32, device=device
+    )
     y_trues = torch.empty(num_atoms, dtype=torch.int32, device=device)
     mol_ids = torch.empty(num_molecules, dtype=torch.int32, device=device)
     atom_ids = torch.empty(num_atoms, dtype=torch.int32, device=device)
-    
+
     for i, version_path in enumerate(version_paths):
         checkpoint_files = list(Path(version_path, "checkpoints").glob("*.ckpt"))
         if not checkpoint_files:
@@ -116,7 +118,6 @@ def predict_with_ensemble(data, version_paths: List[Path]) -> tuple:
             y_trues.copy_(y_true)
             mol_ids.copy_(mol_id)
             atom_ids.copy_(atom_id)
-        
 
     return logits_ensemble, y_trues, mol_ids, atom_ids, description
 
@@ -142,7 +143,7 @@ def main():
     # Train ensemble models with varying proportions of training data
     for p in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]:
 
-        output_path_p = os.path.join(args.outputPath, str(int(p*10)))
+        output_path_p = os.path.join(args.outputPath, str(int(p * 10)))
 
         # Do it 10 times to get standard deviations
         for i in range(10):
@@ -153,7 +154,9 @@ def main():
 
             # Select subset of training data
             if p < 1:
-                sub_train_val_data, _ = train_test_split(train_val_data, test_size=(1-p))
+                sub_train_val_data, _ = train_test_split(
+                    train_val_data, test_size=(1 - p)
+                )
             else:
                 sub_train_val_data = train_val_data
 
@@ -170,7 +173,9 @@ def main():
                     architecture=args.model,
                 )
 
-                logger = TensorBoardLogger(save_dir=output_path_model, default_hp_metric=False)
+                logger = TensorBoardLogger(
+                    save_dir=output_path_model, default_hp_metric=False
+                )
                 callbacks = [
                     EarlyStopping(monitor="val/loss", mode="min", patience=20),
                     ModelCheckpoint(monitor="val/loss", mode="min"),
@@ -185,7 +190,9 @@ def main():
                 )
 
                 trainer.fit(
-                    model=model, train_dataloaders=train_loader, val_dataloaders=val_loader
+                    model=model,
+                    train_dataloaders=train_loader,
+                    val_dataloaders=val_loader,
                 )
 
             with open(Path(output_path_model, "random_seeds.txt"), "w") as f:

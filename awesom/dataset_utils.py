@@ -1,18 +1,13 @@
 from __future__ import annotations
 
+import warnings
 from multiprocessing import Pool
 from typing import Any, List, Tuple
 
 import networkx as nx
 import numpy as np
-import warnings
 import pandas as pd
-from rdkit.Chem import(
-    Mol, 
-    MolToSmiles,
-    RemoveHs,
-    #, rdMolDescriptors,
-)
+from rdkit.Chem import Mol, MolToSmiles, RemoveHs  # , rdMolDescriptors,
 from rdkit.Chem.rdchem import Atom, Bond
 
 ELEM_LIST = [
@@ -113,7 +108,9 @@ def mol_to_nx(mol_id: int, mol: Mol, soms: List[int], id: str) -> nx.Graph:
 
 def process_data_chunk(df_chunk: pd.DataFrame) -> nx.Graph:
     """Processes a chunk of data to generate molecular subgraphs."""
-    df_chunk["G"] = df_chunk.apply(lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms, x.ID), axis=1)
+    df_chunk["G"] = df_chunk.apply(
+        lambda x: mol_to_nx(x.mol_id, x.ROMol, x.soms, x.ID), axis=1
+    )
     return nx.disjoint_union_all(df_chunk["G"].to_list())
 
 
@@ -137,13 +134,16 @@ def remove_implicit_Hs(row) -> Tuple[Mol, List[int]]:
 
     # Remove hydrogens
     mol = RemoveHs(row.ROMol)
-        
+
     # Reset the SOM list to the new indices
     try:
-        new_soms = [atom.GetIdx() for atom in row["ROMol"].GetAtoms() if atom.GetIntProp("label") == 1]
+        new_soms = [
+            atom.GetIdx()
+            for atom in row["ROMol"].GetAtoms()
+            if atom.GetIntProp("label") == 1
+        ]
         return mol, new_soms
-    except:
+    except RuntimeError:
         molid = row["ID"]
         warnings.warn(f"SoM label issue on molecule {molid}")
         return mol, []
-    
