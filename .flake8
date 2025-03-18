@@ -1,6 +1,6 @@
 [flake8]
-ignore = D203,E501,W503
+max-line-length = 120
+ignore = D203,W503
 
 # D203: 1 blank line required before class docstring
-# E501: line too long (88 > 79 characters)
 # W503: line break before binary operator

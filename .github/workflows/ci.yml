@@ -1,0 +1,43 @@
+name: Python Package CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt -r requirements-dev.txt
+
+    - name: Run black
+      if: success() || failure()
+      run: black --check .
+
+    - name: Run flake8
+      if: success() || failure()
+      run: flake8 .
+
+    - name: Run isort
+      if: success() || failure()
+      run: isort --check .
+
+    - name: Run mypy
+      if: success() || failure()
+      run: mypy .
+
+    - name: Run pylint
+      if: success() || failure()
+      run: pylint .
+      
