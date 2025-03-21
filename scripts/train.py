@@ -20,7 +20,7 @@ from awesom.lightning_module import GNN
 warnings.filterwarnings("ignore", category=UserWarning)
 
 BATCH_SIZE = 32
-ENSEMBLE_SIZE = 5
+ENSEMBLE_SIZE = 10
 
 
 def set_seeds(seed: int) -> None:

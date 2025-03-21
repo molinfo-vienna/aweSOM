@@ -1,4 +1,5 @@
 import os
+import shutil
 from ast import literal_eval
 from multiprocessing import cpu_count
 from typing import List, Optional
@@ -18,11 +19,11 @@ class SOM(InMemoryDataset):
     def __init__(
         self, root: str, transform=None, pre_transform=None, pre_filter=None
     ) -> None:
-        # # Delete the processed folder if it exists
-        # processed_folder = os.path.join(root, "processed")
-        # if os.path.exists(processed_folder):
-        #     shutil.rmtree(processed_folder)
-        #     print(f"Deleted existing processed folder at: {processed_folder}")
+        # Delete the processed folder if it exists
+        processed_folder = os.path.join(root, "processed")
+        if os.path.exists(processed_folder):
+            shutil.rmtree(processed_folder)
+            print(f"Deleted existing processed folder at: {processed_folder}")
 
         # Call the superclass constructor
         super().__init__(root, transform, pre_transform, pre_filter)

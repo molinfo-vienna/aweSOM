@@ -3,4 +3,4 @@
 .vscode/
 *.sh
 sandbox.ipynb
-training_data_growth.py
+scripts/training_data_growth.py

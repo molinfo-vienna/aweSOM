@@ -71,14 +71,14 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-i",
-        "--inputPath",
+        dest="inputPath",
         type=str,
         required=True,
         help="Folder holding the input data.",
     )
     parser.add_argument(
         "-o",
-        "--outputPath",
+        dest="outputPath",
         type=str,
         required=True,
         help="Folder to which the output will be written. \
@@ -89,33 +89,33 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-m",
-        "--model",
+        dest="model",
         type=str,
-        required=True,
+        required=False,
         default="M7",
         help="Model architecture.",
     )
     parser.add_argument(
         "-e",
-        "--epochs",
+        dest="epochs",
         type=int,
-        required=True,
-        default=1000,
+        required=False,
+        default=500,
         help="Maximum number of training epochs.",
     )
     parser.add_argument(
         "-n",
-        "--numCVFolds",
+        dest="numCVFolds",
         type=int,
-        required=True,
+        required=False,
         default=10,
         help="Number of cross-validation folds.",
     )
     parser.add_argument(
         "-t",
-        "--numberOptunaTrials",
+        dest="numberOptunaTrials",
         type=int,
-        required=True,
+        required=False,
         default=20,
         help="Number of optuna trials.",
     )
