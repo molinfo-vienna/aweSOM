@@ -51,7 +51,7 @@ Please note that the data, models, and outputs in this repository are derived fr
 * ```M11```: GINEConv + DenseNet-inspired skip connections
 * ```M12```: GINEConv + ResNet inspired skip connections
 
-```EPOCHS```: The maximum number of training epochs. Default is ```1000```.
+```EPOCHS```: The maximum number of training epochs. Default is ```500```.
 
 ```NUM_FOLDS```: The number of cross-validation folds. Default is ```10```.
 
@@ -59,25 +59,21 @@ Please note that the data, models, and outputs in this repository are derived fr
 
 Example:
 
-```python scripts/cv_hp_search.py -i /data/train -o output/M7 -m M7 -e 1000 -n 10 -t 20```
+```python scripts/cv_hp_search.py -i /data/train -o output/cv_hp_search```
 
 #### Model Training
 
-```python scripts/train.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS```
+```python scripts/train.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH```
 
 ```INPUT_PATH```: The path to the input data. For model training, only ```.sdf``` input files are currently supported. Running train.py will create processed data files and place them into ```INPUT_PATH/processed/```.
 
 ```CHECKPOINTS_PATH```: The path to the yaml file containing the hyperparameters that were previously determined by running the cv_hp_search.py script on the training data.
 
-```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file. The individual validation metrics of each fold will be stored in a CSV file. The best model's checkpoints will be stored in a directory. The averaged predictions made with the best hyp.erparameters will be stored in a text file
-
-```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M3```, ```M4```, ```M7```, ```M9```, ```M11```, ```M12```.   Default is ```M7```.
-
-```EPOCHS```: The maximum number of training epochs.  Default is ```1000```.
+```OUTPUT_PATH```: The desired output's location. Per default, training generates an ensemble of 10 models.
 
 Example:
 
-```python scripts/train.py -i data/train -c output/M7 -o output/M7/ensemble -m M7 -e 1000```
+```python scripts/train.py -i data/train -c output/cv_hp_search -o output/model```
 
 #### Model testing (predicting SoMs for labeled data)
 
@@ -93,7 +89,7 @@ To predict the SoMs of one or multiple *labeled* molecules and output the predic
 
 Example:
 
-```python scripts/test.py -i data/test -c output/M7/ensemble -o output/M7/test -m test```
+```python scripts/test.py -i data/test -c output/model -o output/test -m test```
 
 #### Inference (predicting SoMs for unlabeled data)
 
@@ -109,7 +105,12 @@ To predict the SoMs of one or multiple *unlabeled* molecules and output the pred
 
 Example:
 
-```python scripts/test.py -i data/abemaciclib -c output/M7/ensemble -o output/M7/abemaciclib -m infer```
+```python scripts/test.py -i data/abemaciclib -c output/model -o output/abemaciclib -m infer```
+
+### Data
+The use of the trained aweSOM models (10.26434/chemrxiv-2024-pzmqt) requires a license for the MetaQSAR database (10.1021/acs.jmedchem.7b01473). To demonstrate the validity of the software presented in this repository, we trained and tested an example version of aweSOM using public metabolism data, commonly referred to as the Zaretzki data set. The original data can be found at 10.1021/ci300009z. The curated data used for demonstrating how to train and test aweSOM, as well as the trained example models can be found at XXX.
+
+The repository also provides access to \textsc{aweSOM} models trained on the public SoM data sets reported in \citep{Zaretzki2011}. 
 
 ### License
 

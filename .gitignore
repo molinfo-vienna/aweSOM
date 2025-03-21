@@ -4,3 +4,5 @@
 *.sh
 sandbox.ipynb
 scripts/training_data_growth.py
+data/
+output/
