@@ -269,9 +269,7 @@ class TestLogger(BaseMetrics):
         if mode == "test":
             # Initialize empty tensors to hold the metrics for each bootstrap iteration
             aurocs = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
-            average_precisions = torch.empty(
-                NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu"
-            )
+            auprs = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
             f1s = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
             mccs = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
             precisions = torch.empty(NUM_BOOTSTRAPS, dtype=torch.float32, device="cpu")
@@ -294,9 +292,7 @@ class TestLogger(BaseMetrics):
 
                 # Compute metrics
                 aurocs[i] = cls.compute_auroc(y_probs_sample, y_trues_sample)
-                average_precisions[i] = cls.compute_average_precision(
-                    y_probs_sample, y_trues_sample
-                )
+                auprs[i] = cls.compute_average_precision(y_probs_sample, y_trues_sample)
                 f1s[i] = cls.compute_f1(y_preds_sample, y_trues_sample)
                 mccs[i] = cls.compute_mcc(y_preds_sample, y_trues_sample)
                 precisions[i] = cls.compute_precision(y_preds_sample, y_trues_sample)
@@ -311,10 +307,7 @@ class TestLogger(BaseMetrics):
                     f"ROC-AUC: {round(aurocs.mean().item(), 2)} +/- {round(aurocs.std().item(), 2)}\n"
                 )
                 f.write(
-                    f"PR-AUC: {round(average_precisions.mean().item(), 2)}"
-                )
-                f.write(
-                    f"+/- {round(average_precisions.std().item(), 2)}\n"
+                    f"PR-AUC: {round(auprs.mean().item(), 2)} +/- {round(auprs.std().item(), 2)}\n"
                 )
                 f.write(
                     f"F1: {round(f1s.mean().item(), 2)} +/- {round(f1s.std().item(), 2)}\n"

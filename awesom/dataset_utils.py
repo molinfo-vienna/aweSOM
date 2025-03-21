@@ -7,7 +7,7 @@ from typing import Any, List, Tuple
 import networkx as nx
 import numpy as np
 import pandas as pd
-from rdkit.Chem import Mol, MolToSmiles, RemoveHs  # , rdMolDescriptors,
+from rdkit.Chem import Mol, MolToSmiles, RemoveHs  # , rdMolDescriptors
 from rdkit.Chem.rdchem import Atom, Bond
 
 ELEM_LIST = [
