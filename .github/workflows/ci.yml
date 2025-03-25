@@ -34,6 +34,7 @@ jobs:
       run: isort --check .
 
     - name: Tests
+      if: always()
       run: pytest
 
     - name: Run mypy
