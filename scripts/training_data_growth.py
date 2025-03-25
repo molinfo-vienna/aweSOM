@@ -109,7 +109,7 @@ def predict_with_ensemble(data, version_paths: List[Path]) -> tuple[torch.Tensor
     return logits_ensemble, y_trues, mol_ids, atom_ids, description
 
 
-def main():
+def main() -> None:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")

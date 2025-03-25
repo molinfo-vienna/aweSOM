@@ -168,12 +168,12 @@ class SOM(InMemoryDataset):
 class LabeledData(SOM):
     """Class to create a PyTorch Geometric Dataset from and SD-File or an smiles file with SOM-labels."""
 
-    def process(self):
+    def process(self) -> None:
         super().process(labels=True)
 
 
 class UnlabeledData(SOM):
     """Class to create a PyTorch Geometric Dataset from and SD-File or an smiles file without SOM-labels."""
 
-    def process(self):
+    def process(self) -> None:
         super().process(labels=False)
