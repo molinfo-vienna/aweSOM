@@ -122,7 +122,7 @@ def generate_preprocessed_data(df: pd.DataFrame, num_workers: int) -> nx.Graph:
     return nx.disjoint_union_all(graphs)
 
 
-def remove_implicit_Hs(row) -> Tuple[Mol, List[int]]:
+def remove_implicit_Hs(row: pd.Series) -> Tuple[Mol, List[int]]:
     """Removes implicit hydrogens from a molecule and updates the SoM indices."""
     # Set the label property to whether the atom is a SoM or not
     for atom in row.ROMol.GetAtoms():

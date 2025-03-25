@@ -2,8 +2,9 @@ import os
 import shutil
 from ast import literal_eval
 from multiprocessing import cpu_count
-from typing import List, Optional
+from typing import Callable, List, Optional
 
+import networkx as nx
 import numpy as np
 import pandas as pd
 import torch
@@ -17,7 +18,11 @@ class SOM(InMemoryDataset):
     """Base class to create a PyTorch Geometric Dataset from and SD-File or an smiles file."""
 
     def __init__(
-        self, root: str, transform=None, pre_transform=None, pre_filter=None
+        self,
+        root: str,
+        transform: Optional[Callable] = None,
+        pre_transform: Optional[Callable] = None,
+        pre_filter: Optional[Callable] = None,
     ) -> None:
         # Delete the processed folder if it exists
         processed_folder = os.path.join(root, "processed")
@@ -103,7 +108,7 @@ class SOM(InMemoryDataset):
         G = generate_preprocessed_data(df, min(len(df), cpu_count()))
         return self.create_data_list(G)
 
-    def create_data_list(self, G) -> List[Data]:
+    def create_data_list(self, G: nx.Graph) -> List[Data]:
         """Creates a list of Data objects from a graph object G."""
         mol_ids = torch.tensor(
             [G.nodes[i]["mol_id"] for i in range(len(G.nodes))], dtype=torch.int32

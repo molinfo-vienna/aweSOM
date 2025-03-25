@@ -63,7 +63,12 @@ def load_model_from_checkpoint(checkpoint_path: Path) -> GNN:
     return model
 
 
-def predict_with_ensemble(data, version_paths: List[Path]) -> tuple:
+def predict_with_ensemble(data, version_paths: List[Path]) -> tuple[torch.Tensor,
+                                                                    torch.Tensor,
+                                                                    torch.Tensor,
+                                                                    torch.Tensor,
+                                                                    list[str]
+                                                                    ]:
     """Run predictions for each model checkpoint in the ensemble."""
     num_molecules = len(data)
     num_atoms = data.x.size(0)

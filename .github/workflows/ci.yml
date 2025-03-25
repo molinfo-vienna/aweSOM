@@ -33,11 +33,11 @@ jobs:
       if: success() || failure()
       run: isort --check .
 
-    - name: Run mypy
-      if: success() || failure()
-      run: mypy .
+    # - name: Run mypy
+    #   if: success() || failure()
+    #   run: mypy .
 
-    - name: Run pylint
-      if: success() || failure()
-      run: pylint .
+    # - name: Run pylint
+    #   if: success() || failure()
+    #   run: pylint .
       

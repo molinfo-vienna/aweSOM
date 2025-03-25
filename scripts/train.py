@@ -32,13 +32,13 @@ def set_seeds(seed: int) -> None:
     random.seed(seed)
 
 
-def load_hyperparams(path: str) -> dict:
+def load_hyperparams(path: str) -> dict[str, any]:
     """Load hyperparameters from YAML file."""
     with open(Path(path, "best_hparams.yaml"), "r") as file:
         return yaml.safe_load(file)
 
 
-def main():
+def main() -> None:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")

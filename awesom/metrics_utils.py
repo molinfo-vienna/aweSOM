@@ -15,29 +15,33 @@ THRESHOLD = 0.5
 
 class BaseMetrics:
     @classmethod
-    def compute_ranking(cls, y_prob, mol_id):
+    def compute_ranking(cls, y_probs: torch.Tensor, mol_ids: torch.Tensor):
         ranking = torch.cat(
             [
                 torch.argsort(
                     torch.argsort(
-                        torch.index_select(y_prob, 0, torch.where(mol_id == mid)[0]),
+                        torch.index_select(
+                            y_probs, 0, torch.where(mol_ids == mol_id)[0]
+                        ),
                         dim=0,
                         descending=True,
                     ),
                     dim=0,
                     descending=False,
                 )
-                for mid in list(dict.fromkeys(mol_id.tolist()))  # Get an ordered set
+                for mol_id in list(
+                    dict.fromkeys(mol_ids.tolist())
+                )  # Get an ordered set
             ]
         )
         return ranking
 
     @classmethod
-    def compute_shannon_entropy(cls, p):
+    def compute_shannon_entropy(cls, p: float):
         return -(p * torch.log2(p) + (1 - p) * torch.log2(1 - p))
 
     @classmethod
-    def compute_uncertainties(cls, y_probs):
+    def compute_uncertainties(cls, y_probs: torch.Tensor):
         u_tot = cls.compute_shannon_entropy(torch.mean(y_probs, dim=0))
         u_ale = torch.mean(cls.compute_shannon_entropy(y_probs), dim=0)
 
@@ -46,36 +50,32 @@ class BaseMetrics:
         return u_ale, u_epi, u_tot
 
     @classmethod
-    def scale(cls, x, min, max):
-        return (x - min) / (max - min)
-
-    @classmethod
-    def compute_auroc(cls, y_prob, y_true):
+    def compute_auroc(cls, y_prob: torch.Tensor, y_true: torch.Tensor):
         auroc = AUROC(task="binary")
         return auroc(y_prob, y_true).item()
 
     @classmethod
-    def compute_average_precision(cls, y_prob, y_true):
+    def compute_average_precision(cls, y_prob: torch.Tensor, y_true: torch.Tensor):
         average_precision = AveragePrecision(task="binary")
         return average_precision(y_prob, y_true).item()
 
     @classmethod
-    def compute_f1(cls, y_pred, y_true):
+    def compute_f1(cls, y_pred: torch.Tensor, y_true: torch.Tensor):
         f1 = F1Score(task="binary")
         return f1(y_pred, y_true).item()
 
     @classmethod
-    def compute_mcc(cls, y_pred, y_true):
+    def compute_mcc(cls, y_pred: torch.Tensor, y_true: torch.Tensor):
         mcc = MatthewsCorrCoef(task="binary")
         return mcc(y_pred, y_true).item()
 
     @classmethod
-    def compute_precision(cls, y_pred, y_true):
+    def compute_precision(cls, y_pred: torch.Tensor, y_true: torch.Tensor):
         precision = BinaryPrecision()
         return precision(y_pred, y_true).item()
 
     @classmethod
-    def compute_recall(cls, y_pred, y_true):
+    def compute_recall(cls, y_pred: torch.Tensor, y_true: torch.Tensor):
         recall = BinaryRecall()
         return recall(y_pred, y_true).item()
 
@@ -107,7 +107,7 @@ class ValidationLogger(BaseMetrics):
         descriptions: List[str],
         output_folder: str,
     ) -> None:
-        metrics = {
+        metrics: dict[str, List[float]] = {
             "ROC-AUC": [],
             "PR-AUC": [],
             "F1": [],
@@ -238,7 +238,7 @@ class TestLogger(BaseMetrics):
         y_preds = (y_probs >= THRESHOLD).int()
 
         # Write results to csv file
-        if mode == "infer":
+        if mode == "test":
             row_names = (
                 "mol_id",
                 "atom_id",
@@ -261,7 +261,7 @@ class TestLogger(BaseMetrics):
                 [round(u_epi, 4) for u_epi in u_epis.tolist()],
                 [round(u_tot, 4) for u_tot in u_tots.tolist()],
             )
-        elif mode == "test":
+        elif mode == "infer":
             row_names = (
                 "mol_id",
                 "atom_id",
