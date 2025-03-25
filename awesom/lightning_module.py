@@ -95,7 +95,7 @@ class GNN(LightningModule):
         )
         return loss
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx) -> None:
         loss, logits = self.step(batch)
         y_hats = torch.sigmoid(logits)
         self.val_mcc(y_hats, batch.y)
