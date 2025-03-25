@@ -63,12 +63,9 @@ def load_model_from_checkpoint(checkpoint_path: Path) -> GNN:
     return model
 
 
-def predict_with_ensemble(data, version_paths: List[Path]) -> tuple[torch.Tensor,
-                                                                    torch.Tensor,
-                                                                    torch.Tensor,
-                                                                    torch.Tensor,
-                                                                    list[str]
-                                                                    ]:
+def predict_with_ensemble(
+    data, version_paths: List[Path]
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list[str]]:
     """Run predictions for each model checkpoint in the ensemble."""
     num_molecules = len(data)
     num_atoms = data.x.size(0)
@@ -134,9 +131,7 @@ def main() -> None:
 
         # Select subset of training data
         if p < 1:
-            sub_train_data, _ = train_test_split(
-                train_data, test_size=(1 - p)
-            )
+            sub_train_data, _ = train_test_split(train_data, test_size=(1 - p))
         else:
             sub_train_data = train_data
 
@@ -145,7 +140,9 @@ def main() -> None:
         for seed in random_seeds:
             set_seeds(seed)
             hyperparams = load_hyperparams(args.hparamsYamlPath)
-            logger = TensorBoardLogger(save_dir=output_path_model, default_hp_metric=False)
+            logger = TensorBoardLogger(
+                save_dir=output_path_model, default_hp_metric=False
+            )
             trainer = Trainer(
                 accelerator="auto",
                 max_epochs=hyperparams["epochs"],
@@ -157,7 +154,9 @@ def main() -> None:
                 hyperparams=hyperparams,
                 architecture=hyperparams["architecture"],
             )
-            train_loader = DataLoader(sub_train_data, batch_size=BATCH_SIZE, shuffle=True)
+            train_loader = DataLoader(
+                sub_train_data, batch_size=BATCH_SIZE, shuffle=True
+            )
             trainer.fit(
                 model=model,
                 train_dataloaders=train_loader,
