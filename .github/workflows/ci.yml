@@ -19,8 +19,11 @@ jobs:
         cache: 'pip'
 
     - name: Install dependencies
-      run: pip install -r requirements.txt -r requirements_dev.txt
-
+      run: |
+        pip install -r requirements.txt
+        pip install -r requirements_dev.txt
+        pip install -e .
+        
     - name: Run black
       if: success() || failure()
       run: black --check .
