@@ -18,7 +18,7 @@ class M1(torch.nn.Module):
     https://pytorch-geometric.readthedocs.io/en/2.4.0/generated/torch_geometric.nn.conv.GINConv.html
     """
 
-    def __init__(self, params, hyperparams) -> None:
+    def __init__(self, params: dict, hyperparams: dict[str, any]) -> None:
         super(M1, self).__init__()
 
         self.conv = torch.nn.ModuleList()
@@ -73,7 +73,7 @@ class M1(torch.nn.Module):
         return torch.flatten(x)
 
     @classmethod
-    def get_params(self, trial):
+    def get_params(self, trial) -> dict:
         learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
         pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
@@ -103,7 +103,7 @@ class M2(torch.nn.Module):
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html
     """
 
-    def __init__(self, params, hyperparams) -> None:
+    def __init__(self, params: dict, hyperparams: dict) -> None:
         super(M2, self).__init__()
 
         self.conv = torch.nn.ModuleList()
@@ -159,7 +159,7 @@ class M2(torch.nn.Module):
         return torch.flatten(x)
 
     @classmethod
-    def get_params(self, trial):
+    def get_params(self, trial) -> dict:
         learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
         pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
@@ -192,7 +192,7 @@ class M3(torch.nn.Module):
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html#torch_geometric.nn.conv.GATv2Conv
     """
 
-    def __init__(self, params, hyperparams) -> None:
+    def __init__(self, params: dict, hyperparams: dict) -> None:
         super(M3, self).__init__()
 
         self.conv = torch.nn.ModuleList()
@@ -245,7 +245,7 @@ class M3(torch.nn.Module):
         return torch.flatten(x)
 
     @classmethod
-    def get_params(self, trial):
+    def get_params(self, trial) -> dict:
         learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
         pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
@@ -279,7 +279,7 @@ class M4(torch.nn.Module):
     https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv
     """
 
-    def __init__(self, params, hyperparams) -> None:
+    def __init__(self, params: dict, hyperparams: dict) -> None:
         super(M4, self).__init__()
 
         self.conv = torch.nn.ModuleList()
@@ -330,7 +330,7 @@ class M4(torch.nn.Module):
         return torch.flatten(x)
 
     @classmethod
-    def get_params(self, trial):
+    def get_params(self, trial) -> dict:
         learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
         pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
@@ -363,7 +363,7 @@ class M7(torch.nn.Module):
     + Pooling for context
     """
 
-    def __init__(self, params, hyperparams) -> None:
+    def __init__(self, params: dict, hyperparams: dict) -> None:
         super(M7, self).__init__()
 
         self.conv = torch.nn.ModuleList()
@@ -429,7 +429,7 @@ class M7(torch.nn.Module):
         return torch.flatten(x)
 
     @classmethod
-    def get_params(self, trial):
+    def get_params(self, trial) -> dict:
         learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
         pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
@@ -460,7 +460,7 @@ class M9(torch.nn.Module):
     + Molecular features as additional input
     """
 
-    def __init__(self, params, hyperparams) -> None:
+    def __init__(self, params: dict, hyperparams: dict) -> None:
         super(M9, self).__init__()
 
         self.conv = torch.nn.ModuleList()
@@ -524,7 +524,7 @@ class M9(torch.nn.Module):
         return torch.flatten(x)
 
     @classmethod
-    def get_params(self, trial):
+    def get_params(self, trial) -> dict:
         learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
         pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
@@ -555,7 +555,7 @@ class M11(torch.nn.Module):
     + Skip connections in the style of DenseNet
     """
 
-    def __init__(self, params, hyperparams) -> None:
+    def __init__(self, params: dict, hyperparams: dict) -> None:
         super(M11, self).__init__()
 
         self.conv = torch.nn.ModuleList()
@@ -615,7 +615,7 @@ class M11(torch.nn.Module):
         return torch.flatten(x)
 
     @classmethod
-    def get_params(self, trial):
+    def get_params(self, trial) -> dict:
         learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
         pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)
@@ -646,7 +646,7 @@ class M12(torch.nn.Module):
     + Skip connections in the style of ResNet
     """
 
-    def __init__(self, params, hyperparams) -> None:
+    def __init__(self, params: dict, hyperparams: dict) -> None:
         super(M12, self).__init__()
 
         self.conv = torch.nn.ModuleList()
@@ -706,7 +706,7 @@ class M12(torch.nn.Module):
         return torch.flatten(x)
 
     @classmethod
-    def get_params(self, trial):
+    def get_params(self, trial) -> dict:
         learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
         pos_class_weight = trial.suggest_float("pos_class_weight", 2, 3, log=False)

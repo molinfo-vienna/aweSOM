@@ -130,7 +130,7 @@ if __name__ == "__main__":
         # num_mol_features=data.mol_x.shape[1],
     )
 
-    def objective(trial):
+    def objective(trial: optuna.trial.Trial) -> float:
         trial.set_user_attr("architecture", args.model)
 
         performance_per_fold = []
@@ -256,7 +256,6 @@ if __name__ == "__main__":
 
         collected_validation_outputs[fold_id] = predictions[:-1]
         descriptions = predictions[-1]
-
 
     ValidationLogger.compute_and_log_validation_results(
         collected_validation_outputs, descriptions, args.outputPath
