@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  lint:
+  lint_and_test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -19,7 +19,7 @@ jobs:
         cache: 'pip'
 
     - name: Install dependencies
-      run: pip install -r requirements.txt -r requirements-dev.txt
+      run: pip install -r requirements.txt -r requirements_dev.txt
 
     - name: Run black
       if: success() || failure()
@@ -39,7 +39,7 @@ jobs:
     - name: Run mypy
       if: success() || failure()
       run: mypy
-      
+
     - name: Run pylint
       if: success() || failure()
       run: pylint .
