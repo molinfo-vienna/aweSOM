@@ -110,8 +110,6 @@ Example:
 ### Data
 The use of the trained aweSOM models (10.26434/chemrxiv-2024-pzmqt) requires a license for the MetaQSAR database (10.1021/acs.jmedchem.7b01473). To demonstrate the validity of the software presented in this repository, we trained and tested an example version of aweSOM using public metabolism data, commonly referred to as the Zaretzki data set. The original data can be found at 10.1021/ci300009z. The curated data used for demonstrating how to train and test aweSOM, as well as the trained example models can be found at XXX.
 
-The repository also provides access to \textsc{aweSOM} models trained on the public SoM data sets reported in \citep{Zaretzki2011}. 
-
 ### License
 
 This project is licensed under the MIT license.
