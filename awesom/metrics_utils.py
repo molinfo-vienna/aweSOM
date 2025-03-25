@@ -118,10 +118,10 @@ class ValidationLogger(BaseMetrics):
         }
 
         for fold_id, preds in predictions.items():
-            logits = preds[0][0]
-            y_trues = preds[0][1]
-            mol_ids = preds[0][2]
-            atom_ids = preds[0][3]
+            logits = preds[0]
+            y_trues = preds[1]
+            mol_ids = preds[2]
+            atom_ids = preds[3]
 
             # Compute predicted SoM-probabilities from logits
             y_probs = torch.sigmoid(logits)
@@ -166,7 +166,7 @@ class ValidationLogger(BaseMetrics):
                     descriptions_expanded,
                     atom_ids.tolist(),
                     y_trues.tolist(),
-                    y_probs.tolist(),
+                    [round(y_prob, 4) for y_prob in y_probs.tolist()],
                     y_preds.tolist(),
                     rankings.tolist(),
                 ):
@@ -238,32 +238,54 @@ class TestLogger(BaseMetrics):
         y_preds = (y_probs >= THRESHOLD).int()
 
         # Write results to csv file
-        with open(os.path.join(output_path, "results.csv"), "w") as f:
-            writer = csv.writer(f)
-            writer.writerow(
-                (
-                    "mol_id",
-                    "atom_id",
-                    "y_true",
-                    "y_prob",
-                    "y_pred",
-                    "ranking",
-                    "u_ale",
-                    "u_epi",
-                    "u_tot",
-                )
+        if mode == "infer":
+            row_names = (
+                "mol_id",
+                "atom_id",
+                "y_true",
+                "y_prob",
+                "y_pred",
+                "ranking",
+                "u_ale",
+                "u_epi",
+                "u_tot",
             )
-            for row in zip(
+            row_values = zip(
                 descriptions_expanded,
                 atom_ids.tolist(),
                 y_trues.tolist(),
-                y_probs.tolist(),
+                [round(y_prob, 4) for y_prob in y_probs.tolist()],
                 y_preds.tolist(),
                 rankings.tolist(),
-                u_ales.tolist(),
-                u_epis.tolist(),
-                u_tots.tolist(),
-            ):
+                [round(u_ale, 4) for u_ale in u_ales.tolist()],
+                [round(u_epi, 4) for u_epi in u_epis.tolist()],
+                [round(u_tot, 4) for u_tot in u_tots.tolist()],
+            )
+        elif mode == "test":
+            row_names = (
+                "mol_id",
+                "atom_id",
+                "y_prob",
+                "y_pred",
+                "ranking",
+                "u_ale",
+                "u_epi",
+                "u_tot",
+            )
+            row_values = zip(
+                descriptions_expanded,
+                atom_ids.tolist(),
+                [round(y_prob, 4) for y_prob in y_probs.tolist()],
+                y_preds.tolist(),
+                rankings.tolist(),
+                [round(u_ale, 4) for u_ale in u_ales.tolist()],
+                [round(u_epi, 4) for u_epi in u_epis.tolist()],
+                [round(u_tot, 4) for u_tot in u_tots.tolist()],
+            )
+        with open(os.path.join(output_path, "results.csv"), "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(row_names)
+            for row in row_values:
                 writer.writerow(row)
 
         if mode == "test":
