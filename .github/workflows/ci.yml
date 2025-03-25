@@ -36,11 +36,11 @@ jobs:
     - name: Tests
       run: pytest
 
-    # - name: Run mypy
-    #   if: success() || failure()
-    #   run: mypy .
-
-    # - name: Run pylint
-    #   if: success() || failure()
-    #   run: pylint .
+    - name: Run mypy
+      if: success() || failure()
+      run: mypy
       
+    - name: Run pylint
+      if: success() || failure()
+      run: pylint .
+    
