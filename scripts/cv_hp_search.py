@@ -252,10 +252,11 @@ if __name__ == "__main__":
         model = GNN.load_from_checkpoint(checkpoint_path)
 
         trainer = Trainer(accelerator="auto", logger=False)
-        predictions = trainer.predict(model=model, dataloaders=val_loader)
+        predictions = trainer.predict(model=model, dataloaders=val_loader)[0]
 
         collected_validation_outputs[fold_id] = predictions[:-1]
         descriptions = predictions[-1]
+
 
     ValidationLogger.compute_and_log_validation_results(
         collected_validation_outputs, descriptions, args.outputPath
