@@ -4,17 +4,18 @@ import random
 import warnings
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Tuple, Union
 
 import numpy as np
 import torch
-import yaml
+import yaml  # type: ignore
 from lightning import Trainer
 from lightning import seed_everything as lightning_seed_everything
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
 from sklearn.model_selection import train_test_split
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
+from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM, LabeledData
@@ -36,10 +37,11 @@ def set_seeds(seed: int) -> None:
     random.seed(seed)
 
 
-def load_hyperparams(path: str) -> dict:
+def load_hyperparams(path: str) -> Tuple[dict[str, Union[int, float]], str]:
     """Load hyperparameters from YAML file."""
     with open(Path(path, "best_hparams.yaml"), "r") as file:
-        return yaml.safe_load(file)
+        info = yaml.safe_load(file)
+    return info["hyperparams"], info["architecture"]
 
 
 def find_checkpoints(checkpoints_path: str) -> List[Path]:
@@ -64,7 +66,7 @@ def load_model_from_checkpoint(checkpoint_path: Path) -> GNN:
 
 
 def predict_with_ensemble(
-    data, version_paths: List[Path]
+    data: Data, version_paths: List[Path]
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list[str]]:
     """Run predictions for each model checkpoint in the ensemble."""
     num_molecules = len(data)
@@ -90,18 +92,23 @@ def predict_with_ensemble(
         model = load_model_from_checkpoint(checkpoint_files[0])
 
         trainer = Trainer(accelerator="auto", logger=False)
-        prediction = trainer.predict(
+        predictions = trainer.predict(
             model=model,
             dataloaders=DataLoader(data, batch_size=num_molecules, shuffle=False),
-        )[0]
+        )
 
-        logits, y_true, mol_id, atom_id, description = prediction
+        if predictions is not None and len(predictions) > 0:
+            predictions = predictions[0]
+        else:
+            raise ValueError("No predictions were made.")
 
-        logits_ensemble[i] = logits
+        logits, y_true, mol_id, atom_id, description = predictions
+
+        logits_ensemble[i] = torch.Tensor(logits)
         if i == 0:
-            y_trues.copy_(y_true)
-            mol_ids.copy_(mol_id)
-            atom_ids.copy_(atom_id)
+            y_trues.copy_(torch.Tensor(y_true))
+            mol_ids.copy_(torch.Tensor(mol_id))
+            atom_ids.copy_(torch.Tensor(atom_id))
 
     return logits_ensemble, y_trues, mol_ids, atom_ids, description
 
@@ -139,20 +146,20 @@ def main() -> None:
         random_seeds = random.sample(range(0, 1000), ENSEMBLE_SIZE)
         for seed in random_seeds:
             set_seeds(seed)
-            hyperparams = load_hyperparams(args.hparamsYamlPath)
+            hyperparams, architecture = load_hyperparams(args.hparamsYamlPath)
             logger = TensorBoardLogger(
                 save_dir=output_path_model, default_hp_metric=False
             )
             trainer = Trainer(
                 accelerator="auto",
-                max_epochs=hyperparams["epochs"],
+                max_epochs=int(hyperparams["epochs"]),
                 logger=logger,
                 log_every_n_steps=1,
             )
             model = GNN(
                 params=data_params,
                 hyperparams=hyperparams,
-                architecture=hyperparams["architecture"],
+                architecture=architecture,
             )
             train_loader = DataLoader(
                 sub_train_data, batch_size=BATCH_SIZE, shuffle=True

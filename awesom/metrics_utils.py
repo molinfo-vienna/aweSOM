@@ -15,7 +15,9 @@ THRESHOLD = 0.5
 
 class BaseMetrics:
     @classmethod
-    def compute_ranking(cls, y_probs: torch.Tensor, mol_ids: torch.Tensor):
+    def compute_ranking(
+        cls, y_probs: torch.Tensor, mol_ids: torch.Tensor
+    ) -> torch.Tensor:
         ranking = torch.cat(
             [
                 torch.argsort(
@@ -29,19 +31,19 @@ class BaseMetrics:
                     dim=0,
                     descending=False,
                 )
-                for mol_id in list(
-                    dict.fromkeys(mol_ids.tolist())
-                )  # Get an ordered set
+                for mol_id in list(dict.fromkeys(mol_ids.tolist()))
             ]
         )
         return ranking
 
     @classmethod
-    def compute_shannon_entropy(cls, p: float):
+    def compute_shannon_entropy(cls, p: torch.Tensor) -> torch.Tensor:
         return -(p * torch.log2(p) + (1 - p) * torch.log2(1 - p))
 
     @classmethod
-    def compute_uncertainties(cls, y_probs: torch.Tensor):
+    def compute_uncertainties(
+        cls, y_probs: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         u_tot = cls.compute_shannon_entropy(torch.mean(y_probs, dim=0))
         u_ale = torch.mean(cls.compute_shannon_entropy(y_probs), dim=0)
 
@@ -50,38 +52,45 @@ class BaseMetrics:
         return u_ale, u_epi, u_tot
 
     @classmethod
-    def compute_auroc(cls, y_prob: torch.Tensor, y_true: torch.Tensor):
+    def compute_auroc(cls, y_prob: torch.Tensor, y_true: torch.Tensor) -> float:
         auroc = AUROC(task="binary")
         return auroc(y_prob, y_true).item()
 
     @classmethod
-    def compute_average_precision(cls, y_prob: torch.Tensor, y_true: torch.Tensor):
+    def compute_average_precision(
+        cls, y_prob: torch.Tensor, y_true: torch.Tensor
+    ) -> float:
         average_precision = AveragePrecision(task="binary")
         return average_precision(y_prob, y_true).item()
 
     @classmethod
-    def compute_f1(cls, y_pred: torch.Tensor, y_true: torch.Tensor):
+    def compute_f1(cls, y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
         f1 = F1Score(task="binary")
         return f1(y_pred, y_true).item()
 
     @classmethod
-    def compute_mcc(cls, y_pred: torch.Tensor, y_true: torch.Tensor):
+    def compute_mcc(cls, y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
         mcc = MatthewsCorrCoef(task="binary")
         return mcc(y_pred, y_true).item()
 
     @classmethod
-    def compute_precision(cls, y_pred: torch.Tensor, y_true: torch.Tensor):
+    def compute_precision(cls, y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
         precision = BinaryPrecision()
         return precision(y_pred, y_true).item()
 
     @classmethod
-    def compute_recall(cls, y_pred: torch.Tensor, y_true: torch.Tensor):
+    def compute_recall(cls, y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
         recall = BinaryRecall()
         return recall(y_pred, y_true).item()
 
     @classmethod
-    def compute_top2(cls, y_probs, y_trues, mol_ids_expanded):
-        top2 = 0
+    def compute_top2(
+        cls,
+        y_probs: torch.Tensor,
+        y_trues: torch.Tensor,
+        mol_ids_expanded: torch.Tensor,
+    ) -> float:
+        top2_counter: int = 0
         for id in list(
             dict.fromkeys(mol_ids_expanded.tolist())
         ):  # This is a somewhat complicated way to get an ordered set (masked_sorted_y), but it works.
@@ -94,8 +103,8 @@ class BaseMetrics:
                 index=torch.sort(masked_y_probs, descending=True)[1],
             )
             if torch.sum(masked_sorted_y_trues[:2]).item() > 0:
-                top2 += 1
-        top2 /= len(set(mol_ids_expanded.tolist()))
+                top2_counter += 1
+        top2: float = top2_counter / len(set(mol_ids_expanded.tolist()))
         return top2
 
 
@@ -238,18 +247,18 @@ class TestLogger(BaseMetrics):
         y_preds = (y_probs >= THRESHOLD).int()
 
         # Write results to csv file
+        row_names = [
+            "mol_id",
+            "atom_id",
+            "y_true",
+            "y_prob",
+            "y_pred",
+            "ranking",
+            "u_ale",
+            "u_epi",
+            "u_tot",
+        ]
         if mode == "test":
-            row_names = (
-                "mol_id",
-                "atom_id",
-                "y_true",
-                "y_prob",
-                "y_pred",
-                "ranking",
-                "u_ale",
-                "u_epi",
-                "u_tot",
-            )
             row_values = zip(
                 descriptions_expanded,
                 atom_ids.tolist(),
@@ -262,16 +271,7 @@ class TestLogger(BaseMetrics):
                 [round(u_tot, 4) for u_tot in u_tots.tolist()],
             )
         elif mode == "infer":
-            row_names = (
-                "mol_id",
-                "atom_id",
-                "y_prob",
-                "y_pred",
-                "ranking",
-                "u_ale",
-                "u_epi",
-                "u_tot",
-            )
+            row_names.remove("y_true")
             row_values = zip(
                 descriptions_expanded,
                 atom_ids.tolist(),

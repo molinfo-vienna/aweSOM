@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List
 
 import torch
-import yaml
+import yaml  # type: ignore
 from lightning import Trainer
 from lightning import seed_everything as lightning_seed_everything
 from torch_geometric import seed_everything as geometric_seed_everything
@@ -88,18 +88,23 @@ def predict_with_ensemble(
         model = load_model_from_checkpoint(checkpoint_files[0])
 
         trainer = Trainer(accelerator="auto", logger=False)
-        prediction = trainer.predict(
+        predictions = trainer.predict(
             model=model,
             dataloaders=DataLoader(data, batch_size=num_molecules, shuffle=False),
-        )[0]
+        )
 
-        logits, y_true, mol_id, atom_id, description = prediction
+        if predictions is not None and len(predictions) > 0:
+            predictions = predictions[0]
+        else:
+            raise ValueError("No predictions were made.")
 
-        logits_ensemble[i] = logits
+        logits, y_true, mol_id, atom_id, description = predictions
+
+        logits_ensemble[i] = torch.Tensor(logits)
         if i == 0:
-            y_trues.copy_(y_true)
-            mol_ids.copy_(mol_id)
-            atom_ids.copy_(atom_id)
+            y_trues.copy_(torch.Tensor(y_true))
+            mol_ids.copy_(torch.Tensor(mol_id))
+            atom_ids.copy_(torch.Tensor(atom_id))
 
     return logits_ensemble, y_trues, mol_ids, atom_ids, description
 
