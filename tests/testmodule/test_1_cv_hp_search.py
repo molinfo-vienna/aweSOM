@@ -26,8 +26,8 @@ from awesom.models import M1, M2, M3, M4, M7, M9, M11, M12
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-INPUT_PATH = os.path.join(os.path.dirname(__file__), "data", "train")
-OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "output", "cv_hp_search")
+INPUT_PATH = os.path.join(os.path.dirname(__file__), "test_data", "train")
+OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "test_output", "cv_hp_search")
 HPARAMS_YAML_PATH = os.path.join(os.path.dirname(__file__))
 MODEL = "M7"
 EPOCHS = 10

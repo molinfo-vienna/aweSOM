@@ -22,9 +22,11 @@ warnings.filterwarnings("ignore", category=UserWarning)
 BATCH_SIZE = 32
 ENSEMBLE_SIZE = 10
 
-INPUT_PATH = os.path.join(os.path.dirname(__file__), "data", "train")
-OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "output", "model")
-HPARAMS_YAML_PATH = os.path.join(os.path.dirname(__file__))
+INPUT_PATH = os.path.join(os.path.dirname(__file__), "test_data", "train")
+OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "test_output", "model")
+HPARAMS_YAML_PATH = os.path.join(
+    os.path.dirname(__file__), "test_output", "cv_hp_search"
+)
 
 
 def set_seeds(seed: int) -> None:
