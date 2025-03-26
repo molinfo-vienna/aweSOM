@@ -3,10 +3,11 @@ import random
 import warnings
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import torch
-import yaml
+import yaml  # type: ignore
 from lightning import Trainer
 from lightning import seed_everything as lightning_seed_everything
 from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
@@ -32,16 +33,44 @@ def set_seeds(seed: int) -> None:
     random.seed(seed)
 
 
-def load_hyperparams(path: str) -> dict[str, any]:
+def load_hyperparams(path: str) -> dict[str, Any]:
     """Load hyperparameters from YAML file."""
     with open(Path(path, "best_hparams.yaml"), "r") as file:
         return yaml.safe_load(file)
 
 
-def main() -> None:
+if __name__ == "__main__":
+    start_time = datetime.now()
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
+
+    parser = argparse.ArgumentParser("Training the deep ensemble model.")
+
+    parser.add_argument(
+        "-i",
+        dest="inputPath",
+        type=str,
+        required=True,
+        help="Folder holding the input data.",
+    )
+    parser.add_argument(
+        "-c",
+        dest="hparamsYamlPath",
+        type=str,
+        required=True,
+        help="Folder holding the yaml file with the optimal hyperparameters. \
+            These should be determined prior to training by running the cv_hp_search.py script.",
+    )
+    parser.add_argument(
+        "-o",
+        dest="outputPath",
+        type=str,
+        required=True,
+        help="Folder to which the output (trained model checkpoints, list of random seeds) will be written.",
+    )
+
+    args = parser.parse_args()
 
     # Load data
     data = SOM(root=args.inputPath, transform=T.ToUndirected())
@@ -77,35 +106,4 @@ def main() -> None:
     with open(Path(args.outputPath, "random_seeds.txt"), "w") as f:
         f.writelines(f"{seed}\n" for seed in random_seeds)
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Training the deep ensemble model.")
-
-    parser.add_argument(
-        "-i",
-        dest="inputPath",
-        type=str,
-        required=True,
-        help="Folder holding the input data.",
-    )
-    parser.add_argument(
-        "-c",
-        dest="hparamsYamlPath",
-        type=str,
-        required=True,
-        help="Folder holding the yaml file with the optimal hyperparameters. \
-            These should be determined prior to training by running the cv_hp_search.py script.",
-    )
-    parser.add_argument(
-        "-o",
-        dest="outputPath",
-        type=str,
-        required=True,
-        help="Folder to which the output (trained model checkpoints, list of random seeds) will be written.",
-    )
-
-    args = parser.parse_args()
-
-    start_time = datetime.now()
-    main()
     print("Finished in:", datetime.now() - start_time)

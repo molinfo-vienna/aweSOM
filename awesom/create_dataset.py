@@ -20,9 +20,9 @@ class SOM(InMemoryDataset):
     def __init__(
         self,
         root: str,
-        transform: Optional[Callable] = None,
-        pre_transform: Optional[Callable] = None,
-        pre_filter: Optional[Callable] = None,
+        transform: Optional[Callable[[Data], Data]] = None,
+        pre_transform: Optional[Callable[[Data], Data]] = None,
+        pre_filter: Optional[Callable[[Data], Data]] = None,
     ) -> None:
         # Delete the processed folder if it exists
         processed_folder = os.path.join(root, "processed")
@@ -168,12 +168,12 @@ class SOM(InMemoryDataset):
 class LabeledData(SOM):
     """Class to create a PyTorch Geometric Dataset from and SD-File or an smiles file with SOM-labels."""
 
-    def process(self) -> None:
+    def process(self, labels: bool = True) -> None:
         super().process(labels=True)
 
 
 class UnlabeledData(SOM):
     """Class to create a PyTorch Geometric Dataset from and SD-File or an smiles file without SOM-labels."""
 
-    def process(self) -> None:
+    def process(self, labels: bool = False) -> None:
         super().process(labels=False)

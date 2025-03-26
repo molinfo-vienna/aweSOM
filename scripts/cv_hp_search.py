@@ -147,7 +147,7 @@ if __name__ == "__main__":
                 number of training instances {len(train_data)}, number of validation instances {len(val_data)}"
             )
 
-            hyperparams = MODELS[args.model].get_params(trial)
+            hyperparams = MODELS[args.model].get_params(trial)  # type: ignore[attr-defined]
             model = GNN(
                 params=data_params,
                 hyperparams=hyperparams,
@@ -252,13 +252,18 @@ if __name__ == "__main__":
         model = GNN.load_from_checkpoint(checkpoint_path)
 
         trainer = Trainer(accelerator="auto", logger=False)
-        predictions = trainer.predict(model=model, dataloaders=val_loader)[0]
+        predictions = trainer.predict(model=model, dataloaders=val_loader)
+
+        if predictions is not None and len(predictions) > 0:
+            predictions = predictions[0]
+        else:
+            raise ValueError("No predictions were made.")
 
         collected_validation_outputs[fold_id] = predictions[:-1]
         descriptions = predictions[-1]
 
     ValidationLogger.compute_and_log_validation_results(
-        collected_validation_outputs, descriptions, args.outputPath
+        collected_validation_outputs, descriptions, args.outputPath  # type: ignore[arg-type]
     )
 
     print("Finished in:")
