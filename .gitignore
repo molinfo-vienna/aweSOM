@@ -3,5 +3,4 @@
 .vscode/
 *.sh
 sandbox.ipynb
-data/
 output/
