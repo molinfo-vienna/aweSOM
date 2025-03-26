@@ -2,5 +2,7 @@
 .mypy_cache/
 .vscode/
 *.sh
-sandbox.ipynb
+data/
 output/
+test_output/
+sandbox.ipynb

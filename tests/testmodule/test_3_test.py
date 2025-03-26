@@ -2,7 +2,7 @@ import os
 import warnings
 from datetime import datetime
 from pathlib import Path
-from typing import List, Union
+from typing import List
 
 import torch
 import yaml  # type: ignore
@@ -19,9 +19,9 @@ from awesom.metrics_utils import TestLogger
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-INPUT_PATH = os.path.join(os.path.dirname(__file__), "data", "test")
-CHECKPOINTS_PATH = os.path.join(os.path.dirname(__file__), "output", "model")
-OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "output", "test")
+INPUT_PATH = os.path.join(os.path.dirname(__file__), "test_data", "test")
+CHECKPOINTS_PATH = os.path.join(os.path.dirname(__file__), "test_output", "model")
+OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "test_output", "test")
 MODE = "test"
 
 
