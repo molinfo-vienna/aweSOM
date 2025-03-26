@@ -1,0 +1,8 @@
+architecture: M7
+epochs: 50
+learning_rate: 0.0006876061748753491
+num_conv_layers: 3
+pos_class_weight: 2.361289959647224
+size_conv_layers: 178
+size_final_mlp_layers: 75
+weight_decay: 0.009766557452139259

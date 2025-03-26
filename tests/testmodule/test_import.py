@@ -1,5 +1,2 @@
-import pytest
-
-
-def test_import():
+def test_import() -> None:
     import awesom
