@@ -1,11 +1,9 @@
-import argparse
 import os
 import warnings
-from datetime import datetime
 from operator import itemgetter
 from pathlib import Path
 from statistics import mean
-from typing import Tuple
+from typing import List, Tuple
 
 import optuna
 import torch
@@ -28,6 +26,13 @@ from awesom.models import M1, M2, M3, M4, M7, M9, M11, M12
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
+INPUT_PATH = os.path.join(os.path.dirname(__file__), "test_data", "train")
+OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "test_output", "cv_hp_search")
+HPARAMS_YAML_PATH = os.path.join(os.path.dirname(__file__))
+MODEL = "M7"
+EPOCHS = 10
+NUM_CV_FOLDS = 2
+NUM_OPTUNA_TRIALS = 2
 
 MODELS = {
     "M1": M1,
@@ -61,103 +66,42 @@ def prepare_data_loaders(
     return train_loader, val_loader
 
 
-if __name__ == "__main__":
-    start_time = datetime.now()
-    set_seeds()
+def test_cv_hp_search() -> None:
 
-    parser = argparse.ArgumentParser(
-        "Finding the optinal hyperparameters via Optuna k-fold-cross-validation."
-    )
-
-    parser.add_argument(
-        "-i",
-        dest="inputPath",
-        type=str,
-        required=True,
-        help="Folder holding the input data.",
-    )
-    parser.add_argument(
-        "-o",
-        dest="outputPath",
-        type=str,
-        required=True,
-        help="Folder to which the output will be written. \
-            The best hyperparameters will be stored in a YAML file. \
-                The individual validation metrics of each fold will be stored in a CSV file. \
-                    The best model's checkpoints will be stored in a directory. \
-                        The averaged predictions made with the best hyperparameters will be stored in a text file.",
-    )
-    parser.add_argument(
-        "-m",
-        dest="model",
-        type=str,
-        required=False,
-        default="M7",
-        help="Model architecture.",
-    )
-    parser.add_argument(
-        "-e",
-        dest="epochs",
-        type=int,
-        required=False,
-        default=500,
-        help="Maximum number of training epochs.",
-    )
-    parser.add_argument(
-        "-n",
-        dest="numCVFolds",
-        type=int,
-        required=False,
-        default=10,
-        help="Number of cross-validation folds.",
-    )
-    parser.add_argument(
-        "-t",
-        dest="numberOptunaTrials",
-        type=int,
-        required=False,
-        default=20,
-        help="Number of optuna trials.",
-    )
-
-    args = parser.parse_args()
-
-    # Load data
-    data = SOM(root=args.inputPath, transform=T.ToUndirected()).shuffle()
+    data = SOM(root=INPUT_PATH, transform=T.ToUndirected()).shuffle()
     data_params = dict(
         num_node_features=data.num_node_features,
         num_edge_features=data.num_edge_features,
-        # num_mol_features=data.mol_x.shape[1],
     )
 
     def objective(trial: optuna.trial.Trial) -> float:
-        trial.set_user_attr("architecture", args.model)
+        trial.set_user_attr("architecture", MODEL)
 
         performance_per_fold = []
         num_epochs_per_fold = []
 
-        kfold = KFold(n_splits=args.numCVFolds, shuffle=True, random_state=42)
+        kfold = KFold(n_splits=NUM_CV_FOLDS, shuffle=True, random_state=42)
 
         for fold_id, (train_idx, val_idx) in enumerate(kfold.split(range(len(data)))):
             train_data = itemgetter(*train_idx)(data)
             val_data = itemgetter(*val_idx)(data)
 
             print(
-                f"CV-fold {fold_id}/{args.numCVFolds}: \
+                f"CV-fold {fold_id}/{NUM_CV_FOLDS}: \
                 number of training instances {len(train_data)}, number of validation instances {len(val_data)}"
             )
 
-            hyperparams = MODELS[args.model].get_params(trial)  # type: ignore[attr-defined]
+            hyperparams = MODELS[MODEL].get_params(trial)  # type: ignore[attr-defined]
             model = GNN(
                 params=data_params,
                 hyperparams=hyperparams,
-                architecture=args.model,
+                architecture=MODEL,
             )
 
             train_loader, val_loader = prepare_data_loaders(train_data, val_data)
 
             tbl = TensorBoardLogger(
-                save_dir=Path(args.outputPath, "logs"),
+                save_dir=Path(OUTPUT_PATH, "logs"),
                 name=f"trial{trial._trial_id}",
                 version=f"fold{fold_id}",
                 default_hp_metric=False,
@@ -172,7 +116,7 @@ if __name__ == "__main__":
 
             trainer = Trainer(
                 accelerator="auto",
-                max_epochs=args.epochs,
+                max_epochs=EPOCHS,
                 logger=tbl,
                 log_every_n_steps=1,
                 callbacks=callbacks,
@@ -192,17 +136,17 @@ if __name__ == "__main__":
 
         return avg_performance
 
-    if not os.path.exists(args.outputPath):
-        os.makedirs(args.outputPath)
+    if not os.path.exists(OUTPUT_PATH):
+        os.makedirs(OUTPUT_PATH)
 
-    storage = "sqlite:///" + args.outputPath + "/storage.db"
+    storage = "sqlite:///" + OUTPUT_PATH + "/storage.db"
     study = optuna.create_study(
         storage=storage,
         study_name="optuna_study",
         load_if_exists=True,
         direction="maximize",
     )
-    study.optimize(objective, n_trials=args.numberOptunaTrials, gc_after_trial=True)
+    study.optimize(objective, n_trials=NUM_OPTUNA_TRIALS, gc_after_trial=True)
 
     best_trial = study.best_trial
 
@@ -215,12 +159,12 @@ if __name__ == "__main__":
     best_trial.params["epochs"] = best_trial.user_attrs.get("epochs", "N/A")
     best_trial.params["architecture"] = best_trial.user_attrs.get("architecture", "N/A")
 
-    save_hparams_to_yaml(Path(args.outputPath, "best_hparams.yaml"), best_trial.params)
+    save_hparams_to_yaml(Path(OUTPUT_PATH, "best_hparams.yaml"), best_trial.params)
 
     # Compute and log all relevant validation metrics from models trained with optimal hparams
     # for subsequent manual model analysis and selection
-    collected_validation_outputs = {}
-    kfold = KFold(n_splits=args.numCVFolds, shuffle=True, random_state=42)
+    collected_validation_outputs: dict[int, List[torch.Tensor]] = {}
+    kfold = KFold(n_splits=NUM_CV_FOLDS, shuffle=True, random_state=42)
     for fold_id, (_, val_idx) in enumerate(kfold.split(range(len(data)))):
         val_data = itemgetter(*val_idx)(data)
         val_loader = DataLoader(
@@ -232,14 +176,14 @@ if __name__ == "__main__":
         model = GNN(
             params=data_params,
             hyperparams=hyperparams,
-            architecture=args.model,
+            architecture=MODEL,
         )
 
         checkpoint_path = Path(
             Path(
                 Path(
                     Path(
-                        Path(args.outputPath, "logs"),
+                        Path(OUTPUT_PATH, "logs"),
                         f"trial{study.best_trial._trial_id}",
                     ),
                     f"fold{fold_id}",
@@ -259,12 +203,9 @@ if __name__ == "__main__":
         else:
             raise ValueError("No predictions were made.")
 
-        collected_validation_outputs[fold_id] = predictions[:-1]
+        collected_validation_outputs[fold_id] = predictions[:-1]  # type: ignore[assignment]
         descriptions = predictions[-1]
 
     ValidationLogger.compute_and_log_validation_results(
-        collected_validation_outputs, descriptions, args.outputPath  # type: ignore[arg-type]
+        collected_validation_outputs, descriptions, OUTPUT_PATH
     )
-
-    print("Finished in:")
-    print(datetime.now() - start_time)

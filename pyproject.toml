@@ -4,10 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "awesom"
-version = "2024.0.0"
+version = "0.1.0"
+description = "Site-of-metabolism prediction with aleatoric and epistemic uncertainty quantification."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT License"}
+authors = [
+  {name = "Roxane Jacob", email = "roxane.axel.jacob@univie.ac.at"},
+]
+
 dependencies = [
-    "ipykernel>=6.29.5",
-    "ipywidgets>=8.1.5",
     "lightning>=2.0.7",
     "matplotlib>=3.7.2",
     "networkx>=2.8.4",
@@ -22,13 +28,18 @@ dependencies = [
     "torchmetrics>=1.0.3",
     "torch-geometric>=2.3.1",
 ]
-requires-python = ">=3.10"
-authors = [
-  {name = "Roxane Jacob", email = "roxane.axel.jacob@univie.ac.at"},
+
+[project.optional-dependencies]
+dev = [
+  "black",
+  "isort",
+  "pylint",
+  "pydocstyle",
 ]
-maintainers = [
-  {name = "Roxane Jacob", email = "roxane.axel.jacob@univie.ac.at"}
+vis = [
+  "ipykernel", 
+  "ipywidgets"
 ]
-description = "AweSOM: Predicts Sites of Metabolism (SoMs) with Uncertainty Estimation."
-readme = "README.md"
-license = {text = "MIT License"}
+
+[tool.isort]
+profile = "black"
