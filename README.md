@@ -1,11 +1,7 @@
 aweSOM
 ==============================
-[//]: # (Badges)
-[![GitHub Actions Build Status](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/som_gnn/workflows/CI/badge.svg)](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/som_gnn/actions?query=workflow%3ACI)
-[![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/SOM_GNN/branch/main)
 
-
-A GNN model predicting site-of-metabolism (SOM) in xenobiotics with aleatoric and epistemic uncertainty estimation.
+A model predicting sites-of-metabolism (SOMs) in xenobiotics with aleatoric and epistemic uncertainty estimation.
 
 Preprint: https://chemrxiv.org/engage/chemrxiv/article-details/6703a2a851558a15ef56fbea
 
@@ -34,11 +30,11 @@ Please note that the data, models, and outputs in this repository are derived fr
 
 #### Determine optimal architecture and hyperparameters via k-fold cross validation:
 
-```python scripts/cv_hp_search.py -i INPUT_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -n NUM_FOLDS -t NUM_TRIALS```
+```python scripts/cv_hp_search.py -i INPUT_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -n NUM_CV_FOLDS -t NUM_TRIALS```
 
-```INPUT_PATH```: The folder holding the input data file. For optimizing the hyperparameters, only ```.sdf``` input files are currently supported. Running cv_hp_search.py will create processed data files and place them into ```INPUT_PATH/processed/```.
+```INPUT_PATH```: The folder holding the input data file. Only ```.sdf``` input files are currently supported. Running cv_hp_search.py will create processed data files and place them into ```INPUT_PATH/processed/```.
 
-```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file. The individual validation metrics of each fold will be stored in a CSV file. The best model's checkpoints will be stored in a directory. The averaged predictions made with the best hyp.erparameters will be stored in a text file
+```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file (best_hparams.yaml). The individual validation metrics of each fold will be stored in CSV files (validation_foldX.csv). The best model's checkpoints will be stored in a directory (logs). The averaged predictions made with the best hyperparameters will be stored in a text file (validation.txt).
 
 ```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M3```, ```M4```, ```M7```, ```M9```, ```M11```, ```M12```.  Default is ```M7```.
 
@@ -51,37 +47,33 @@ Please note that the data, models, and outputs in this repository are derived fr
 * ```M11```: GINEConv + DenseNet-inspired skip connections
 * ```M12```: GINEConv + ResNet inspired skip connections
 
-```EPOCHS```: The maximum number of training epochs. Default is ```1000```.
+```EPOCHS```: The maximum number of training epochs. Default is ```500```.
 
-```NUM_FOLDS```: The number of cross-validation folds. Default is ```10```.
+```NUM_CV_FOLDS```: The number of cross-validation folds. Default is ```10```.
 
 ```NUM_TRIALS```: The number of Optuna trials. Default is ```20```.
 
 Example:
 
-```python scripts/cv_hp_search.py -i /data/train -o output/M7 -m M7 -e 1000 -n 10 -t 20```
+```python scripts/cv_hp_search.py -i /data/train -o output/cv_hp_search```
 
 #### Model Training
 
-```python scripts/train.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS```
+```python scripts/train.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH```
 
-```INPUT_PATH```: The path to the input data. For model training, only ```.sdf``` input files are currently supported. Running train.py will create processed data files and place them into ```INPUT_PATH/processed/```.
+```INPUT_PATH```: The path to the input data. Only ```.sdf``` input files are currently supported. Running train.py will create processed data files and place them into ```INPUT_PATH/processed/```.
 
 ```CHECKPOINTS_PATH```: The path to the yaml file containing the hyperparameters that were previously determined by running the cv_hp_search.py script on the training data.
 
-```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file. The individual validation metrics of each fold will be stored in a CSV file. The best model's checkpoints will be stored in a directory. The averaged predictions made with the best hyp.erparameters will be stored in a text file
-
-```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M3```, ```M4```, ```M7```, ```M9```, ```M11```, ```M12```.   Default is ```M7```.
-
-```EPOCHS```: The maximum number of training epochs.  Default is ```1000```.
+```OUTPUT_PATH```: The desired output's location. Per default, training generates an ensemble of 10 models.
 
 Example:
 
-```python scripts/train.py -i data/train -c output/M7 -o output/M7/ensemble -m M7 -e 1000```
+```python scripts/train.py -i data/train -c output/cv_hp_search -o output/model```
 
-#### Model testing (predicting SoMs for labeled data)
+#### Model testing (predicting SOMs for labeled data)
 
-To predict the SoMs of one or multiple *labeled* molecules and output the predictions and the performance metrics run:
+To predict the SOMs of one or multiple *labeled* molecules and output the predictions and the performance metrics run:
 
 ```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m test```
 
@@ -93,11 +85,11 @@ To predict the SoMs of one or multiple *labeled* molecules and output the predic
 
 Example:
 
-```python scripts/test.py -i data/test -c output/M7/ensemble -o output/M7/test -m test```
+```python scripts/test.py -i data/test -c output/model -o output/test -m test```
 
-#### Inference (predicting SoMs for unlabeled data)
+#### Inference (predicting SOMs for unlabeled data)
 
-To predict the SoMs of one or multiple *unlabeled* molecules and output the predictions run:
+To predict the SOMs of one or multiple *unlabeled* molecules and output the predictions run:
 
 ```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m infer```
 
@@ -109,7 +101,10 @@ To predict the SoMs of one or multiple *unlabeled* molecules and output the pred
 
 Example:
 
-```python scripts/test.py -i data/abemaciclib -c output/M7/ensemble -o output/M7/abemaciclib -m infer```
+```python scripts/test.py -i data/case_studies -c output/model -o output/case_studies_by_example_model -m infer```
+
+### Data
+The use of the trained aweSOM models (10.26434/chemrxiv-2024-pzmqt) requires a license for the MetaQSAR database (10.1021/acs.jmedchem.7b01473). To demonstrate the validity of the software presented in this repository, we trained and tested an example version of aweSOM using public metabolism data, commonly referred to as the Zaretzki data set. The original data can be found at 10.1021/ci300009z. The curated data used for demonstrating how to train and test aweSOM, as well as the trained example models and outputs can be found at https://figshare.com/s/9fb1b972d390d8f0e16a.
 
 ### License
 

@@ -1,7 +1,6 @@
-import argparse
+import os
 import random
 import warnings
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +22,12 @@ warnings.filterwarnings("ignore", category=UserWarning)
 BATCH_SIZE = 32
 ENSEMBLE_SIZE = 10
 
+INPUT_PATH = os.path.join(os.path.dirname(__file__), "test_data", "train")
+OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "test_output", "model")
+HPARAMS_YAML_PATH = os.path.join(
+    os.path.dirname(__file__), "test_output", "cv_hp_search"
+)
+
 
 def set_seeds(seed: int) -> None:
     """Set all random seeds for reproducibility."""
@@ -39,53 +44,24 @@ def load_hyperparams(path: str) -> dict[str, Any]:
         return yaml.safe_load(file)
 
 
-if __name__ == "__main__":
-    start_time = datetime.now()
+def test_train() -> None:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
 
-    parser = argparse.ArgumentParser("Training the deep ensemble model.")
-
-    parser.add_argument(
-        "-i",
-        dest="inputPath",
-        type=str,
-        required=True,
-        help="Folder holding the input data.",
-    )
-    parser.add_argument(
-        "-c",
-        dest="hparamsYamlPath",
-        type=str,
-        required=True,
-        help="Folder holding the yaml file with the optimal hyperparameters. \
-            These should be determined prior to training by running the cv_hp_search.py script.",
-    )
-    parser.add_argument(
-        "-o",
-        dest="outputPath",
-        type=str,
-        required=True,
-        help="Folder to which the output (trained model checkpoints, list of random seeds) will be written.",
-    )
-
-    args = parser.parse_args()
-
     # Load data
-    data = SOM(root=args.inputPath, transform=T.ToUndirected())
+    data = SOM(root=INPUT_PATH, transform=T.ToUndirected())
     print(f"Loaded training data with {len(data)} instances.")
     data_params = dict(
         num_node_features=data.num_node_features,
         num_edge_features=data.num_edge_features,
-        # num_mol_features=data.mol_x.shape[1],
     )
 
     random_seeds = random.sample(range(0, 1000), ENSEMBLE_SIZE)
     for seed in random_seeds:
         set_seeds(seed)
-        hyperparams = load_hyperparams(args.hparamsYamlPath)
-        logger = TensorBoardLogger(save_dir=args.outputPath, default_hp_metric=False)
+        hyperparams = load_hyperparams(HPARAMS_YAML_PATH)
+        logger = TensorBoardLogger(save_dir=OUTPUT_PATH, default_hp_metric=False)
         trainer = Trainer(
             accelerator="auto",
             max_epochs=hyperparams["epochs"],
@@ -103,7 +79,5 @@ if __name__ == "__main__":
             train_dataloaders=train_loader,
         )
 
-    with open(Path(args.outputPath, "random_seeds.txt"), "w") as f:
+    with open(Path(OUTPUT_PATH, "random_seeds.txt"), "w") as f:
         f.writelines(f"{seed}\n" for seed in random_seeds)
-
-    print("Finished in:", datetime.now() - start_time)

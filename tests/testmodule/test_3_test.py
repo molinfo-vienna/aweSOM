@@ -1,4 +1,4 @@
-import argparse
+import os
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +18,11 @@ from awesom.lightning_module import GNN
 from awesom.metrics_utils import TestLogger
 
 warnings.filterwarnings("ignore", category=UserWarning)
+
+INPUT_PATH = os.path.join(os.path.dirname(__file__), "test_data", "test")
+CHECKPOINTS_PATH = os.path.join(os.path.dirname(__file__), "test_output", "model")
+OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "test_output", "test")
+MODE = "test"
 
 
 def set_seeds(seed: int = 42) -> None:
@@ -109,48 +114,12 @@ def predict_with_ensemble(
     return logits_ensemble, y_trues, mol_ids, atom_ids, description
 
 
-if __name__ == "__main__":
+def test_test() -> None:
     start_time = datetime.now()
     set_seeds()
 
-    parser = argparse.ArgumentParser(
-        "Predicting SoMs for labeled (test) and unlabeled (infer) data."
-    )
-
-    parser.add_argument(
-        "-i",
-        dest="inputPath",
-        type=str,
-        required=True,
-        help="Folder holding the input data.",
-    )
-    parser.add_argument(
-        "-c",
-        dest="checkpointsPath",
-        type=str,
-        required=True,
-        help="Folder holding the model checkpoints.",
-    )
-    parser.add_argument(
-        "-o",
-        dest="outputPath",
-        type=str,
-        required=True,
-        help="Folder to which the results will be written.",
-    )
-    parser.add_argument(
-        "-m",
-        dest="mode",
-        type=str,
-        required=True,
-        choices=["test", "infer"],
-        help="Mode: 'test' or 'infer'.",
-    )
-
-    args = parser.parse_args()
-
     # Load data
-    data = load_data(args.inputPath, args.mode)
+    data = load_data(INPUT_PATH, MODE)
     print(f"Loaded dataset with {len(data)} instances.")
 
     # Record data and model loading time
@@ -158,7 +127,7 @@ if __name__ == "__main__":
     temptime = datetime.now()
 
     # Find model checkpoints
-    version_paths = find_checkpoints(args.checkpointsPath)
+    version_paths = find_checkpoints(CHECKPOINTS_PATH)
     # Ensemble Prediction
     (
         logits_ensemble,
@@ -179,8 +148,8 @@ if __name__ == "__main__":
         mol_ids,
         atom_ids,
         descriptions,
-        args.outputPath,
-        args.mode,
+        OUTPUT_PATH,
+        MODE,
     )
 
     # Record logging time
@@ -190,5 +159,5 @@ if __name__ == "__main__":
     total_time = datetime.now() - start_time
     print("Finished in:", datetime.now() - start_time)
 
-    with open(args.outputPath + "/runtime.csv", "a") as f:
+    with open(OUTPUT_PATH + "/runtime.csv", "a") as f:
         f.write(f"{total_time},{load_time},{predict_time},{log_time}\n")

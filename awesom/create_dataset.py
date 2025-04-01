@@ -2,25 +2,27 @@ import os
 import shutil
 from ast import literal_eval
 from multiprocessing import cpu_count
-from typing import List, Optional
+from typing import Callable, List, Optional
 
+import networkx as nx
 import numpy as np
 import pandas as pd
 import torch
 from rdkit.Chem import PandasTools
 from torch_geometric.data import Data, InMemoryDataset
 
-from awesom.dataset_utils import(
-    generate_preprocessed_data, 
-    remove_implicit_Hs,
-)
+from awesom.dataset_utils import generate_preprocessed_data, remove_implicit_Hs
 
 
 class SOM(InMemoryDataset):
     """Base class to create a PyTorch Geometric Dataset from and SD-File or an smiles file."""
 
     def __init__(
-        self, root: str, transform=None, pre_transform=None, pre_filter=None
+        self,
+        root: str,
+        transform: Optional[Callable[[Data], Data]] = None,
+        pre_transform: Optional[Callable[[Data], Data]] = None,
+        pre_filter: Optional[Callable[[Data], Data]] = None,
     ) -> None:
         # Delete the processed folder if it exists
         processed_folder = os.path.join(root, "processed")
@@ -32,8 +34,8 @@ class SOM(InMemoryDataset):
         super().__init__(root, transform, pre_transform, pre_filter)
 
         self.root = root
-        self.process()  # Process the data each time a script is run
-        self.data, self.slices = torch.load(self.processed_paths[0])
+        self.process()
+        self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
 
     @property
     def processed_file_names(self) -> List[str]:
@@ -95,7 +97,9 @@ class SOM(InMemoryDataset):
             df["soms"] = [[] for _ in range(len(df))]
 
         # Remove implicit hydrogens
-        df[['ROMol', 'soms']] = df.apply(remove_implicit_Hs, axis=1, result_type='expand')
+        df[["ROMol", "soms"]] = df.apply(
+            remove_implicit_Hs, axis=1, result_type="expand"
+        )
 
         # Set a numerical (integer) mol_id for each molecule
         df["mol_id"] = df.index
@@ -104,7 +108,7 @@ class SOM(InMemoryDataset):
         G = generate_preprocessed_data(df, min(len(df), cpu_count()))
         return self.create_data_list(G)
 
-    def create_data_list(self, G) -> List[Data]:
+    def create_data_list(self, G: nx.Graph) -> List[Data]:
         """Creates a list of Data objects from a graph object G."""
         mol_ids = torch.tensor(
             [G.nodes[i]["mol_id"] for i in range(len(G.nodes))], dtype=torch.int32
@@ -164,12 +168,12 @@ class SOM(InMemoryDataset):
 class LabeledData(SOM):
     """Class to create a PyTorch Geometric Dataset from and SD-File or an smiles file with SOM-labels."""
 
-    def process(self):
+    def process(self, labels: bool = True) -> None:
         super().process(labels=True)
 
 
 class UnlabeledData(SOM):
     """Class to create a PyTorch Geometric Dataset from and SD-File or an smiles file without SOM-labels."""
 
-    def process(self):
+    def process(self, labels: bool = False) -> None:
         super().process(labels=False)
