@@ -7,7 +7,7 @@ Preprint: https://chemrxiv.org/engage/chemrxiv/article-details/6703a2a851558a15e
 
 Please note that the data, models, and outputs in this repository are derived from publicly available datasets and are intended solely to demonstrate the functionality of aweSOM. Consequently, the models in this repository will not achieve the performance reported in the preprint. Access to aweSOM's original training data and corresponding trained model weights requires a license. For further information, please refer to the preprint.
 
-### Installation
+# Installation
 
 1. Clone the repository and cd into the repository root:
 
@@ -26,9 +26,31 @@ Please note that the data, models, and outputs in this repository are derived fr
 4. Install awesom package with ```pip install -e .```
 
 
-### Usage
+# Data
+The use of the trained aweSOM models (10.26434/chemrxiv-2024-pzmqt) requires a license for the MetaQSAR database (10.1021/acs.jmedchem.7b01473). To demonstrate the validity of the software presented in this repository, we trained and tested an example version of aweSOM using public metabolism data, commonly referred to as the Zaretzki data set. The original data can be found at 10.1021/ci300009z. The curated data used for demonstrating how to train and test aweSOM, as well as the trained example models and outputs can be found at https://figshare.com/s/9fb1b972d390d8f0e16a.
 
-#### Determine optimal architecture and hyperparameters via k-fold cross validation:
+
+# Usage
+
+## Inference (predicting SOMs for unlabeled data)
+
+To predict the SOMs of one or multiple *unlabeled* molecules and output the predictions run:
+
+```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m infer```
+
+```INPUT_PATH```: The path to the input data. For inference, both SD-files (.sdf) and smiles files (.smi, .smiles) and are currently supported. Running test.py will create processed data files and place them into ```INPUT_PATH/processed/```.
+
+```CHECKPOINTS_PATH```: The path to the trained ensemble model's checkpoints.
+
+```OUTPUT_PATH```: The desired output's location. The individual predictions to ```results.csv```.
+
+Example:
+
+```python scripts/test.py -i data/case_studies -c output/model -o output/case_studies_by_example_model -m infer```
+
+## Model re-training and testing
+
+### 1. Determine optimal architecture and hyperparameters via k-fold cross validation:
 
 ```python scripts/cv_hp_search.py -i INPUT_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -n NUM_CV_FOLDS -t NUM_TRIALS```
 
@@ -57,7 +79,7 @@ Example:
 
 ```python scripts/cv_hp_search.py -i /data/train -o output/cv_hp_search```
 
-#### Model Training
+### 2. Model Training
 
 ```python scripts/train.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH```
 
@@ -71,7 +93,7 @@ Example:
 
 ```python scripts/train.py -i data/train -c output/cv_hp_search -o output/model```
 
-#### Model testing (predicting SOMs for labeled data)
+### 3. Model testing (predicting SOMs for labeled data)
 
 To predict the SOMs of one or multiple *labeled* molecules and output the predictions and the performance metrics run:
 
@@ -87,25 +109,6 @@ Example:
 
 ```python scripts/test.py -i data/test -c output/model -o output/test -m test```
 
-#### Inference (predicting SOMs for unlabeled data)
-
-To predict the SOMs of one or multiple *unlabeled* molecules and output the predictions run:
-
-```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m infer```
-
-```INPUT_PATH```: The path to the input data. For inference, both SD-files (.sdf) and smiles files (.smi, .smiles) and are currently supported. Running test.py will create processed data files and place them into ```INPUT_PATH/processed/```.
-
-```CHECKPOINTS_PATH```: The path to the trained ensemble model's checkpoints.
-
-```OUTPUT_PATH```: The desired output's location. The individual predictions to ```results.csv```.
-
-Example:
-
-```python scripts/test.py -i data/case_studies -c output/model -o output/case_studies_by_example_model -m infer```
-
-### Data
-The use of the trained aweSOM models (10.26434/chemrxiv-2024-pzmqt) requires a license for the MetaQSAR database (10.1021/acs.jmedchem.7b01473). To demonstrate the validity of the software presented in this repository, we trained and tested an example version of aweSOM using public metabolism data, commonly referred to as the Zaretzki data set. The original data can be found at 10.1021/ci300009z. The curated data used for demonstrating how to train and test aweSOM, as well as the trained example models and outputs can be found at https://figshare.com/s/9fb1b972d390d8f0e16a.
-
-### License
+# License
 
 This project is licensed under the MIT license.
