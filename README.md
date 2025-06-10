@@ -3,9 +3,16 @@ aweSOM
 
 A model predicting sites-of-metabolism (SOMs) in xenobiotics with aleatoric and epistemic uncertainty estimation.
 
-Preprint: https://chemrxiv.org/engage/chemrxiv/article-details/6703a2a851558a15ef56fbea
+Preprint: [https://chemrxiv.org/engage/chemrxiv/article-details/6703a2a851558a15ef56fbea](https://chemrxiv.org/engage/chemrxiv/article-details/67ee93de6dde43c908425567)
 
-Please note that the data, models, and outputs in this repository are derived from publicly available datasets and are intended solely to demonstrate the functionality of aweSOM. Consequently, the models in this repository will not achieve the performance reported in the preprint. Access to aweSOM's original training data and corresponding trained model weights requires a license. For further information, please refer to the preprint.
+⚠️ **Important Notice (June 10, 2025)**
+
+The repository history was rewritten to remove large, outdated folders.  
+If you cloned this repository **before June 10, 2025**, please:
+
+1. Delete your local copy
+
+2. Re-clone the repository.
 
 # Installation
 
@@ -27,7 +34,7 @@ Please note that the data, models, and outputs in this repository are derived fr
 
 
 # Data
-The use of the trained aweSOM models (10.26434/chemrxiv-2024-pzmqt) requires a license for the MetaQSAR database (10.1021/acs.jmedchem.7b01473). To demonstrate the validity of the software presented in this repository, we trained and tested an example version of aweSOM using public metabolism data, commonly referred to as the Zaretzki data set. The original data can be found at 10.1021/ci300009z. The curated data used for demonstrating how to train and test aweSOM, as well as the trained example models and outputs can be found at https://figshare.com/s/9fb1b972d390d8f0e16a.
+The use of the trained aweSOM model requires a license for the MetaQSAR database (10.1021/acs.jmedchem.7b01473). To demonstrate the validity of the software presented in this repository, we trained and tested an example version of aweSOM using public metabolism data, commonly referred to as the Zaretzki data set. The original data can be found at 10.1021/ci300009z. The curated data used for demonstrating how to train and test aweSOM, as well as the trained example models and outputs can be found at https://figshare.com/s/9fb1b972d390d8f0e16a.
 
 
 # Usage
