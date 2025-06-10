@@ -7,12 +7,11 @@ Preprint: [https://chemrxiv.org/engage/chemrxiv/article-details/6703a2a851558a15
 
 ⚠️ **Important Notice (June 10, 2025)**
 
-The repository history was rewritten to remove large, outdated folders.  
-If you cloned this repository **before June 10, 2025**, please:
+The repository history was rewritten to remove large, outdated folders. If you cloned this repository **before June 10, 2025**, please:
 
 1. Delete your local copy
 
-2. Re-clone the repository.
+2. Re-clone the repository
 
 # Installation
 
