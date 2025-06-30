@@ -1,194 +1,101 @@
 import argparse
+import os
 import warnings
-from datetime import datetime
 from pathlib import Path
 from typing import List
 
 import torch
-import yaml  # type: ignore
-from lightning import Trainer
-from lightning import seed_everything as lightning_seed_everything
-from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
-from torch_geometric.data import Dataset
+from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
-from awesom.create_dataset import LabeledData, UnlabeledData
-from awesom.lightning_module import GNN
+from awesom.create_dataset import SOM
 from awesom.metrics_utils import TestLogger
+from awesom.training_module import predict_ensemble
 
-warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings(
+    "ignore",
+    category=FutureWarning,
+    message=".*'DataFrame.swapaxes' is deprecated and will be removed in a future version.*",
+)
 
-
-def set_seeds(seed: int = 42) -> None:
-    """Set all random seeds for reproducibility."""
-    torch.manual_seed(seed)
-    lightning_seed_everything(seed)
-    geometric_seed_everything(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    torch.set_float32_matmul_precision("medium")
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 
-def load_data(input_path: str, mode: str) -> Dataset:
-    """Loads labeled or unlabeled dataset based on mode."""
-    if mode == "test":
-        return LabeledData(root=input_path, transform=T.ToUndirected())
-    elif mode == "infer":
-        return UnlabeledData(root=input_path, transform=T.ToUndirected())
-    else:
-        raise ValueError("Mode must be either 'test' or 'infer'.")
+def find_model_paths(checkpoints_path: str) -> List[str]:
+    """Find all model checkpoint paths."""
+    checkpoints_dir: Path = Path(checkpoints_path)
+    model_paths: List[str] = []
+
+    for model_dir in sorted(checkpoints_dir.glob("model_*")):
+        checkpoint_path: Path = model_dir / "checkpoints" / "best_model.ckpt"
+        if checkpoint_path.exists():
+            model_paths.append(str(checkpoint_path))
+
+    if not model_paths:
+        raise FileNotFoundError(f"No model checkpoints found in {checkpoints_path}")
+
+    return model_paths
 
 
-def find_checkpoints(checkpoints_path: str) -> List[Path]:
-    """Retrieve sorted list of checkpoint paths."""
-    checkpoints_dir = Path(checkpoints_path, "lightning_logs")
-    version_paths = sorted(
-        [p for p in checkpoints_dir.glob("version_*")],
-        key=lambda x: int(x.stem.split("_")[1]),
+def main() -> None:
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description="Test ensemble model"
     )
-    if not version_paths:
-        raise FileNotFoundError(f"No checkpoint versions found in {checkpoints_path}")
-    return version_paths
-
-
-def load_model_from_checkpoint(checkpoint_path: Path) -> GNN:
-    """Load model and its hyperparameters from checkpoint."""
-    hyperparams = yaml.safe_load(
-        Path(checkpoint_path.parent.parent, "hparams.yaml").read_text()
+    parser.add_argument("-i", "--input", required=True, help="Input data path")
+    parser.add_argument(
+        "-c", "--checkpoints", required=True, help="Model checkpoints path"
     )
-    model = GNN.load_from_checkpoint(checkpoint_path, **hyperparams)
-    return model
-
-
-def predict_with_ensemble(
-    data: Dataset, version_paths: List[Path]
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list[str]]:
-    """Run predictions for each model checkpoint in the ensemble."""
-    num_molecules = len(data)
-    num_atoms = data.x.size(0)
-    num_models = len(version_paths)
-    device = torch.device("cpu")
-    # switching to CPU is necessary because "descriptions"
-    # (a.k.a. the molecular identifiers of the input SD-file)
-    # is a list of strings, which is not supported on GPU
-
-    logits_ensemble = torch.empty(
-        (num_models, num_atoms), dtype=torch.float32, device=device
+    parser.add_argument("-o", "--output", required=True, help="Output path")
+    parser.add_argument(
+        "-m",
+        "--mode",
+        choices=["test", "infer"],
+        required=True,
+        help="Test or inference mode",
     )
-    y_trues = torch.empty(num_atoms, dtype=torch.int32, device=device)
-    mol_ids = torch.empty(num_molecules, dtype=torch.int32, device=device)
-    atom_ids = torch.empty(num_atoms, dtype=torch.int32, device=device)
+    args: argparse.Namespace = parser.parse_args()
 
-    for i, version_path in enumerate(version_paths):
-        checkpoint_files = list(Path(version_path, "checkpoints").glob("*.ckpt"))
-        if not checkpoint_files:
-            raise FileNotFoundError(f"No .ckpt files found in {version_path}")
+    # Load data
+    labeled: bool = args.mode == "test"
+    data: SOM = SOM(root=args.input, labeled=labeled, transform=T.ToUndirected())
 
-        model = load_model_from_checkpoint(checkpoint_files[0])
+    print(f"Loaded {len(data)} instances for {args.mode}")
 
-        trainer = Trainer(accelerator="auto", logger=False)
-        predictions = trainer.predict(
-            model=model,
-            dataloaders=DataLoader(data, batch_size=num_molecules, shuffle=False),
+    # Find model checkpoints
+    model_paths: List[str] = find_model_paths(args.checkpoints)
+    print(f"Found {len(model_paths)} model checkpoints")
+
+    # Create dataloader
+    dataloader: DataLoader[Data] = DataLoader(data, batch_size=len(data), shuffle=False)
+
+    # Run ensemble predictions
+    ensemble_predictions = predict_ensemble(dataloader, model_paths)
+
+    # Process predictions (assuming single batch)
+    if ensemble_predictions and ensemble_predictions[0]:
+        # Extract predictions from first batch
+        logits_ensemble: torch.Tensor = torch.stack(
+            [pred[0][0] for pred in ensemble_predictions]
+        )
+        y_trues: torch.Tensor = ensemble_predictions[0][0][1]
+        mol_ids: torch.Tensor = ensemble_predictions[0][0][2]
+        atom_ids: torch.Tensor = ensemble_predictions[0][0][3]
+        descriptions: List[str] = ensemble_predictions[0][0][4]
+
+        # Compute and log results
+        TestLogger.compute_and_log_test_results(
+            logits_ensemble,
+            y_trues,
+            mol_ids,
+            atom_ids,
+            descriptions,
+            args.output,
+            args.mode,
         )
 
-        if predictions is not None and len(predictions) > 0:
-            predictions = predictions[0]
-        else:
-            raise ValueError("No predictions were made.")
-
-        logits, y_true, mol_id, atom_id, description = predictions
-
-        logits_ensemble[i] = torch.Tensor(logits)
-        if i == 0:
-            y_trues.copy_(torch.Tensor(y_true))
-            mol_ids.copy_(torch.Tensor(mol_id))
-            atom_ids.copy_(torch.Tensor(atom_id))
-
-    return logits_ensemble, y_trues, mol_ids, atom_ids, description
+    print(f"Results saved to {args.output}")
 
 
 if __name__ == "__main__":
-    start_time = datetime.now()
-    set_seeds()
-
-    parser = argparse.ArgumentParser(
-        "Predicting SoMs for labeled (test) and unlabeled (infer) data."
-    )
-
-    parser.add_argument(
-        "-i",
-        dest="inputPath",
-        type=str,
-        required=True,
-        help="Folder holding the input data.",
-    )
-    parser.add_argument(
-        "-c",
-        dest="checkpointsPath",
-        type=str,
-        required=True,
-        help="Folder holding the model checkpoints.",
-    )
-    parser.add_argument(
-        "-o",
-        dest="outputPath",
-        type=str,
-        required=True,
-        help="Folder to which the results will be written.",
-    )
-    parser.add_argument(
-        "-m",
-        dest="mode",
-        type=str,
-        required=True,
-        choices=["test", "infer"],
-        help="Mode: 'test' or 'infer'.",
-    )
-
-    args = parser.parse_args()
-
-    # Load data
-    data = load_data(args.inputPath, args.mode)
-    print(f"Loaded dataset with {len(data)} instances.")
-
-    # Record data and model loading time
-    load_time = datetime.now() - start_time
-    temptime = datetime.now()
-
-    # Find model checkpoints
-    version_paths = find_checkpoints(args.checkpointsPath)
-    # Ensemble Prediction
-    (
-        logits_ensemble,
-        y_trues,
-        mol_ids,
-        atom_ids,
-        descriptions,
-    ) = predict_with_ensemble(data, version_paths)
-
-    # Record prediction time
-    predict_time = datetime.now() - temptime
-    temptime = datetime.now()
-
-    # Compute and log test results
-    TestLogger.compute_and_log_test_results(
-        logits_ensemble,
-        y_trues,
-        mol_ids,
-        atom_ids,
-        descriptions,
-        args.outputPath,
-        args.mode,
-    )
-
-    # Record logging time
-    log_time = datetime.now() - temptime
-
-    # Record total time
-    total_time = datetime.now() - start_time
-    print("Finished in:", datetime.now() - start_time)
-
-    with open(args.outputPath + "/runtime.csv", "a") as f:
-        f.write(f"{total_time},{load_time},{predict_time},{log_time}\n")
+    main()

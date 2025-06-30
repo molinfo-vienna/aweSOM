@@ -1,21 +1,14 @@
-from .create_dataset import SOM, LabeledData, UnlabeledData
-from .lightning_module import GNN
+from .create_dataset import SOM
 from .metrics_utils import TestLogger, ValidationLogger
-from .models import M1, M2, M3, M4, M7, M9, M11, M12
+from .models import M7
+from .training_module import GNN, predict_ensemble, train_model
 
 __all__ = [
-    "LabeledData",
-    "GNN",
-    "M1",
-    "M2",
-    "M3",
-    "M4",
-    "M7",
-    "M9",
-    "M11",
-    "M12",
     "SOM",
+    "GNN",
+    "train_model",
+    "predict_ensemble",
+    "M7",
     "TestLogger",
-    "UnlabeledData",
     "ValidationLogger",
 ]

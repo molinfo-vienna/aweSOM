@@ -7,7 +7,7 @@ from typing import Any, List, Tuple
 import networkx as nx
 import numpy as np
 import pandas as pd
-from rdkit.Chem import Mol, MolToSmiles, RemoveHs  # , rdMolDescriptors
+from rdkit.Chem import Mol, MolToSmiles, RemoveHs
 from rdkit.Chem.rdchem import Atom, Bond
 
 ELEM_LIST = [
@@ -41,30 +41,6 @@ def generate_bond_features(bond: Bond) -> List[float]:
         float(bond.IsInRing()),
         float(bond.GetIsConjugated()),
     ]
-
-
-# def generate_mol_features(mol: Mol) -> List[float]:
-#     """Generates molecular features for a given molecule."""
-#     return [
-#         rdMolDescriptors.CalcExactMolWt(mol),
-#         rdMolDescriptors.CalcCrippenDescriptors(mol)[0],  # logP
-#         rdMolDescriptors.CalcLabuteASA(mol),
-#         rdMolDescriptors.CalcTPSA(mol),
-#         rdMolDescriptors.CalcNumHBA(mol),
-#         rdMolDescriptors.CalcNumHBD(mol),
-#         rdMolDescriptors.CalcNumHeavyAtoms(mol),
-#         rdMolDescriptors.CalcNumHeteroatoms(mol),
-#         rdMolDescriptors.CalcFractionCSP3(mol),
-#         rdMolDescriptors.CalcNumRings(mol),
-#         rdMolDescriptors.CalcNumHeterocycles(mol),
-#         rdMolDescriptors.CalcNumAliphaticCarbocycles(mol),
-#         rdMolDescriptors.CalcNumAliphaticHeterocycles(mol),
-#         rdMolDescriptors.CalcNumAromaticCarbocycles(mol),
-#         rdMolDescriptors.CalcNumAromaticHeterocycles(mol),
-#         rdMolDescriptors.CalcNumSaturatedCarbocycles(mol),
-#         rdMolDescriptors.CalcNumRotatableBonds(mol),
-#         rdMolDescriptors.CalcNumAmideBonds(mol),
-#     ]
 
 
 def generate_node_features(atom: Atom) -> List[float]:

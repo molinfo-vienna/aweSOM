@@ -15,15 +15,18 @@ from awesom.dataset_utils import generate_preprocessed_data, remove_implicit_Hs
 
 
 class SOM(InMemoryDataset):
-    """Base class to create a PyTorch Geometric Dataset from and SD-File or an smiles file."""
+    """PyTorch Geometric Dataset for site-of-metabolism prediction from SD-Files or SMILES files."""
 
     def __init__(
         self,
         root: str,
+        labeled: bool = True,
         transform: Optional[Callable[[Data], Data]] = None,
         pre_transform: Optional[Callable[[Data], Data]] = None,
         pre_filter: Optional[Callable[[Data], Data]] = None,
     ) -> None:
+        self.labeled = labeled
+
         # Delete the processed folder if it exists
         processed_folder = os.path.join(root, "processed")
         if os.path.exists(processed_folder):
@@ -50,17 +53,17 @@ class SOM(InMemoryDataset):
                 return os.path.join(self.root, file_name)
         return None
 
-    def process(self, labels: bool = True) -> None:
+    def process(self) -> None:
         input_file = self.find_input_file()
         if input_file is None:
             raise NotImplementedError(
                 "Data file must be either .sdf, .smi, or .smiles."
             )
 
-        data_list = self.data_processing(input_file=input_file, labels=labels)
+        data_list = self.data_processing(input_file=input_file)
         torch.save((self.collate(data_list)), self.processed_paths[0])
 
-    def data_processing(self, input_file: str, labels: bool) -> List[Data]:
+    def data_processing(self, input_file: str) -> List[Data]:
         _, file_extension = os.path.splitext(input_file)
 
         # Load data from the file
@@ -78,8 +81,8 @@ class SOM(InMemoryDataset):
         # Set an ID column if not already present
         df["ID"] = df.get("ID", df.index).astype(str)
 
-        # Process SoM information based on the presence of labels
-        if labels:
+        # Process SoM information based on whether we expect labels
+        if self.labeled:
             # Ensure the "soms" column is parsed as lists
             df["soms"] = df["soms"].map(literal_eval)
 
@@ -125,11 +128,6 @@ class SOM(InMemoryDataset):
             dtype=torch.float32,
         )
 
-        # # Compute mol features matrix
-        # mol_features = torch.tensor(
-        #             [G.nodes[i]["mol_features"] for i in range(len(G.nodes))], dtype=torch.float
-        #         )
-
         data_list = []
 
         for mol_id in mol_ids.unique():
@@ -148,7 +146,6 @@ class SOM(InMemoryDataset):
                     x=node_features[mask],
                     edge_index=edge_index_reset,
                     edge_attr=edge_attr,
-                    # mol_x=mol_features[mask],
                     y=labels[mask],
                     mol_id=mol_id,
                     atom_id=atom_ids[mask],
@@ -163,17 +160,3 @@ class SOM(InMemoryDataset):
                 continue
 
         return data_list
-
-
-class LabeledData(SOM):
-    """Class to create a PyTorch Geometric Dataset from and SD-File or an smiles file with SOM-labels."""
-
-    def process(self, labels: bool = True) -> None:
-        super().process(labels=True)
-
-
-class UnlabeledData(SOM):
-    """Class to create a PyTorch Geometric Dataset from and SD-File or an smiles file without SOM-labels."""
-
-    def process(self, labels: bool = False) -> None:
-        super().process(labels=False)

@@ -1,8 +1,14 @@
 **/__pycache__/
 .mypy_cache/
+.pytest_cache/
 .vscode/
 *.sh
 data/
-output/
+output*/
 test_output/
 sandbox.ipynb
+tests/testmodule/test_data/train/processed
+tests/testmodule/test_data/test/processed
+data.zip
+output.zip
+visualize_output.ipynb
