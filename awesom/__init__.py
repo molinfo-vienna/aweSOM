@@ -1,14 +1,24 @@
 from .create_dataset import SOM
-from .metrics_utils import TestLogger, ValidationLogger
-from .models import M7
-from .training_module import GNN, predict_ensemble, train_model
+from .metrics_utils import (
+    MetricsCalculator,
+    ResultsLogger,
+    log_results,
+)
+from .model import (
+    EnsemblePredictions,
+    GINEWithContextPooling,
+    SOMPredictor,
+    predict_ensemble,
+)
 
 __all__ = [
     "SOM",
-    "GNN",
-    "train_model",
+    "SOMPredictor",
+    "GINEWithContextPooling",
     "predict_ensemble",
-    "M7",
-    "TestLogger",
-    "ValidationLogger",
+    "EnsemblePredictions",
+    "log_results",
+    "log_test_results",
+    "MetricsCalculator",
+    "ResultsLogger",
 ]

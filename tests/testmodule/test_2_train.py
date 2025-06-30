@@ -1,8 +1,6 @@
 import os
 import random
-import warnings
-from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Dict, List, Union
 
 import numpy as np
 import torch
@@ -12,13 +10,7 @@ from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
-from awesom.training_module import GNN, train_model
-
-warnings.filterwarnings(
-    "ignore",
-    category=FutureWarning,
-    message=".*'DataFrame.swapaxes' is deprecated and will be removed in a future version.*",
-)
+from awesom.model import SOMPredictor
 
 
 def set_seeds(seed: int = 42) -> None:
@@ -60,7 +52,7 @@ def test_train() -> None:
         set_seeds(seed)
 
         # Create model
-        model: GNN = GNN(data_params, hyperparams)
+        model: SOMPredictor = SOMPredictor(data_params, hyperparams)
 
         # Create dataloader
         train_loader: DataLoader = DataLoader(data, batch_size=BATCH_SIZE, shuffle=True)
@@ -70,9 +62,8 @@ def test_train() -> None:
         log_dir: str = os.path.join(model_dir, "logs")
         checkpoint_dir: str = os.path.join(model_dir, "checkpoints")
 
-        # Train
-        train_model(
-            model=model,
+        # Train using the new fit method
+        model.fit(
             train_loader=train_loader,
             max_epochs=int(hyperparams["epochs"]),
             log_dir=log_dir,

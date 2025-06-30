@@ -1,6 +1,7 @@
 import argparse
 import os
 import random
+import warnings
 from pathlib import Path
 from typing import Dict, List, Union
 
@@ -13,8 +14,16 @@ from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 
 from awesom.create_dataset import SOM
-from awesom.metrics_utils import TestLogger
-from awesom.training_module import GNN, predict_ensemble, train_model
+from awesom.metrics_utils import log_results
+from awesom.model import SOMPredictor, predict_ensemble
+
+warnings.filterwarnings(
+    "ignore",
+    category=FutureWarning,
+    message=".*'DataFrame.swapaxes' is deprecated and will be removed in a future version.*",
+)
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 
 def set_seed(seed: int) -> None:
@@ -86,7 +95,7 @@ def main() -> None:
             set_seed(seed)
 
             # Create model and train
-            model: GNN = GNN(data_params, hyperparams)
+            model: SOMPredictor = SOMPredictor(data_params, hyperparams)
             train_loader: DataLoader = DataLoader(
                 subset_data, batch_size=32, shuffle=True
             )
@@ -95,8 +104,8 @@ def main() -> None:
             log_dir: str = os.path.join(model_dir, "logs")
             checkpoint_dir: str = os.path.join(model_dir, "checkpoints")
 
-            train_model(
-                model=model,
+            # Train using the new fit method
+            model.fit(
                 train_loader=train_loader,
                 max_epochs=int(hyperparams["epochs"]),
                 log_dir=log_dir,
@@ -116,27 +125,10 @@ def main() -> None:
 
         ensemble_predictions = predict_ensemble(test_loader, model_paths)
 
-        if ensemble_predictions and ensemble_predictions[0]:
-            # Extract predictions
-            logits_ensemble: torch.Tensor = torch.stack(
-                [pred[0][0] for pred in ensemble_predictions]
-            )
-            y_trues: torch.Tensor = ensemble_predictions[0][0][1]
-            mol_ids: torch.Tensor = ensemble_predictions[0][0][2]
-            atom_ids: torch.Tensor = ensemble_predictions[0][0][3]
-            descriptions: List[str] = ensemble_predictions[0][0][4]
-
-            # Save results
+        if ensemble_predictions:
+            # Save results using the unified function
             output_dir: str = os.path.join(args.output, f"{int(p*100)}", "test")
-            TestLogger.compute_and_log_test_results(
-                logits_ensemble,
-                y_trues,
-                mol_ids,
-                atom_ids,
-                descriptions,
-                output_dir,
-                "test",
-            )
+            log_results(ensemble_predictions, output_dir, "test")
 
     print("\nTraining data growth experiment completed!")
 

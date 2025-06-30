@@ -1,5 +1,4 @@
 import os
-import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
@@ -13,14 +12,7 @@ from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
-from awesom.models import M7
-from awesom.training_module import GNN, train_model
-
-warnings.filterwarnings(
-    "ignore",
-    category=FutureWarning,
-    message=".*'DataFrame.swapaxes' is deprecated and will be removed in a future version.*",
-)
+from awesom.model import GINEWithContextPooling, SOMPredictor
 
 INPUT_PATH: str = os.path.join(os.path.dirname(__file__), "test_data", "train")
 OUTPUT_PATH: str = os.path.join(
@@ -60,7 +52,8 @@ def objective(
     """Optuna objective function for hyperparameter optimization."""
 
     # Get hyperparameters from trial
-    hyperparams: Dict[str, Union[int, float]] = M7.get_params(trial)
+    hyperparams: Dict[str, Union[int, float]] = GINEWithContextPooling.get_params(trial)
+    hyperparams["epochs"] = max_epochs
 
     # K-fold cross validation
     kfold: KFold = KFold(n_splits=num_folds, shuffle=True, random_state=42)
@@ -82,14 +75,13 @@ def objective(
         )
 
         # Create model
-        model: GNN = GNN(data_params, hyperparams)
+        model: SOMPredictor = SOMPredictor(data_params, hyperparams)
 
-        # Train model
-        train_model(
-            model=model,
+        # Train model using the new fit method
+        model.fit(
             train_loader=train_loader,
             val_loader=val_loader,
-            max_epochs=int(hyperparams["epochs"]),
+            max_epochs=max_epochs,
             patience=20,
         )
 

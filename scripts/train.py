@@ -7,11 +7,10 @@ from typing import Dict, List, Union
 import torch
 import yaml  # type: ignore
 from torch_geometric import transforms as T
-from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
-from awesom.training_module import GNN, train_model
+from awesom.model import SOMPredictor
 
 warnings.filterwarnings(
     "ignore",
@@ -39,7 +38,7 @@ def main() -> None:
     parser.add_argument("-o", "--output", required=True, help="Output path")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
     parser.add_argument(
-        "--ensemble_size", type=int, default=3, help="Num. models in ensemble"
+        "--ensemble_size", type=int, default=2, help="Num. models in ensemble"
     )
     args: argparse.Namespace = parser.parse_args()
 
@@ -66,10 +65,10 @@ def main() -> None:
         set_seed(seed)
 
         # Create model
-        model: GNN = GNN(data_params, hyperparams)
+        model: SOMPredictor = SOMPredictor(data_params, hyperparams)
 
         # Create dataloader
-        train_loader: DataLoader[Data] = DataLoader(
+        train_loader: DataLoader = DataLoader(
             data, batch_size=args.batch_size, shuffle=True
         )
 
@@ -78,9 +77,8 @@ def main() -> None:
         log_dir: str = os.path.join(model_dir, "logs")
         checkpoint_dir: str = os.path.join(model_dir, "checkpoints")
 
-        # Train
-        train_model(
-            model=model,
+        # Train using the new fit method
+        model.fit(
             train_loader=train_loader,
             max_epochs=int(hyperparams["epochs"]),
             log_dir=log_dir,

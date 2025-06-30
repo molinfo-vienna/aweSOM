@@ -9,12 +9,11 @@ import yaml  # type: ignore
 from sklearn.model_selection import KFold
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
-from torch_geometric.data import Dataset, Data
+from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
-from awesom.models import M7
-from awesom.training_module import GNN, train_model
+from awesom.model import GINEWithContextPooling, SOMPredictor
 
 warnings.filterwarnings(
     "ignore",
@@ -45,12 +44,13 @@ def objective(
     """Optuna objective function for hyperparameter optimization."""
 
     # Get hyperparameters from trial
-    hyperparams: Dict[str, Union[int, float]] = M7.get_params(trial)
+    hyperparams: Dict[str, Union[int, float]] = GINEWithContextPooling.get_params(trial)
     hyperparams["epochs"] = max_epochs
 
     # K-fold cross validation
     kfold: KFold = KFold(n_splits=num_folds, shuffle=True, random_state=42)
     fold_scores: List[float] = []
+    fold_epochs: List[int] = []  # Track epochs for each fold
 
     for fold, (train_idx, val_idx) in enumerate(kfold.split(data)):
         print(f"Trial {trial.number}, Fold {fold + 1}/{num_folds}")
@@ -60,29 +60,32 @@ def objective(
         val_data: Dataset = data[val_idx]
 
         # Create dataloaders
-        train_loader: DataLoader[Data] = DataLoader(
+        train_loader: DataLoader = DataLoader(
             train_data, batch_size=batch_size, shuffle=True
         )
-        val_loader: DataLoader[Data] = DataLoader(
+        val_loader: DataLoader = DataLoader(
             val_data, batch_size=batch_size, shuffle=False
         )
 
         # Create model
-        model: GNN = GNN(data_params, hyperparams)
+        model: SOMPredictor = SOMPredictor(data_params, hyperparams)
 
-        # Train model
-        train_model(
-            model=model,
+        # Use the modfied fit method that returs the actual number of epochs
+        actual_epochs = model.fit(
             train_loader=train_loader,
             val_loader=val_loader,
             max_epochs=max_epochs,
             patience=20,
         )
 
+        fold_epochs.append(actual_epochs)
+        print(f"  Fold {fold + 1} stopped at epoch {actual_epochs}")
+
         # Evaluate on validation set
         model.eval()
         val_losses: List[float] = []
         val_mccs: List[float] = []
+
         with torch.no_grad():
             for batch in val_loader:
                 loss, mcc = model.val_step(batch)
@@ -92,6 +95,10 @@ def objective(
         avg_mcc: float = sum(val_mccs) / len(val_mccs)
         fold_scores.append(avg_mcc)
         print(f"  Fold {fold + 1} MCC: {avg_mcc:.3f}")
+
+    # Store the average optimal epochs in the trial user attributes
+    avg_optimal_epochs = int(sum(fold_epochs) / len(fold_epochs))
+    trial.set_user_attr("optimal_epochs", avg_optimal_epochs)
 
     return sum(fold_scores) / len(fold_scores)
 
@@ -144,7 +151,8 @@ def main() -> None:
 
     # Save best hyperparameters
     best_params: Dict[str, Any] = study.best_trial.params
-    best_params["epochs"] = args.epochs
+    # Additionally store the optimal epochs from the best trial
+    best_params["epochs"] = study.best_trial.user_attrs["optimal_epochs"]
 
     with open(os.path.join(args.output, "best_hparams.yaml"), "w") as f:
         yaml.dump(best_params, f, default_flow_style=False)

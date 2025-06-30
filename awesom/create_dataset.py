@@ -90,8 +90,8 @@ class SOM(InMemoryDataset):
             no_som_entries = df[df["soms"].map(len) == 0]
             if not no_som_entries.empty:
                 print(f"Warning: {len(no_som_entries)} entries have no SoMs.")
-                for mol_id in no_som_entries["ID"]:
-                    print(f"Entry with ID {mol_id} has no SoMs.")
+                for id in no_som_entries["ID"]:
+                    print(f"Entry with ID {id} has no SoMs.")
 
             # Filter out entries without SoMs
             df = df[df["soms"].map(len) > 0].reset_index(drop=True)
@@ -147,7 +147,7 @@ class SOM(InMemoryDataset):
                     edge_index=edge_index_reset,
                     edge_attr=edge_attr,
                     y=labels[mask],
-                    mol_id=mol_id,
+                    mol_id=mol_ids[mask],
                     atom_id=atom_ids[mask],
                 )
 
@@ -156,7 +156,7 @@ class SOM(InMemoryDataset):
                 data_list.append(data)
 
             except Exception as e:
-                print(f"An error occurred on molecule with mol_id {mol_id.item()}:", e)
+                print(f"An error occurred on molecule with id {mol_id.item()}:", e)
                 continue
 
         return data_list

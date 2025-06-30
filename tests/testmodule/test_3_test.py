@@ -1,5 +1,4 @@
 import os
-import warnings
 from pathlib import Path
 from typing import List
 
@@ -9,14 +8,8 @@ from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
-from awesom.metrics_utils import TestLogger
-from awesom.training_module import predict_ensemble
-
-warnings.filterwarnings(
-    "ignore",
-    category=FutureWarning,
-    message=".*'DataFrame.swapaxes' is deprecated and will be removed in a future version.*",
-)
+from awesom.metrics_utils import log_results
+from awesom.model import predict_ensemble
 
 
 def set_seeds(seed: int = 42) -> None:
@@ -68,20 +61,9 @@ def test_test() -> None:
     # Run ensemble predictions
     ensemble_predictions = predict_ensemble(dataloader, model_paths)
 
-    # Process predictions (assuming single batch)
-    if ensemble_predictions and ensemble_predictions[0]:
-        # Extract predictions from first batch
-        logits_ensemble: torch.Tensor = torch.stack(
-            [pred[0][0] for pred in ensemble_predictions]
-        )
-        y_trues: torch.Tensor = ensemble_predictions[0][0][1]
-        mol_ids: torch.Tensor = ensemble_predictions[0][0][2]
-        atom_ids: torch.Tensor = ensemble_predictions[0][0][3]
-        descriptions: List[str] = ensemble_predictions[0][0][4]
-
-        # Compute and log results
-        TestLogger.compute_and_log_test_results(
-            logits_ensemble, y_trues, mol_ids, atom_ids, descriptions, OUTPUT_PATH, MODE
-        )
+    # Process predictions using the new structured format
+    if ensemble_predictions:
+        # Log results using the unified function
+        log_results(ensemble_predictions, OUTPUT_PATH, MODE)
 
     print(f"Results saved to {OUTPUT_PATH}")

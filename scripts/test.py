@@ -4,14 +4,12 @@ import warnings
 from pathlib import Path
 from typing import List
 
-import torch
 from torch_geometric import transforms as T
-from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
-from awesom.metrics_utils import TestLogger
-from awesom.training_module import predict_ensemble
+from awesom.metrics_utils import log_results
+from awesom.model import predict_ensemble
 
 warnings.filterwarnings(
     "ignore",
@@ -67,32 +65,14 @@ def main() -> None:
     print(f"Found {len(model_paths)} model checkpoints")
 
     # Create dataloader
-    dataloader: DataLoader[Data] = DataLoader(data, batch_size=len(data), shuffle=False)
+    dataloader: DataLoader = DataLoader(data, batch_size=len(data), shuffle=False)
 
     # Run ensemble predictions
-    ensemble_predictions = predict_ensemble(dataloader, model_paths)
+    predictions = predict_ensemble(dataloader, model_paths)
 
-    # Process predictions (assuming single batch)
-    if ensemble_predictions and ensemble_predictions[0]:
-        # Extract predictions from first batch
-        logits_ensemble: torch.Tensor = torch.stack(
-            [pred[0][0] for pred in ensemble_predictions]
-        )
-        y_trues: torch.Tensor = ensemble_predictions[0][0][1]
-        mol_ids: torch.Tensor = ensemble_predictions[0][0][2]
-        atom_ids: torch.Tensor = ensemble_predictions[0][0][3]
-        descriptions: List[str] = ensemble_predictions[0][0][4]
-
-        # Compute and log results
-        TestLogger.compute_and_log_test_results(
-            logits_ensemble,
-            y_trues,
-            mol_ids,
-            atom_ids,
-            descriptions,
-            args.output,
-            args.mode,
-        )
+    if predictions:
+        # Log results using the unified function
+        log_results(predictions, args.output, args.mode)
 
     print(f"Results saved to {args.output}")
 

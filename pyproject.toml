@@ -30,12 +30,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-  "black",
-  "isort",
-  "pylint",
-  "pydocstyle",
-]
 vis = [
   "ipykernel", 
   "ipywidgets"
@@ -43,3 +37,8 @@ vis = [
 
 [tool.isort]
 profile = "black"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:'DataFrame.swapaxes' is deprecated:FutureWarning"
+]
