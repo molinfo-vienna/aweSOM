@@ -18,7 +18,6 @@ __all__ = [
     "predict_ensemble",
     "EnsemblePredictions",
     "log_results",
-    "log_test_results",
     "MetricsCalculator",
     "ResultsLogger",
 ]

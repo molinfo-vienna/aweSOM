@@ -38,7 +38,7 @@ def main() -> None:
     parser.add_argument("-o", "--output", required=True, help="Output path")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
     parser.add_argument(
-        "--ensemble_size", type=int, default=2, help="Num. models in ensemble"
+        "--ensemble_size", type=int, default=10, help="Num. models in ensemble"
     )
     args: argparse.Namespace = parser.parse_args()
 
