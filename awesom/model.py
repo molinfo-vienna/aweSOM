@@ -328,7 +328,9 @@ def predict_ensemble(
             descriptions_list: List[str] = []
 
             for batch in data:
-                pred_logits, pred_y, pred_mol, pred_atom, pred_desc = model.predict(batch)
+                pred_logits, pred_y, pred_mol, pred_atom, pred_desc = model.predict(
+                    batch
+                )
                 logits_list.append(pred_logits)
                 y_trues_list.append(pred_y)
                 mol_ids_list.append(pred_mol)
@@ -348,7 +350,12 @@ def predict_ensemble(
                 atom_ids = model_atom_ids
                 descriptions = descriptions_list
 
-    assert y_trues is not None and mol_ids is not None and atom_ids is not None and descriptions is not None
+    assert (
+        y_trues is not None
+        and mol_ids is not None
+        and atom_ids is not None
+        and descriptions is not None
+    )
 
     ensemble_logits = torch.stack(all_logits, dim=0)
 
