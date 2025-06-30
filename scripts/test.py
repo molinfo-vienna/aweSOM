@@ -8,6 +8,7 @@ from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
+from awesom.gpu_utils import print_device_info
 from awesom.metrics_utils import log_results
 from awesom.model import predict_ensemble
 
@@ -54,6 +55,8 @@ def main() -> None:
     )
     args: argparse.Namespace = parser.parse_args()
 
+    print_device_info()
+
     # Load data
     labeled: bool = args.mode == "test"
     data: SOM = SOM(root=args.input, labeled=labeled, transform=T.ToUndirected())
@@ -72,7 +75,7 @@ def main() -> None:
 
     if predictions:
         # Log results using the unified function
-        log_results(predictions, args.output, args.mode)
+        log_results(predictions.to("cpu"), args.output, args.mode)
 
     print(f"Results saved to {args.output}")
 

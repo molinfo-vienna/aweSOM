@@ -10,6 +10,7 @@ from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
+from awesom.gpu_utils import print_device_info
 from awesom.model import SOMPredictor
 
 warnings.filterwarnings(
@@ -41,6 +42,8 @@ def main() -> None:
         "--ensemble_size", type=int, default=10, help="Num. models in ensemble"
     )
     args: argparse.Namespace = parser.parse_args()
+
+    print_device_info()
 
     # Load data
     print("Loading data...")

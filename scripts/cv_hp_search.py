@@ -13,6 +13,7 @@ from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
+from awesom.gpu_utils import print_device_info
 from awesom.model import GINEWithContextPooling, SOMPredictor
 
 warnings.filterwarnings(
@@ -116,6 +117,7 @@ def main() -> None:
     args: argparse.Namespace = parser.parse_args()
 
     set_seeds()
+    print_device_info()
 
     # Load data
     print("Loading data...")

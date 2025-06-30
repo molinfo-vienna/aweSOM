@@ -59,11 +59,11 @@ def test_test() -> None:
     dataloader: DataLoader = DataLoader(data, batch_size=len(data), shuffle=False)
 
     # Run ensemble predictions
-    ensemble_predictions = predict_ensemble(dataloader, model_paths)
+    predictions = predict_ensemble(dataloader, model_paths)
 
     # Process predictions using the new structured format
-    if ensemble_predictions:
+    if predictions:
         # Log results using the unified function
-        log_results(ensemble_predictions, OUTPUT_PATH, MODE)
+        log_results(predictions.to("cpu"), OUTPUT_PATH, MODE)
 
     print(f"Results saved to {OUTPUT_PATH}")

@@ -13,6 +13,8 @@ from torch_geometric.nn import BatchNorm, GINEConv, global_add_pool
 from torchmetrics import MatthewsCorrCoef
 from tqdm import tqdm
 
+from .gpu_utils import get_device
+
 
 @dataclass
 class EnsemblePredictions:
@@ -45,6 +47,16 @@ class EnsemblePredictions:
         u_epi = u_tot - u_ale
 
         return u_ale, u_epi, u_tot
+
+    def to(self, device: torch.device) -> "EnsemblePredictions":
+        """Move the predictions to the specified device."""
+        return EnsemblePredictions(
+            logits=self.logits.to(device),
+            y_trues=self.y_trues.to(device),
+            mol_ids=self.mol_ids.to(device),
+            atom_ids=self.atom_ids.to(device),
+            descriptions=self.descriptions,
+        )
 
 
 class GINEWithContextPooling(nn.Module):
@@ -155,22 +167,28 @@ class SOMPredictor(nn.Module):
     ) -> None:
         super().__init__()
 
+        self.device = get_device()
+
         self.model = GINEWithContextPooling(data_params, hyperparams)
+        self.model.to(self.device)
+
         self.loss_fn = nn.BCEWithLogitsLoss(
-            pos_weight=torch.tensor(hyperparams["pos_class_weight"])
+            pos_weight=torch.tensor(hyperparams["pos_class_weight"]).to(self.device)
         )
         self.optimizer = torch.optim.AdamW(
             self.parameters(),
             lr=hyperparams["learning_rate"],
             weight_decay=hyperparams["weight_decay"],
         )
-        self.mcc = MatthewsCorrCoef(task="binary")
+        self.mcc = MatthewsCorrCoef(task="binary").to(self.device)
 
         # Store for checkpointing
         self.hyperparams = hyperparams
         self.data_params = data_params
 
     def forward(self, batch: Data) -> torch.Tensor:
+        # Move batch to device
+        batch = batch.to(self.device)
         return self.model(batch)
 
     def train_step(self, batch: Data) -> Tuple[float, float]:
