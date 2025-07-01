@@ -4,6 +4,7 @@ import warnings
 from pathlib import Path
 from typing import List
 
+import torch
 from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
@@ -73,9 +74,11 @@ def main() -> None:
     # Run ensemble predictions
     predictions = predict_ensemble(dataloader, model_paths)
 
+    print("Saving results...")
+
     if predictions:
         # Log results using the unified function
-        log_results(predictions.to("cpu"), args.output, args.mode)
+        log_results(predictions.to(torch.device("cpu")), args.output, args.mode)
 
     print(f"Results saved to {args.output}")
 

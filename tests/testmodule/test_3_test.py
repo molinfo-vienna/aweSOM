@@ -64,6 +64,6 @@ def test_test() -> None:
     # Process predictions using the new structured format
     if predictions:
         # Log results using the unified function
-        log_results(predictions.to("cpu"), OUTPUT_PATH, MODE)
+        log_results(predictions.to(torch.device("cpu")), OUTPUT_PATH, MODE)
 
     print(f"Results saved to {OUTPUT_PATH}")

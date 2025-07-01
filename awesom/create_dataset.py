@@ -196,23 +196,23 @@ class SOM(InMemoryDataset):
                 som_labels.append(1 if atom_id in soms else 0)
 
             # Generate bond features and edge indices
-            edge_index = []
-            edge_attr = []
+            edge_index_list = []
+            edge_attr_list = []
 
             for bond in mol.GetBonds():
                 begin_idx = bond.GetBeginAtomIdx()
                 end_idx = bond.GetEndAtomIdx()
-                edge_index.append([begin_idx, end_idx])
+                edge_index_list.append([begin_idx, end_idx])
                 bond_features = self.get_bond_features(bond)
-                edge_attr.extend([bond_features])  # Same features for both directions
+                edge_attr_list.extend([bond_features])
 
             # Convert to tensors
             x = torch.tensor(atom_features, dtype=torch.float32)
-            edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
-            edge_attr = torch.tensor(edge_attr, dtype=torch.float32)
+            edge_index = torch.tensor(edge_index_list, dtype=torch.long).t().contiguous()
+            edge_attr = torch.tensor(edge_attr_list, dtype=torch.float32)
             y = torch.tensor(som_labels, dtype=torch.long)
             mol_ids = torch.full((len(atom_ids),), mol_id, dtype=torch.long)
-            atom_ids = torch.tensor(atom_ids, dtype=torch.long)
+            atom_ids_tensor = torch.tensor(atom_ids, dtype=torch.long)
 
             # Create Data object
             data = Data(
@@ -221,7 +221,7 @@ class SOM(InMemoryDataset):
                 edge_attr=edge_attr,
                 y=y,
                 mol_id=mol_ids,
-                atom_id=atom_ids,
+                atom_id=atom_ids_tensor,
             )
             data.description = description
 
