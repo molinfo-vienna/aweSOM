@@ -3,6 +3,8 @@
 .vscode/
 *.sh
 data/
-output/
+output*/
 test_output/
 sandbox.ipynb
+inert_compounds.ipynb
+*.zip

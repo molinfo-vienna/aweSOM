@@ -87,7 +87,7 @@ def predict_with_ensemble(
 
         model = load_model_from_checkpoint(checkpoint_files[0])
 
-        trainer = Trainer(accelerator="auto", logger=False)
+        trainer = Trainer(accelerator="auto", devices=1, logger=False)
         predictions = trainer.predict(
             model=model,
             dataloaders=DataLoader(data, batch_size=num_molecules, shuffle=False),

@@ -172,6 +172,7 @@ if __name__ == "__main__":
 
             trainer = Trainer(
                 accelerator="auto",
+                devices=1,
                 max_epochs=args.epochs,
                 logger=tbl,
                 log_every_n_steps=1,
@@ -251,7 +252,7 @@ if __name__ == "__main__":
 
         model = GNN.load_from_checkpoint(checkpoint_path)
 
-        trainer = Trainer(accelerator="auto", logger=False)
+        trainer = Trainer(accelerator="auto", devices=1, logger=False)
         predictions = trainer.predict(model=model, dataloaders=val_loader)
 
         if predictions is not None and len(predictions) > 0:

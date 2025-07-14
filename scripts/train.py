@@ -88,6 +88,7 @@ if __name__ == "__main__":
         logger = TensorBoardLogger(save_dir=args.outputPath, default_hp_metric=False)
         trainer = Trainer(
             accelerator="auto",
+            devices=1,
             max_epochs=hyperparams["epochs"],
             logger=logger,
             log_every_n_steps=1,
