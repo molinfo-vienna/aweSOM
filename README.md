@@ -29,7 +29,7 @@ The repository history was rewritten to remove large, outdated folders. If you c
 
 ```conda activate awesom-env```
 
-4. Install awesom package with ```pip install -e .```
+4. Install awesom package with ```pip install .```
 
 
 # Data
@@ -44,60 +44,49 @@ To predict the SOMs of one or multiple *unlabeled* molecules and output the pred
 
 ```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m infer```
 
-```INPUT_PATH```: The path to the input data. For inference, both SD-files (.sdf) and smiles files (.smi, .smiles) and are currently supported. Running test.py will create processed data files and place them into ```INPUT_PATH/processed/```.
+**Arguments:**
+- `-i, --input`: The path to the input data. For inference, both SD-files (.sdf) and smiles files (.smi, .smiles) are currently supported. Running test.py will create processed data files and place them into `INPUT_PATH/processed/`.
+- `-c, --checkpoints`: The path to the trained ensemble model's checkpoints directory.
+- `-o, --output`: The desired output's location. The individual predictions will be saved to `results.csv`.
+- `-m, --mode`: Must be set to `infer` for inference mode.
 
-```CHECKPOINTS_PATH```: The path to the trained ensemble model's checkpoints.
-
-```OUTPUT_PATH```: The desired output's location. The individual predictions to ```results.csv```.
-
-Example:
-
+**Example:**
 ```python scripts/test.py -i data/case_studies -c output/model -o output/case_studies_by_example_model -m infer```
 
 ## Model re-training and testing
 
 ### 1. Determine optimal architecture and hyperparameters via k-fold cross validation:
 
-```python scripts/cv_hp_search.py -i INPUT_PATH -o OUTPUT_PATH -m MODEL -e EPOCHS -n NUM_CV_FOLDS -t NUM_TRIALS```
+```python scripts/cv_hp_search.py -i INPUT_PATH -o OUTPUT_PATH [OPTIONS]```
 
-```INPUT_PATH```: The folder holding the input data file. Only ```.sdf``` input files are currently supported. Running cv_hp_search.py will create processed data files and place them into ```INPUT_PATH/processed/```.
+**Required Arguments:**
+- `-i, --input`: The folder holding the input data file. Only `.sdf` input files are currently supported. Running cv_hp_search.py will create processed data files and place them into `INPUT_PATH/processed/`.
+- `-o, --output`: The desired output's location. The best hyperparameters will be stored in `best_hparams.yaml`. The individual validation metrics of each fold will be stored in CSV files (`validation_fold_0.csv`, `validation_fold_1.csv`, etc.). The averaged validation metrics with standard deviations will be stored in `validation.txt`.
 
-```OUTPUT_PATH```: The desired output's location. The best hyperparameters will be stored in a YAML file (best_hparams.yaml). The individual validation metrics of each fold will be stored in CSV files (validation_foldX.csv). The best model's checkpoints will be stored in a directory (logs). The averaged predictions made with the best hyperparameters will be stored in a text file (validation.txt).
+**Optional Arguments:**
+- `--epochs`: The maximum number of training epochs. Default is `500`.
+- `--folds`: The number of cross-validation folds. Default is `10`.
+- `--trials`: The number of Optuna trials for hyperparameter optimization. Default is `20`.
+- `--batch_size`: The batch size for training. Default is `32`.
 
-```MODEL```: The desired model architecture. Choose between ```M1```, ```M2```, ```M3```, ```M4```, ```M7```, ```M9```, ```M11```, ```M12```.  Default is ```M7```.
-
-* ```M1```: GINConv (https://pytorch-geometric.readthedocs.io/en/2.4.0/generated/torch_geometric.nn.conv.GINConv.html)
-* ```M2```: GINEConv (https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html)
-* ```M3```: GATv2Conv (https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html#torch_geometric.nn.conv.GATv2Conv)
-* ```M4```: MFConv (https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.MFConv.html#torch_geometric.nn.conv.MFConv)
-* ```M7```: GINEConv + context pooling. This architecture led to the best results on the validation set and was used in the final model.
-* ```M9```: GINEConv + molecular features
-* ```M11```: GINEConv + DenseNet-inspired skip connections
-* ```M12```: GINEConv + ResNet inspired skip connections
-
-```EPOCHS```: The maximum number of training epochs. Default is ```500```.
-
-```NUM_CV_FOLDS```: The number of cross-validation folds. Default is ```10```.
-
-```NUM_TRIALS```: The number of Optuna trials. Default is ```20```.
-
-Example:
-
-```python scripts/cv_hp_search.py -i /data/train -o output/cv_hp_search```
+**Example:**
+```python scripts/cv_hp_search.py -i data/train -o output/cv_hp_search --epochs 300 --folds 5 --trials 15```
 
 ### 2. Model Training
 
-```python scripts/train.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH```
+```python scripts/train.py -i INPUT_PATH -c CONFIG_PATH -o OUTPUT_PATH [OPTIONS]```
 
-```INPUT_PATH```: The path to the input data. Only ```.sdf``` input files are currently supported. Running train.py will create processed data files and place them into ```INPUT_PATH/processed/```.
+**Required Arguments:**
+- `-i, --input`: The path to the input data. Only `.sdf` input files are currently supported. Running train.py will create processed data files and place them into `INPUT_PATH/processed/`.
+- `-c, --config`: The path to the directory containing the `best_hparams.yaml` file with hyperparameters that were previously determined by running the cv_hp_search.py script.
+- `-o, --output`: The desired output's location. Per default, training generates an ensemble of 10 models.
 
-```CHECKPOINTS_PATH```: The path to the yaml file containing the hyperparameters that were previously determined by running the cv_hp_search.py script on the training data.
+**Optional Arguments:**
+- `--batch_size`: The batch size for training. Default is `32`.
+- `--ensemble_size`: The number of models in the ensemble. Default is `10`.
 
-```OUTPUT_PATH```: The desired output's location. Per default, training generates an ensemble of 10 models.
-
-Example:
-
-```python scripts/train.py -i data/train -c output/cv_hp_search -o output/model```
+**Example:**
+```python scripts/train.py -i data/train -c output/cv_hp_search -o output/model --ensemble_size 15```
 
 ### 3. Model testing (predicting SOMs for labeled data)
 
@@ -105,15 +94,33 @@ To predict the SOMs of one or multiple *labeled* molecules and output the predic
 
 ```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m test```
 
-```INPUT_PATH```: The path to the input data. For model testing, only .sdf files are currently supported.  Running test.py will create processed data files and place them into ```INPUT_PATH/processed/```.
+**Arguments:**
+- `-i, --input`: The path to the input data. For model testing, only `.sdf` files are currently supported. Running test.py will create processed data files and place them into `INPUT_PATH/processed/`.
+- `-c, --checkpoints`: The path to the trained ensemble model's checkpoints directory.
+- `-o, --output`: The desired output's location. The performance metrics are written to `results.txt` and the individual predictions to `results.csv`.
+- `-m, --mode`: Must be set to `test` for testing mode.
 
-```CHECKPOINTS_PATH```: The path to the trained ensemble model's checkpoints.
-
-```OUTPUT_PATH```: The desired output's location. The performance metrics are written to ```results.txt``` and the individual predictions to ```results.csv```.
-
-Example:
-
+**Example:**
 ```python scripts/test.py -i data/test -c output/model -o output/test -m test```
+
+## Output Files
+
+### Cross-validation (cv_hp_search.py)
+- `best_hparams.yaml`: Best hyperparameters found by Optuna
+- `validation_fold_X.csv`: Detailed predictions for each fold (X = 0, 1, 2, ...)
+- `validation.txt`: Validation metrics with standard deviations across folds
+- `study.db`: Optuna study database for resuming optimization
+
+### Training (train.py)
+- `model_X/`: Directory for each model in the ensemble (X = 0, 1, 2, ...)
+  - `model_X/checkpoints/best_model.ckpt`: Best model checkpoint
+  - `model_X/logs/`: TensorBoard logs
+- `seeds.txt`: Random seeds used for each model for reproducibility
+
+### Testing/Inference (test.py)
+- `results.csv`: Detailed predictions with uncertainties
+- `results.txt`: Performance metrics with bootstrap confidence intervals (for test mode)
+- `roc.png`: ROC curve plot (for test mode)
 
 # License
 
