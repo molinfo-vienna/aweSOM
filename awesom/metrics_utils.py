@@ -19,7 +19,7 @@ class MetricsCalculator:
     """Simple metrics calculator for site-of-metabolism prediction."""
 
     @staticmethod
-    def compute_metrics(
+    def compute_torchmetrics(
         y_probs: torch.Tensor, y_true: torch.Tensor
     ) -> Dict[str, float]:
         """Compute all classification metrics."""
@@ -75,6 +75,21 @@ class ResultsLogger:
     def __init__(self, output_path: str):
         self.output_path = output_path
         os.makedirs(output_path, exist_ok=True)
+
+        self.metrics_calc = MetricsCalculator()
+
+    def save_metrics(
+        self,
+        bootstrap_metrics: Dict[str, List[float]],
+    ) -> None:
+        """Save metrics and bootstrap confidence intervals to text file."""
+        with open(os.path.join(self.output_path, "results.txt"), "w") as f:
+            for metric_name, values in bootstrap_metrics.items():
+                mean_val = mean(values)
+                std_val = stdev(values) if len(values) > 1 else 0.0
+                f.write(
+                    f"{metric_name}: {round(mean_val, 4)} +/- {round(std_val, 4)}\n"
+                )
 
     def save_predictions(
         self,
@@ -132,18 +147,6 @@ class ResultsLogger:
             for row in zip(*data):
                 writer.writerow(row)
 
-    def save_metrics(
-        self,
-        bootstrap_metrics: Dict[str, List[float]],
-    ) -> None:
-        """Save metrics and bootstrap confidence intervals to text file."""
-        with open(os.path.join(self.output_path, "results.txt"), "w") as f:
-            for metric_name, values in bootstrap_metrics.items():
-                mean_val = mean(values)
-                std_val = stdev(values) if len(values) > 1 else 0.0
-                f.write(
-                    f"{metric_name}: {round(mean_val, 4)} +/- {round(std_val, 4)}\n"
-                )
 
     def save_roc_curve(self, y_true: torch.Tensor, y_probs: torch.Tensor) -> None:
         """Save ROC curve plot."""
@@ -154,82 +157,79 @@ class ResultsLogger:
         plt.close()
 
 
-def compute_bootstrap_metrics(
-    y_probs: torch.Tensor,
-    y_trues: torch.Tensor,
-    mol_ids: torch.Tensor,
-    n_bootstrap: int = NUM_BOOTSTRAPS,
-) -> Dict[str, List[float]]:
-    """Compute metrics with bootstrap confidence intervals."""
-    metrics_calc = MetricsCalculator()
-    bootstrap_results: Dict[str, List[float]] = {
-        metric: []
-        for metric in ["ROC-AUC", "PR-AUC", "F1", "MCC", "Precision", "Recall", "Top-2"]
-    }
+    def compute_bootstrap_metrics(
+        self,
+        y_probs: torch.Tensor,
+        y_trues: torch.Tensor,
+        mol_ids: torch.Tensor,
+        n_bootstrap: int = NUM_BOOTSTRAPS,
+    ) -> Dict[str, List[float]]:
+        """Compute metrics with bootstrap confidence intervals."""
+        bootstrap_results: Dict[str, List[float]] = {
+            metric: []
+            for metric in ["ROC-AUC", "PR-AUC", "F1", "MCC", "Precision", "Recall", "Top-2"]
+        }
 
-    for _ in range(n_bootstrap):
-        sampled_mol_ids = mol_ids[torch.randint(len(mol_ids), (len(mol_ids),))]
-        mask = torch.isin(mol_ids, sampled_mol_ids)
+        for _ in range(n_bootstrap):
+            sampled_mol_ids = mol_ids[torch.randint(len(mol_ids), (len(mol_ids),))]
+            mask = torch.isin(mol_ids, sampled_mol_ids)
 
-        y_probs_sample = y_probs[mask]
-        y_trues_sample = y_trues[mask]
-        mol_ids_sample = mol_ids[mask]
+            y_probs_sample = y_probs[mask]
+            y_trues_sample = y_trues[mask]
+            mol_ids_sample = mol_ids[mask]
 
-        metrics = metrics_calc.compute_metrics(y_probs_sample, y_trues_sample)
-        top2 = metrics_calc.compute_top2_accuracy(
-            y_probs_sample, y_trues_sample, mol_ids_sample
+            metrics = self.metrics_calc.compute_torchmetrics(y_probs_sample, y_trues_sample)
+            top2 = self.metrics_calc.compute_top2_accuracy(
+                y_probs_sample, y_trues_sample, mol_ids_sample
+            )
+
+            for metric_name, value in metrics.items():
+                bootstrap_results[metric_name].append(value)
+            bootstrap_results["Top-2"].append(top2)
+
+        return bootstrap_results
+
+
+    def save_results(
+        self,
+        predictions: EnsemblePredictions,
+        mode: str = "inference",
+    ) -> None:
+        """
+        Logs results for both test and inference scenarios.
+
+        Args:
+            predictions: EnsemblePredictions object
+            output_path: where to save results
+            mode: "test" or "inference"
+        """
+        # Compute average probabilities from logits
+        y_probs = torch.mean(predictions.get_probabilities(), dim=0)
+
+        # Compute uncertainties
+        uncertainties = predictions.get_uncertainties()
+
+        # Compute rankings
+        rankings = self.metrics_calc.compute_ranking(y_probs, predictions.mol_ids)
+
+        # Save predictions
+        self.save_predictions(
+            atom_ids=predictions.atom_ids,
+            mol_ids=predictions.mol_ids,
+            y_trues=(
+                predictions.y_trues
+                if mode == "test"
+                else torch.zeros_like(predictions.y_trues)
+            ),
+            y_probs=y_probs,
+            rankings=rankings,
+            uncertainties=uncertainties,
+            descriptions=predictions.descriptions,
         )
 
-        for metric_name, value in metrics.items():
-            bootstrap_results[metric_name].append(value)
-        bootstrap_results["Top-2"].append(top2)
-
-    return bootstrap_results
-
-
-def log_results(
-    predictions: EnsemblePredictions,
-    output_path: str,
-    mode: str = "inference",
-) -> None:
-    """
-    Logs results for both test and inference scenarios.
-
-    Args:
-        predictions: EnsemblePredictions object
-        output_path: where to save results
-        mode: "test" or "inference"
-    """
-    metrics_calc = MetricsCalculator()
-    logger = ResultsLogger(output_path)
-
-    # Compute average probabilities from logits
-    y_probs = torch.mean(predictions.get_probabilities(), dim=0)
-
-    # Compute uncertainties
-    uncertainties = predictions.get_uncertainties()
-
-    # Compute rankings
-    rankings = metrics_calc.compute_ranking(y_probs, predictions.mol_ids)
-
-    # Save predictions
-    logger.save_predictions(
-        atom_ids=predictions.atom_ids,
-        mol_ids=predictions.mol_ids,
-        y_trues=(
-            predictions.y_trues
-            if mode == "test"
-            else torch.zeros_like(predictions.y_trues)
-        ),
-        y_probs=y_probs,
-        rankings=rankings,
-        uncertainties=uncertainties,
-        descriptions=predictions.descriptions,
-    )
-
-    if mode == "test":
-        bootstrap_metrics = compute_bootstrap_metrics(
-            y_probs, predictions.y_trues, predictions.mol_ids
-        )
-        logger.save_metrics(bootstrap_metrics)
-        logger.save_roc_curve(predictions.y_trues, y_probs)
+        if mode == "test":
+            bootstrap_metrics = self.compute_bootstrap_metrics(
+                y_probs, predictions.y_trues, predictions.mol_ids
+            )
+            self.save_metrics(bootstrap_metrics)
+            self.save_roc_curve(predictions.y_trues, y_probs)

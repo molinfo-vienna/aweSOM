@@ -10,7 +10,7 @@ from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
 from awesom.gpu_utils import print_device_info
-from awesom.metrics_utils import log_results
+from awesom.metrics_utils import ResultsLogger
 from awesom.model import predict_ensemble
 
 warnings.filterwarnings(
@@ -78,7 +78,8 @@ def main() -> None:
 
     if predictions:
         # Log results using the unified function
-        log_results(predictions.to(torch.device("cpu")), args.output, args.mode)
+        results_logger = ResultsLogger(args.output)
+        results_logger.save_results(predictions.to(torch.device("cpu")), args.mode)
 
     print(f"Results saved to {args.output}")
 

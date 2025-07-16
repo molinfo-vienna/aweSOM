@@ -3,7 +3,6 @@ from .gpu_utils import get_device, print_device_info
 from .metrics_utils import (
     MetricsCalculator,
     ResultsLogger,
-    log_results,
 )
 from .model import (
     EnsemblePredictions,

@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from awesom.create_dataset import SOM
 from awesom.gpu_utils import print_device_info
-from awesom.metrics_utils import log_results
+from awesom.metrics_utils import ResultsLogger
 from awesom.model import SOMPredictor, predict_ensemble
 
 warnings.filterwarnings(
@@ -131,7 +131,8 @@ def main() -> None:
         if ensemble_predictions:
             # Save results using the unified function
             output_dir: str = os.path.join(args.output, f"{int(p*100)}", "test")
-            log_results(ensemble_predictions, output_dir, "test")
+            results_logger = ResultsLogger(output_dir)
+            results_logger.save_results(ensemble_predictions, output_dir, "test")
 
     print("\nTraining data growth experiment completed!")
 
