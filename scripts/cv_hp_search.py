@@ -13,9 +13,10 @@ from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
 from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
+from tqdm import tqdm
 
 from awesom.create_dataset import SOM
-from awesom.gpu_utils import print_device_info
+from awesom.gpu_utils import print_device_info, get_device
 from awesom.metrics_utils import MetricsCalculator
 from awesom.model import GINEWithContextPooling, SOMPredictor
 
@@ -30,6 +31,28 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 THRESHOLD = 0.5
 
 
+def get_optimal_batch_size() -> int:
+    """Automatically determine optimal batch size based on GPU memory."""
+    if torch.cuda.is_available():
+        device = get_device()
+        gpu_memory = torch.cuda.get_device_properties(device).total_memory / 1024**3  # GB
+        
+        # Conservative estimate: use 70% of GPU memory
+        # For graph neural networks, memory usage is more variable
+        if gpu_memory >= 24:  # 24GB+ GPU (e.g., RTX 4090, A100)
+            return 256
+        elif gpu_memory >= 16:  # 16-24GB GPU (e.g., RTX 4080, V100)
+            return 192
+        elif gpu_memory >= 12:  # 12-16GB GPU (e.g., RTX 3080 Ti)
+            return 128
+        elif gpu_memory >= 8:   # 8-12GB GPU (e.g., RTX 3080, RTX 4070)
+            return 96
+        else:  # <8GB GPU
+            return 64
+    else:
+        return 32  # CPU fallback
+
+
 def set_seeds(seed: int = 42) -> None:
     """Set all random seeds for reproducibility."""
     torch.manual_seed(seed)
@@ -37,6 +60,10 @@ def set_seeds(seed: int = 42) -> None:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
+    
+    # Enable mixed precision for better GPU utilization
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
 
 
 def save_fold_predictions(
@@ -110,19 +137,29 @@ def objective(
     
     metrics_calc = MetricsCalculator()
 
-    for fold, (train_idx, val_idx) in enumerate(kfold.split(data)):
+    for fold, (train_idx, val_idx) in enumerate(tqdm(kfold.split(data), total=num_folds, desc=f"Trial {trial.number}")):
         print(f"Trial {trial.number}, Fold {fold + 1}/{num_folds}")
 
         # Split data
         train_data: Dataset = data[train_idx]
         val_data: Dataset = data[val_idx]
 
-        # Create dataloaders
+        # Create dataloaders with optimized settings for GPU
         train_loader: DataLoader = DataLoader(
-            train_data, batch_size=batch_size, shuffle=True
+            train_data, 
+            batch_size=batch_size, 
+            shuffle=True,
+            num_workers=4,  # Parallel data loading
+            pin_memory=True,  # Faster data transfer to GPU
+            persistent_workers=True  # Keep workers alive between epochs
         )
         val_loader: DataLoader = DataLoader(
-            val_data, batch_size=batch_size, shuffle=False
+            val_data, 
+            batch_size=batch_size, 
+            shuffle=False,
+            num_workers=4,  # Parallel data loading
+            pin_memory=True,  # Faster data transfer to GPU
+            persistent_workers=True  # Keep workers alive between epochs
         )
 
         # Create model
@@ -165,17 +202,17 @@ def objective(
                 all_atom_ids.append(atom_id)
                 all_descriptions.extend(descriptions)
 
-        # Concatenate all predictions for this fold
+        # Concatenate all predictions for this fold (keep on GPU for efficiency)
         fold_logits = torch.cat(all_logits, dim=0)
         fold_y_trues = torch.cat(all_y_trues, dim=0)
         fold_mol_ids = torch.cat(all_mol_ids, dim=0)
         fold_atom_ids = torch.cat(all_atom_ids, dim=0)
         fold_y_probs = torch.sigmoid(fold_logits)
         
-        # Compute rankings
+        # Compute rankings (keep on GPU)
         rankings = metrics_calc.compute_ranking(fold_y_probs, fold_mol_ids)
         
-        # Compute all metrics for this fold
+        # Compute all metrics for this fold (keep on GPU)
         fold_metrics = metrics_calc.compute_torchmetrics(fold_y_probs, fold_y_trues)
         fold_top2 = metrics_calc.compute_top2_accuracy(fold_y_probs, fold_y_trues, fold_mol_ids)
         
@@ -218,8 +255,13 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=500, help="Maximum epochs")
     parser.add_argument("--folds", type=int, default=10, help="Num. CV folds")
     parser.add_argument("--trials", type=int, default=20, help="Num. Optuna trials")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
+    parser.add_argument("--batch_size", type=int, default=None, help="Batch size (auto-determined if not specified)")
     args: argparse.Namespace = parser.parse_args()
+    
+    # Auto-determine batch size if not specified
+    if args.batch_size is None:
+        args.batch_size = get_optimal_batch_size()
+        print(f"Auto-determined batch size: {args.batch_size}")
 
     set_seeds()
     print_device_info()
@@ -251,7 +293,7 @@ def main() -> None:
 
     study.optimize(
         lambda trial: objective(
-            trial, data, data_params, args.folds, args.epochs, args.batch_size, args.output
+            trial, data, data_params, args.folds, args.epochs, args.batch_size, args.output,
         ),
         n_trials=args.trials,
     )

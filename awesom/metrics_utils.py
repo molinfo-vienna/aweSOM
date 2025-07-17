@@ -24,14 +24,17 @@ class MetricsCalculator:
     ) -> Dict[str, float]:
         """Compute all classification metrics."""
         y_pred = (y_probs >= THRESHOLD).int()
+        
+        # Get the device of the input tensors
+        device = y_probs.device
 
         return {
-            "ROC-AUC": AUROC(task="binary")(y_probs, y_true).item(),
-            "PR-AUC": AveragePrecision(task="binary")(y_probs, y_true).item(),
-            "F1": F1Score(task="binary")(y_pred, y_true).item(),
-            "MCC": MatthewsCorrCoef(task="binary")(y_pred, y_true).item(),
-            "Precision": BinaryPrecision()(y_pred, y_true).item(),
-            "Recall": BinaryRecall()(y_pred, y_true).item(),
+            "ROC-AUC": AUROC(task="binary").to(device)(y_probs, y_true).item(),
+            "PR-AUC": AveragePrecision(task="binary").to(device)(y_probs, y_true).item(),
+            "F1": F1Score(task="binary").to(device)(y_pred, y_true).item(),
+            "MCC": MatthewsCorrCoef(task="binary").to(device)(y_pred, y_true).item(),
+            "Precision": BinaryPrecision().to(device)(y_pred, y_true).item(),
+            "Recall": BinaryRecall().to(device)(y_pred, y_true).item(),
         }
 
     @staticmethod

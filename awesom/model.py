@@ -18,7 +18,7 @@ from .gpu_utils import get_device
 
 @dataclass
 class EnsemblePredictions:
-    """Container for ensemble predictions with clear structure."""
+    """Container for ensemble predictions."""
 
     logits: torch.Tensor  # Shape: (num_models, num_atoms)
     y_trues: torch.Tensor  # Shape: (num_atoms,)
@@ -191,15 +191,28 @@ class SOMPredictor(nn.Module):
         batch = batch.to(self.device)
         return self.model(batch)
 
-    def train_step(self, batch: Data) -> Tuple[float, float]:
-        """Single training step."""
+    def train_step(self, batch: Data, scaler: Optional[torch.cuda.amp.GradScaler] = None) -> Tuple[float, float]:
+        """Single training step with optional mixed precision."""
         self.train()
         self.optimizer.zero_grad()
 
-        logits = self(batch)
-        loss = self.loss_fn(logits, batch.y.float())
-        loss.backward()
-        self.optimizer.step()
+        if scaler is not None and torch.cuda.is_available():
+            # Mixed precision training (only for CUDA)
+            with torch.amp.autocast(device_type='cuda'):
+                logits = self(batch)
+                loss = self.loss_fn(logits, batch.y.float())
+            
+            scaler.scale(loss).backward()
+            scaler.step(self.optimizer)
+            scaler.update()
+            self.optimizer.zero_grad()
+        else:
+            # Standard training
+            logits = self(batch)
+            loss = self.loss_fn(logits, batch.y.float())
+            loss.backward()
+            self.optimizer.step()
+            self.optimizer.zero_grad()
 
         mcc = self.mcc(torch.sigmoid(logits), batch.y)
 
@@ -259,6 +272,10 @@ class SOMPredictor(nn.Module):
         best_val_loss = float("inf")
         patience_counter = 0
         actual_epochs = 0
+        
+        # Setup mixed precision training
+        # for faster and more efficient training
+        scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
 
         for epoch in tqdm(range(max_epochs)):
             actual_epochs = epoch + 1  # Track actual epochs trained
@@ -266,7 +283,7 @@ class SOMPredictor(nn.Module):
             # Training
             train_losses, train_mccs = [], []
             for batch in train_loader:
-                loss, mcc = self.train_step(batch)
+                loss, mcc = self.train_step(batch, scaler)
                 train_losses.append(loss)
                 train_mccs.append(mcc)
 
