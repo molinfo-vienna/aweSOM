@@ -1,10 +1,19 @@
+# Cached files
 **/__pycache__/
 .mypy_cache/
+.pytest_cache/
+
+# IDE
 .vscode/
+
+# Bash scripts
 *.sh
+
+# Example data
 data/
-output*/
+output/
+
+# Test files
+tests/testmodule/test_data/train/processed
+tests/testmodule/test_data/test/processed
 test_output/
-sandbox.ipynb
-inert_compounds.ipynb
-*.zip

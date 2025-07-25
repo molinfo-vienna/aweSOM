@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "awesom"
-version = "0.1.0"
+version = "2.0.0"
 description = "Site-of-metabolism prediction with aleatoric and epistemic uncertainty quantification."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,28 +14,22 @@ authors = [
 ]
 
 dependencies = [
-    "lightning>=2.5.0",
     "matplotlib>=3.10.0",
     "networkx>=3.4.2",
     "numpy>=1.26.4",
     "optuna>=4.1.0",
     "pandas>=1.5.2,<2.2.0",
-    "pytorch-lightning>=2.0.7",
     "rdkit==2023.3.3",
     "scikit-learn>=1.6.1",
-    "tensorboard>2.18.0",
+    "tensorboard>=2.18.0",
     "torch>=2.5.1",
     "torchmetrics>=1.0.3",
     "torch-geometric>=2.6.1",
+    "PyYAML>=6.0",
+    "tqdm>=4.64.0",
 ]
 
 [project.optional-dependencies]
-dev = [
-  "black",
-  "isort",
-  "pylint",
-  "pydocstyle",
-]
 vis = [
   "ipykernel", 
   "ipywidgets"
@@ -43,3 +37,8 @@ vis = [
 
 [tool.isort]
 profile = "black"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:'DataFrame.swapaxes' is deprecated:FutureWarning"
+]

@@ -1,29 +1,26 @@
 import os
 import shutil
 from ast import literal_eval
-from multiprocessing import cpu_count
 from typing import Callable, List, Optional
 
-import networkx as nx
-import numpy as np
-import pandas as pd
 import torch
-from rdkit.Chem import PandasTools
+from rdkit import Chem
 from torch_geometric.data import Data, InMemoryDataset
-
-from awesom.dataset_utils import generate_preprocessed_data, remove_implicit_Hs
 
 
 class SOM(InMemoryDataset):
-    """Base class to create a PyTorch Geometric Dataset from and SD-File or an smiles file."""
+    """PyTorch Geometric Dataset for site-of-metabolism prediction from SD-Files or SMILES files."""
 
     def __init__(
         self,
         root: str,
+        labeled: bool = True,
         transform: Optional[Callable[[Data], Data]] = None,
         pre_transform: Optional[Callable[[Data], Data]] = None,
         pre_filter: Optional[Callable[[Data], Data]] = None,
     ) -> None:
+        self.labeled = labeled
+
         # Delete the processed folder if it exists
         processed_folder = os.path.join(root, "processed")
         if os.path.exists(processed_folder):
@@ -50,130 +47,232 @@ class SOM(InMemoryDataset):
                 return os.path.join(self.root, file_name)
         return None
 
-    def process(self, labels: bool = True) -> None:
+    def process(self) -> None:
         input_file = self.find_input_file()
         if input_file is None:
             raise NotImplementedError(
                 "Data file must be either .sdf, .smi, or .smiles."
             )
 
-        data_list = self.data_processing(input_file=input_file, labels=labels)
+        data_list = self.data_processing(input_file=input_file)
         torch.save((self.collate(data_list)), self.processed_paths[0])
 
-    def data_processing(self, input_file: str, labels: bool) -> List[Data]:
+    def data_processing(self, input_file: str) -> List[Data]:
+        """Process the input file and create Data objects."""
         _, file_extension = os.path.splitext(input_file)
 
-        # Load data from the file
-        if file_extension == ".sdf":
-            # Load the SD-File without removing the hydrogen atoms.
-            # Hydrogens are removed later in the process,
-            # by taking care of re-assigning the correct SOM-atom indices.
-            df = PandasTools.LoadSDF(input_file, removeHs=False)
-        elif file_extension == ".smi" or file_extension == ".smiles":
-            df = pd.read_csv(input_file, names=["smiles"])
-            PandasTools.AddMoleculeColumnToFrame(df, "smiles")
-        else:
-            raise NotImplementedError(f"Invalid file extension: {file_extension}")
-
-        # Set an ID column if not already present
-        df["ID"] = df.get("ID", df.index).astype(str)
-
-        # Process SoM information based on the presence of labels
-        if labels:
-            # Ensure the "soms" column is parsed as lists
-            df["soms"] = df["soms"].map(literal_eval)
-
-            # Identify and warn about entries without SoMs
-            no_som_entries = df[df["soms"].map(len) == 0]
-            if not no_som_entries.empty:
-                print(f"Warning: {len(no_som_entries)} entries have no SoMs.")
-                for mol_id in no_som_entries["ID"]:
-                    print(f"Entry with ID {mol_id} has no SoMs.")
-
-            # Filter out entries without SoMs
-            df = df[df["soms"].map(len) > 0].reset_index(drop=True)
-        else:
-            # If no SoM info is available, initialize empty lists for each molecule
-            df["soms"] = [[] for _ in range(len(df))]
-
-        # Remove implicit hydrogens
-        df[["ROMol", "soms"]] = df.apply(
-            remove_implicit_Hs, axis=1, result_type="expand"
+        # Load molecules and labels
+        molecules, labels, descriptions = self.load_molecules(
+            input_file, file_extension
         )
 
-        # Set a numerical (integer) mol_id for each molecule
-        df["mol_id"] = df.index
-
-        # Generate preprocessed data
-        G = generate_preprocessed_data(df, min(len(df), cpu_count()))
-        return self.create_data_list(G)
-
-    def create_data_list(self, G: nx.Graph) -> List[Data]:
-        """Creates a list of Data objects from a graph object G."""
-        mol_ids = torch.tensor(
-            [G.nodes[i]["mol_id"] for i in range(len(G.nodes))], dtype=torch.int32
-        )
-        atom_ids = torch.tensor(
-            [G.nodes[i]["atom_id"] for i in range(len(G.nodes))], dtype=torch.int32
-        )
-        labels = torch.tensor(
-            [int(G.nodes[i]["is_som"]) for i in range(len(G.nodes))], dtype=torch.int32
-        )
-        ids = [G.nodes[i]["id"] for i in range(len(G.nodes))]
-        node_features = torch.tensor(
-            [G.nodes[i]["node_features"] for i in range(len(G.nodes))],
-            dtype=torch.float32,
-        )
-
-        # # Compute mol features matrix
-        # mol_features = torch.tensor(
-        #             [G.nodes[i]["mol_features"] for i in range(len(G.nodes))], dtype=torch.float
-        #         )
-
+        # Process each molecule
         data_list = []
-
-        for mol_id in mol_ids.unique():
-            try:
-                mask = mol_ids == mol_id.item()
-                subG = G.subgraph(np.flatnonzero(mask.numpy()).tolist())
-
-                edge_index = torch.tensor(list(subG.edges)).t().contiguous()
-                edge_index_reset = edge_index - edge_index.min()
-                edge_attr = torch.tensor(
-                    [subG.get_edge_data(*edge)["bond_features"] for edge in subG.edges],
-                    dtype=torch.float,
-                )
-
-                data = Data(
-                    x=node_features[mask],
-                    edge_index=edge_index_reset,
-                    edge_attr=edge_attr,
-                    # mol_x=mol_features[mask],
-                    y=labels[mask],
-                    mol_id=mol_id,
-                    atom_id=atom_ids[mask],
-                )
-
-                data.description = [d for d, m in zip(ids, mask) if m][0]
-
-                data_list.append(data)
-
-            except Exception as e:
-                print(f"An error occurred on molecule with mol_id {mol_id.item()}:", e)
+        for mol_id, (mol, soms, description) in enumerate(
+            zip(molecules, labels, descriptions)
+        ):
+            if mol is None:
                 continue
+
+            # Remove hydrogens and update SoM indices
+            mol, soms = self.remove_hydrogens_and_update_soms(mol, soms)
+
+            if len(soms) == 0 and self.labeled:
+                continue  # Skip molecules without SoMs in labeled mode
+
+            # Create Data object
+            data = self.mol_to_data(mol, soms, mol_id, description)
+            if data is not None:
+                data_list.append(data)
 
         return data_list
 
+    def load_molecules(
+        self, input_file: str, file_extension: str
+    ) -> tuple[List[Chem.Mol], List[List[int]], List[str]]:
+        """Load molecules from file based on extension."""
+        molecules: List[Chem.Mol] = []
+        labels: List[List[int]] = []
+        descriptions: List[str] = []
 
-class LabeledData(SOM):
-    """Class to create a PyTorch Geometric Dataset from and SD-File or an smiles file with SOM-labels."""
+        if file_extension == ".sdf":
+            # Load SD file
+            suppl = Chem.SDMolSupplier(input_file, removeHs=False)
+            for mol in suppl:
+                if mol is None:
+                    continue
 
-    def process(self, labels: bool = True) -> None:
-        super().process(labels=True)
+                # Get SoM information
+                soms = []
+                if self.labeled:
+                    soms_prop = mol.GetProp("soms") if mol.HasProp("soms") else "[]"
+                    soms = literal_eval(soms_prop)
 
+                # Get description
+                desc = (
+                    mol.GetProp("_Name")
+                    if mol.HasProp("_Name")
+                    else f"{len(molecules)}"
+                )
 
-class UnlabeledData(SOM):
-    """Class to create a PyTorch Geometric Dataset from and SD-File or an smiles file without SOM-labels."""
+                molecules.append(mol)
+                labels.append(soms)
+                descriptions.append(desc)
 
-    def process(self, labels: bool = False) -> None:
-        super().process(labels=False)
+        elif file_extension in [".smi", ".smiles"]:
+            # Load SMILES file
+            with open(input_file, "r") as f:
+                for line_num, line in enumerate(f):
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+
+                    # Parse SMILES (assuming format: SMILES\tID\tSoMs)
+                    parts = line.split("\t")
+                    smiles = parts[0]
+
+                    mol = Chem.MolFromSmiles(smiles)
+                    if mol is None:
+                        continue
+
+                    # Get SoM information
+                    soms = []
+                    if self.labeled and len(parts) > 2:
+                        soms_str = parts[2]
+                        try:
+                            soms = literal_eval(soms_str)
+                        except ValueError:
+                            soms = []
+
+                    # Get description
+                    desc = parts[1] if len(parts) > 1 else f"{line_num}"
+
+                    molecules.append(mol)
+                    labels.append(soms)
+                    descriptions.append(desc)
+        else:
+            raise NotImplementedError(f"Invalid file extension: {file_extension}")
+
+        return molecules, labels, descriptions
+
+    def remove_hydrogens_and_update_soms(
+        self, mol: Chem.Mol, soms: List[int]
+    ) -> tuple[Chem.Mol, List[int]]:
+        """Remove hydrogens and update SoM indices."""
+        # Mark SoM atoms
+        for atom in mol.GetAtoms():
+            atom_id = atom.GetIdx()
+            if atom_id in soms:
+                atom.SetIntProp("label", 1)
+            else:
+                atom.SetIntProp("label", 0)
+
+        # Remove hydrogens
+        mol_no_h = Chem.RemoveHs(mol)
+
+        # Get new SoM indices
+        new_soms = []
+        for atom in mol_no_h.GetAtoms():
+            if atom.GetIntProp("label") == 1:
+                new_soms.append(atom.GetIdx())
+
+        return mol_no_h, new_soms
+
+    def mol_to_data(
+        self, mol: Chem.Mol, soms: List[int], mol_id: int, description: str
+    ) -> Optional[Data]:
+        """Convert a molecule to a PyTorch Geometric Data object."""
+        try:
+            # Generate atom features
+            atom_features = []
+            atom_ids = []
+            som_labels = []
+
+            for atom in mol.GetAtoms():
+                atom_id = atom.GetIdx()
+                features = self.get_atom_features(atom)
+                atom_features.append(features)
+                atom_ids.append(atom_id)
+                som_labels.append(1 if atom_id in soms else 0)
+
+            # Generate bond features and edge indices
+            edge_index_list = []
+            edge_attr_list = []
+
+            for bond in mol.GetBonds():
+                begin_idx = bond.GetBeginAtomIdx()
+                end_idx = bond.GetEndAtomIdx()
+                edge_index_list.append([begin_idx, end_idx])
+                bond_features = self.get_bond_features(bond)
+                edge_attr_list.extend([bond_features])
+
+            # Convert to tensors
+            x = torch.tensor(atom_features, dtype=torch.float32)
+            edge_index = torch.tensor(edge_index_list, dtype=torch.long).t().contiguous()
+            edge_attr = torch.tensor(edge_attr_list, dtype=torch.float32)
+            y = torch.tensor(som_labels, dtype=torch.long)
+            mol_ids = torch.full((len(atom_ids),), mol_id, dtype=torch.long)
+            atom_ids_tensor = torch.tensor(atom_ids, dtype=torch.long)
+
+            # Create Data object
+            data = Data(
+                x=x,
+                edge_index=edge_index,
+                edge_attr=edge_attr,
+                y=y,
+                mol_id=mol_ids,
+                atom_id=atom_ids_tensor,
+            )
+            data.description = description
+
+            return data
+
+        except Exception as e:
+            print(f"Error processing molecule {description}: {e}")
+            return None
+
+    def get_atom_features(self, atom: Chem.Atom) -> List[float]:
+        """Generate atom features."""
+        # Element type one-hot encoding
+        atomic_num = atom.GetAtomicNum()
+        element_list = [
+            5,
+            6,
+            7,
+            8,
+            9,
+            14,
+            15,
+            16,
+            17,
+            35,
+            53,
+        ]  # B, C, N, O, F, Si, P, S, Cl, Br, I
+
+        features = []
+        for element in element_list:
+            features.append(1.0 if atomic_num == element else 0.0)
+        features.append(
+            1.0 if atomic_num not in element_list else 0.0
+        )  # Other elements
+
+        return features
+
+    def get_bond_features(self, bond: Chem.Bond) -> List[float]:
+        """Generate bond features."""
+        # Bond type one-hot encoding
+        bond_types = ["SINGLE", "DOUBLE", "TRIPLE", "AROMATIC"]
+        bond_type_str = str(bond.GetBondType())
+
+        features = []
+        for bond_type in bond_types:
+            features.append(1.0 if bond_type_str == bond_type else 0.0)
+        features.append(
+            1.0 if bond_type_str not in bond_types else 0.0
+        )  # Other bond types
+
+        # Additional bond features
+        features.append(1.0 if bond.IsInRing() else 0.0)
+        features.append(1.0 if bond.GetIsConjugated() else 0.0)
+
+        return features

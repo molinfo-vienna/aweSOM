@@ -1,18 +1,10 @@
 import os
-import warnings
-from operator import itemgetter
 from pathlib import Path
-from statistics import mean
-from typing import List, Tuple
+from typing import Any, Dict, List, Union
 
 import optuna
 import torch
-from lightning import Trainer
-from lightning import seed_everything as lightning_seed_everything
-from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.callbacks.early_stopping import EarlyStopping
-from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
-from pytorch_lightning.core.saving import save_hparams_to_yaml
+import yaml  # type: ignore
 from sklearn.model_selection import KFold
 from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
@@ -20,192 +12,139 @@ from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
-from awesom.lightning_module import GNN
-from awesom.metrics_utils import ValidationLogger
-from awesom.models import M1, M2, M3, M4, M7, M9, M11, M12
+from awesom.model import GINEWithContextPooling, SOMPredictor
 
-warnings.filterwarnings("ignore", category=UserWarning)
-
-INPUT_PATH = os.path.join(os.path.dirname(__file__), "test_data", "train")
-OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "test_output", "cv_hp_search")
-HPARAMS_YAML_PATH = os.path.join(os.path.dirname(__file__))
-MODEL = "M7"
-EPOCHS = 10
-NUM_CV_FOLDS = 2
-NUM_OPTUNA_TRIALS = 2
-
-MODELS = {
-    "M1": M1,
-    "M2": M2,
-    "M3": M3,
-    "M4": M4,
-    "M7": M7,
-    "M9": M9,
-    "M11": M11,
-    "M12": M12,
-}
-
-BATCH_SIZE = 32
+INPUT_PATH: str = os.path.join(os.path.dirname(__file__), "test_data", "train")
+OUTPUT_PATH: str = os.path.join(
+    os.path.dirname(__file__), "test_output", "cv_hp_search"
+)
+HPARAMS_YAML_PATH: str = os.path.join(os.path.dirname(__file__))
+MODEL: str = "M7"
+EPOCHS: int = 10
+NUM_CV_FOLDS: int = 2
+NUM_OPTUNA_TRIALS: int = 2
+BATCH_SIZE: int = 32
 
 
 def set_seeds(seed: int = 42) -> None:
     """Set all random seeds for reproducibility."""
     torch.manual_seed(seed)
-    lightning_seed_everything(seed)
     geometric_seed_everything(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("medium")
 
 
-def prepare_data_loaders(
-    train_data: Dataset, val_data: Dataset
-) -> Tuple[DataLoader, DataLoader]:
-    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=False)
-    return train_loader, val_loader
+def save_hparams_to_yaml(path: Path, params: Dict[str, Any]) -> None:
+    """Save hyperparameters to YAML file."""
+    with open(path, "w") as f:
+        yaml.dump(params, f, default_flow_style=False)
+
+
+def objective(
+    trial: optuna.trial.Trial,
+    data: Dataset,
+    data_params: Dict[str, int],
+    num_folds: int,
+    max_epochs: int,
+    batch_size: int,
+) -> float:
+    """Optuna objective function for hyperparameter optimization."""
+
+    # Get hyperparameters from trial
+    hyperparams: Dict[str, Union[int, float]] = GINEWithContextPooling.get_params(trial)
+    hyperparams["epochs"] = max_epochs
+
+    # K-fold cross validation
+    kfold: KFold = KFold(n_splits=num_folds, shuffle=True, random_state=42)
+    fold_scores: List[float] = []
+
+    for fold, (train_idx, val_idx) in enumerate(kfold.split(data)):
+        print(f"Trial {trial.number}, Fold {fold + 1}/{num_folds}")
+
+        # Split data
+        train_data: Dataset = data[train_idx]
+        val_data: Dataset = data[val_idx]
+
+        # Create dataloaders
+        train_loader: DataLoader = DataLoader(
+            train_data, batch_size=batch_size, shuffle=True
+        )
+        val_loader: DataLoader = DataLoader(
+            val_data, batch_size=batch_size, shuffle=False
+        )
+
+        # Create model
+        model: SOMPredictor = SOMPredictor(data_params, hyperparams)
+
+        # Train model using the new fit method
+        model.fit(
+            train_loader=train_loader,
+            val_loader=val_loader,
+            max_epochs=max_epochs,
+            patience=20,
+        )
+
+        # Evaluate on validation set
+        model.eval()
+        val_losses: List[float] = []
+        val_mccs: List[float] = []
+        with torch.no_grad():
+            for batch in val_loader:
+                loss, mcc = model.val_step(batch)
+                val_losses.append(loss)
+                val_mccs.append(mcc)
+
+        avg_mcc: float = sum(val_mccs) / len(val_mccs)
+        fold_scores.append(avg_mcc)
+        print(f"  Fold {fold + 1} MCC: {avg_mcc:.3f}")
+
+    return sum(fold_scores) / len(fold_scores)
 
 
 def test_cv_hp_search() -> None:
+    INPUT_PATH: str = os.path.join(os.path.dirname(__file__), "test_data", "train")
+    OUTPUT_PATH: str = os.path.join(
+        os.path.dirname(__file__), "test_output", "cv_hp_search"
+    )
+    EPOCHS: int = 10
+    NUM_FOLDS: int = 2
+    NUM_TRIALS: int = 2
 
-    data = SOM(root=INPUT_PATH, transform=T.ToUndirected()).shuffle()
-    data_params = dict(
-        num_node_features=data.num_node_features,
-        num_edge_features=data.num_edge_features,
+    set_seeds()
+
+    # Load data
+    data: SOM = SOM(root=INPUT_PATH, transform=T.ToUndirected()).shuffle()
+    print(f"Loaded {len(data)} instances")
+
+    data_params: Dict[str, int] = {
+        "num_node_features": data.num_node_features,
+        "num_edge_features": data.num_edge_features,
+    }
+
+    # Create output directory
+    os.makedirs(OUTPUT_PATH, exist_ok=True)
+
+    # Run Optuna optimization
+    study: optuna.study.Study = optuna.create_study(
+        direction="maximize", storage=f"sqlite:///{OUTPUT_PATH}/study.db"
     )
 
-    def objective(trial: optuna.trial.Trial) -> float:
-        trial.set_user_attr("architecture", MODEL)
-
-        performance_per_fold = []
-        num_epochs_per_fold = []
-
-        kfold = KFold(n_splits=NUM_CV_FOLDS, shuffle=True, random_state=42)
-
-        for fold_id, (train_idx, val_idx) in enumerate(kfold.split(range(len(data)))):
-            train_data = itemgetter(*train_idx)(data)
-            val_data = itemgetter(*val_idx)(data)
-
-            print(
-                f"CV-fold {fold_id}/{NUM_CV_FOLDS}: \
-                number of training instances {len(train_data)}, number of validation instances {len(val_data)}"
-            )
-
-            hyperparams = MODELS[MODEL].get_params(trial)  # type: ignore[attr-defined]
-            model = GNN(
-                params=data_params,
-                hyperparams=hyperparams,
-                architecture=MODEL,
-            )
-
-            train_loader, val_loader = prepare_data_loaders(train_data, val_data)
-
-            tbl = TensorBoardLogger(
-                save_dir=Path(OUTPUT_PATH, "logs"),
-                name=f"trial{trial._trial_id}",
-                version=f"fold{fold_id}",
-                default_hp_metric=False,
-            )
-
-            callbacks = [
-                EarlyStopping(monitor="val/loss", mode="min", min_delta=0, patience=20),
-                ModelCheckpoint(
-                    filename=f"trial{trial._trial_id}", monitor="val/loss", mode="min"
-                ),
-            ]
-
-            trainer = Trainer(
-                accelerator="auto",
-                max_epochs=EPOCHS,
-                logger=tbl,
-                log_every_n_steps=1,
-                callbacks=callbacks,
-            )
-
-            trainer.fit(
-                model=model, train_dataloaders=train_loader, val_dataloaders=val_loader
-            )
-
-            performance_per_fold.append(trainer.callback_metrics["val/mcc"].item())
-            num_epochs_per_fold.append(trainer.current_epoch + 1)
-
-        avg_performance = mean(performance_per_fold)
-        avg_num_epochs = int(mean(num_epochs_per_fold))
-
-        trial.set_user_attr("epochs", avg_num_epochs)
-
-        return avg_performance
-
-    if not os.path.exists(OUTPUT_PATH):
-        os.makedirs(OUTPUT_PATH)
-
-    storage = "sqlite:///" + OUTPUT_PATH + "/storage.db"
-    study = optuna.create_study(
-        storage=storage,
-        study_name="optuna_study",
-        load_if_exists=True,
-        direction="maximize",
+    study.optimize(
+        lambda trial: objective(
+            trial, data, data_params, NUM_FOLDS, EPOCHS, BATCH_SIZE
+        ),
+        n_trials=NUM_TRIALS,
     )
-    study.optimize(objective, n_trials=NUM_OPTUNA_TRIALS, gc_after_trial=True)
 
-    best_trial = study.best_trial
+    # Save best hyperparameters
+    best_params: Dict[str, Any] = study.best_trial.params
+    best_params["epochs"] = EPOCHS
 
-    print(
-        f"Best trial is trial {best_trial._trial_id} with mean validation MCC {best_trial.value} and hyperparameters:"
-    )
-    for key, value in best_trial.params.items():
-        print("   {}: {}".format(key, value))
+    with open(os.path.join(OUTPUT_PATH, "best_hparams.yaml"), "w") as f:
+        yaml.dump(best_params, f, default_flow_style=False)
 
-    best_trial.params["epochs"] = best_trial.user_attrs.get("epochs", "N/A")
-    best_trial.params["architecture"] = best_trial.user_attrs.get("architecture", "N/A")
+    print(f"Best trial: {study.best_trial.value}")
+    print(f"Best hyperparameters: {best_params}")
 
-    save_hparams_to_yaml(Path(OUTPUT_PATH, "best_hparams.yaml"), best_trial.params)
-
-    # Compute and log all relevant validation metrics from models trained with optimal hparams
-    # for subsequent manual model analysis and selection
-    collected_validation_outputs: dict[int, List[torch.Tensor]] = {}
-    kfold = KFold(n_splits=NUM_CV_FOLDS, shuffle=True, random_state=42)
-    for fold_id, (_, val_idx) in enumerate(kfold.split(range(len(data)))):
-        val_data = itemgetter(*val_idx)(data)
-        val_loader = DataLoader(
-            val_data,
-            batch_size=BATCH_SIZE,
-            shuffle=True,
-        )
-        hyperparams = study.best_trial.params
-        model = GNN(
-            params=data_params,
-            hyperparams=hyperparams,
-            architecture=MODEL,
-        )
-
-        checkpoint_path = Path(
-            Path(
-                Path(
-                    Path(
-                        Path(OUTPUT_PATH, "logs"),
-                        f"trial{study.best_trial._trial_id}",
-                    ),
-                    f"fold{fold_id}",
-                ),
-                "checkpoints",
-            ),
-            f"trial{study.best_trial._trial_id}.ckpt",
-        )
-
-        model = GNN.load_from_checkpoint(checkpoint_path)
-
-        trainer = Trainer(accelerator="auto", logger=False)
-        predictions = trainer.predict(model=model, dataloaders=val_loader)
-
-        if predictions is not None and len(predictions) > 0:
-            predictions = predictions[0]
-        else:
-            raise ValueError("No predictions were made.")
-
-        collected_validation_outputs[fold_id] = predictions[:-1]  # type: ignore[assignment]
-        descriptions = predictions[-1]
-
-    ValidationLogger.compute_and_log_validation_results(
-        collected_validation_outputs, descriptions, OUTPUT_PATH
-    )
+    print("Hyperparameter search completed successfully!")

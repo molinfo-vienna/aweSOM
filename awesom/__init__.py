@@ -1,21 +1,25 @@
-from .create_dataset import SOM, LabeledData, UnlabeledData
-from .lightning_module import GNN
-from .metrics_utils import TestLogger, ValidationLogger
-from .models import M1, M2, M3, M4, M7, M9, M11, M12
+from .create_dataset import SOM
+from .gpu_utils import get_device, print_device_info
+from .metrics_utils import (
+    MetricsCalculator,
+    ResultsLogger,
+)
+from .model import (
+    EnsemblePredictions,
+    GINEWithContextPooling,
+    SOMPredictor,
+    predict_ensemble,
+)
 
 __all__ = [
-    "LabeledData",
-    "GNN",
-    "M1",
-    "M2",
-    "M3",
-    "M4",
-    "M7",
-    "M9",
-    "M11",
-    "M12",
     "SOM",
-    "TestLogger",
-    "UnlabeledData",
-    "ValidationLogger",
+    "SOMPredictor",
+    "GINEWithContextPooling",
+    "get_device",
+    "predict_ensemble",
+    "print_device_info",
+    "EnsemblePredictions",
+    "log_results",
+    "MetricsCalculator",
+    "ResultsLogger",
 ]

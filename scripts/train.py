@@ -1,110 +1,101 @@
 import argparse
+import os
 import random
 import warnings
-from datetime import datetime
-from pathlib import Path
-from typing import Any
+from typing import Dict, List, Union
 
-import numpy as np
 import torch
 import yaml  # type: ignore
-from lightning import Trainer
-from lightning import seed_everything as lightning_seed_everything
-from lightning.pytorch.loggers.tensorboard import TensorBoardLogger
-from torch_geometric import seed_everything as geometric_seed_everything
 from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
-from awesom.lightning_module import GNN
+from awesom.gpu_utils import print_device_info
+from awesom.model import SOMPredictor
 
-warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings(
+    "ignore",
+    category=FutureWarning,
+    message=".*'DataFrame.swapaxes' is deprecated and will be removed in a future version.*",
+)
 
-BATCH_SIZE = 32
-ENSEMBLE_SIZE = 10
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 
-def set_seeds(seed: int) -> None:
-    """Set all random seeds for reproducibility."""
+def set_seed(seed: int) -> None:
+    """Set random seed for reproducibility."""
     torch.manual_seed(seed)
-    lightning_seed_everything(seed)
-    geometric_seed_everything(seed)
-    np.random.seed(seed)
     random.seed(seed)
 
 
-def load_hyperparams(path: str) -> dict[str, Any]:
-    """Load hyperparameters from YAML file."""
-    with open(Path(path, "best_hparams.yaml"), "r") as file:
-        return yaml.safe_load(file)
+def main() -> None:
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description="Train ensemble model"
+    )
+    parser.add_argument("-i", "--input", required=True, help="Input data path")
+    parser.add_argument(
+        "-c", "--config", required=True, help="Hyperparameters YAML path"
+    )
+    parser.add_argument("-o", "--output", required=True, help="Output path")
+    parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
+    parser.add_argument(
+        "--ensemble_size", type=int, default=10, help="Num. models in ensemble"
+    )
+    args: argparse.Namespace = parser.parse_args()
+
+    print_device_info()
+
+    # Load data
+    print("Loading data...")
+    data: SOM = SOM(root=args.input, transform=T.ToUndirected())
+    print(f"Loaded {len(data)} training instances")
+
+    data_params: Dict[str, int] = {
+        "num_node_features": data.num_node_features,
+        "num_edge_features": data.num_edge_features,
+    }
+
+    # Load hyperparameters
+    with open(os.path.join(args.config, "best_hparams.yaml"), "r") as f:
+        hyperparams: Dict[str, Union[int, float]] = yaml.safe_load(f)
+
+    # Train ensemble with progress bar
+    print(f"\nTraining ensemble of {args.ensemble_size} models...")
+    random_seeds: List[int] = random.sample(range(1000), args.ensemble_size)
+
+    for i, seed in enumerate(random_seeds):
+        print(f"Training model {i+1}/{args.ensemble_size} with seed {seed}")
+        set_seed(seed)
+
+        # Create model
+        model: SOMPredictor = SOMPredictor(data_params, hyperparams)
+
+        # Create dataloader
+        train_loader: DataLoader = DataLoader(
+            data, batch_size=args.batch_size, shuffle=True
+        )
+
+        # Setup output directories
+        model_dir: str = os.path.join(args.output, f"model_{i}")
+        log_dir: str = os.path.join(model_dir, "logs")
+        checkpoint_dir: str = os.path.join(model_dir, "checkpoints")
+
+        # Train using the new fit method
+        model.fit(
+            train_loader=train_loader,
+            max_epochs=int(hyperparams["epochs"]),
+            log_dir=log_dir,
+            checkpoint_dir=checkpoint_dir,
+            patience=20,
+        )
+
+    # Save seeds for reproducibility
+    with open(os.path.join(args.output, "seeds.txt"), "w") as f:
+        for seed in random_seeds:
+            f.write(f"{seed}\n")
+
+    print("Training completed!")
 
 
 if __name__ == "__main__":
-    start_time = datetime.now()
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    torch.set_float32_matmul_precision("medium")
-
-    parser = argparse.ArgumentParser("Training the deep ensemble model.")
-
-    parser.add_argument(
-        "-i",
-        dest="inputPath",
-        type=str,
-        required=True,
-        help="Folder holding the input data.",
-    )
-    parser.add_argument(
-        "-c",
-        dest="hparamsYamlPath",
-        type=str,
-        required=True,
-        help="Folder holding the yaml file with the optimal hyperparameters. \
-            These should be determined prior to training by running the cv_hp_search.py script.",
-    )
-    parser.add_argument(
-        "-o",
-        dest="outputPath",
-        type=str,
-        required=True,
-        help="Folder to which the output (trained model checkpoints, list of random seeds) will be written.",
-    )
-
-    args = parser.parse_args()
-
-    # Load data
-    data = SOM(root=args.inputPath, transform=T.ToUndirected())
-    print(f"Loaded training data with {len(data)} instances.")
-    data_params = dict(
-        num_node_features=data.num_node_features,
-        num_edge_features=data.num_edge_features,
-        # num_mol_features=data.mol_x.shape[1],
-    )
-
-    random_seeds = random.sample(range(0, 1000), ENSEMBLE_SIZE)
-    for seed in random_seeds:
-        set_seeds(seed)
-        hyperparams = load_hyperparams(args.hparamsYamlPath)
-        logger = TensorBoardLogger(save_dir=args.outputPath, default_hp_metric=False)
-        trainer = Trainer(
-            accelerator="auto",
-            devices=1,
-            max_epochs=hyperparams["epochs"],
-            logger=logger,
-            log_every_n_steps=1,
-        )
-        model = GNN(
-            params=data_params,
-            hyperparams=hyperparams,
-            architecture=hyperparams["architecture"],
-        )
-        train_loader = DataLoader(data, batch_size=BATCH_SIZE, shuffle=True)
-        trainer.fit(
-            model=model,
-            train_dataloaders=train_loader,
-        )
-
-    with open(Path(args.outputPath, "random_seeds.txt"), "w") as f:
-        f.writelines(f"{seed}\n" for seed in random_seeds)
-
-    print("Finished in:", datetime.now() - start_time)
+    main()
