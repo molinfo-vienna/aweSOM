@@ -33,7 +33,7 @@ The repository history was rewritten to remove large, outdated folders. If you c
 
 
 # Data
-The use of the trained aweSOM model requires a license for the MetaQSAR database (10.1021/acs.jmedchem.7b01473). To demonstrate the validity of the software presented in this repository, we trained and tested an example version of aweSOM using public metabolism data, commonly referred to as the Zaretzki data set. The original data can be found at 10.1021/ci300009z. The curated data used for demonstrating how to train and test aweSOM, as well as the trained example models and outputs can be found at https://figshare.com/s/9fb1b972d390d8f0e16a.
+The use of the trained aweSOM model requires a license for the MetaQSAR database (10.1021/acs.jmedchem.7b01473). To demonstrate the validity of the software presented in this repository, we trained and tested an example version of aweSOM using public metabolism data, commonly referred to as the Zaretzki data set. The original data can be found at 10.1021/ci300009z. The curated data used for demonstrating how to train and test aweSOM, as well as the trained example models and outputs can be found at https://figshare.com/s/9888313140b2e77987b8.
 
 
 # Usage
