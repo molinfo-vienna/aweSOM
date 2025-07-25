@@ -8,7 +8,7 @@ from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
 from awesom.create_dataset import SOM
-from awesom.metrics_utils import log_results
+from awesom.metrics_utils import ResultsLogger
 from awesom.model import predict_ensemble
 
 
@@ -45,25 +45,20 @@ def test_test() -> None:
     OUTPUT_PATH: str = os.path.join(os.path.dirname(__file__), "test_output", "test")
     MODE: str = "test"
 
-    # Load data
     labeled: bool = MODE == "test"
     data: SOM = SOM(root=INPUT_PATH, labeled=labeled, transform=T.ToUndirected())
 
     print(f"Loaded {len(data)} instances for {MODE}")
 
-    # Find model checkpoints
     model_paths: List[str] = find_model_paths(CHECKPOINTS_PATH)
     print(f"Found {len(model_paths)} model checkpoints")
 
-    # Create dataloader
     dataloader: DataLoader = DataLoader(data, batch_size=len(data), shuffle=False)
 
-    # Run ensemble predictions
     predictions = predict_ensemble(dataloader, model_paths)
 
-    # Process predictions using the new structured format
     if predictions:
-        # Log results using the unified function
-        log_results(predictions.to(torch.device("cpu")), OUTPUT_PATH, MODE)
+        results_logger = ResultsLogger(OUTPUT_PATH)
+        results_logger.save_results(predictions.to(torch.device("cpu")), MODE)
 
     print(f"Results saved to {OUTPUT_PATH}")

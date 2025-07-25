@@ -24,13 +24,14 @@ class MetricsCalculator:
     ) -> Dict[str, float]:
         """Compute all classification metrics."""
         y_pred = (y_probs >= THRESHOLD).int()
-        
-        # Get the device of the input tensors
+
         device = y_probs.device
 
         return {
             "ROC-AUC": AUROC(task="binary").to(device)(y_probs, y_true).item(),
-            "PR-AUC": AveragePrecision(task="binary").to(device)(y_probs, y_true).item(),
+            "PR-AUC": AveragePrecision(task="binary")
+            .to(device)(y_probs, y_true)
+            .item(),
             "F1": F1Score(task="binary").to(device)(y_pred, y_true).item(),
             "MCC": MatthewsCorrCoef(task="binary").to(device)(y_pred, y_true).item(),
             "Precision": BinaryPrecision().to(device)(y_pred, y_true).item(),
@@ -44,7 +45,6 @@ class MetricsCalculator:
         for mol_id in torch.unique(mol_ids):
             mol_mask = mol_ids == mol_id
             mol_probs = y_probs[mol_mask]
-            # Sort by probability (descending) and get ranks
             sorted_indices = torch.argsort(mol_probs, descending=True)
             ranks = torch.argsort(sorted_indices)
             rankings.append(ranks)
@@ -63,7 +63,6 @@ class MetricsCalculator:
             mol_probs = y_probs[mol_mask]
             mol_true = y_true[mol_mask]
 
-            # Get top 2 predictions
             top2_indices = torch.topk(mol_probs, min(2, len(mol_probs))).indices
             if torch.any(mol_true[top2_indices]):
                 correct_molecules += 1
@@ -119,7 +118,6 @@ class ResultsLogger:
             for _ in range(count)
         ]
 
-        # Prepare CSV headers and data
         headers = [
             "mol_id",
             "atom_id",
@@ -143,13 +141,11 @@ class ResultsLogger:
             [round(u, 4) for u in u_tot.tolist()],
         ]
 
-        # Write CSV
         with open(os.path.join(self.output_path, "results.csv"), "w") as f:
             writer = csv.writer(f)
             writer.writerow(headers)
             for row in zip(*data):
                 writer.writerow(row)
-
 
     def save_roc_curve(self, y_true: torch.Tensor, y_probs: torch.Tensor) -> None:
         """Save ROC curve plot."""
@@ -158,7 +154,6 @@ class ResultsLogger:
             os.path.join(self.output_path, "roc.png"), dpi=300, bbox_inches="tight"
         )
         plt.close()
-
 
     def compute_bootstrap_metrics(
         self,
@@ -170,7 +165,15 @@ class ResultsLogger:
         """Compute metrics with bootstrap confidence intervals."""
         bootstrap_results: Dict[str, List[float]] = {
             metric: []
-            for metric in ["ROC-AUC", "PR-AUC", "F1", "MCC", "Precision", "Recall", "Top-2"]
+            for metric in [
+                "ROC-AUC",
+                "PR-AUC",
+                "F1",
+                "MCC",
+                "Precision",
+                "Recall",
+                "Top-2",
+            ]
         }
 
         for _ in range(n_bootstrap):
@@ -181,7 +184,9 @@ class ResultsLogger:
             y_trues_sample = y_trues[mask]
             mol_ids_sample = mol_ids[mask]
 
-            metrics = self.metrics_calc.compute_torchmetrics(y_probs_sample, y_trues_sample)
+            metrics = self.metrics_calc.compute_torchmetrics(
+                y_probs_sample, y_trues_sample
+            )
             top2 = self.metrics_calc.compute_top2_accuracy(
                 y_probs_sample, y_trues_sample, mol_ids_sample
             )
@@ -191,7 +196,6 @@ class ResultsLogger:
             bootstrap_results["Top-2"].append(top2)
 
         return bootstrap_results
-
 
     def save_results(
         self,
@@ -206,16 +210,12 @@ class ResultsLogger:
             output_path: where to save results
             mode: "test" or "inference"
         """
-        # Compute average probabilities from logits
         y_probs = torch.mean(predictions.get_probabilities(), dim=0)
 
-        # Compute uncertainties
         uncertainties = predictions.get_uncertainties()
 
-        # Compute rankings
         rankings = self.metrics_calc.compute_ranking(y_probs, predictions.mol_ids)
 
-        # Save predictions
         self.save_predictions(
             atom_ids=predictions.atom_ids,
             mol_ids=predictions.mol_ids,

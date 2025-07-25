@@ -182,26 +182,26 @@ class SOMPredictor(nn.Module):
         )
         self.mcc = MatthewsCorrCoef(task="binary").to(self.device)
 
-        # Store for checkpointing
         self.hyperparams = hyperparams
         self.data_params = data_params
 
     def forward(self, batch: Data) -> torch.Tensor:
-        # Move batch to device
         batch = batch.to(self.device)
         return self.model(batch)
 
-    def train_step(self, batch: Data, scaler: Optional[torch.cuda.amp.GradScaler] = None) -> Tuple[float, float]:
+    def train_step(
+        self, batch: Data, scaler: Optional[torch.cuda.amp.GradScaler] = None
+    ) -> Tuple[float, float]:
         """Single training step with optional mixed precision."""
         self.train()
         self.optimizer.zero_grad()
 
         if scaler is not None and torch.cuda.is_available():
             # Mixed precision training (only for CUDA)
-            with torch.amp.autocast(device_type='cuda'):
+            with torch.amp.autocast(device_type="cuda"):
                 logits = self(batch)
                 loss = self.loss_fn(logits, batch.y.float())
-            
+
             scaler.scale(loss).backward()
             scaler.step(self.optimizer)
             scaler.update()
@@ -272,15 +272,14 @@ class SOMPredictor(nn.Module):
         best_val_loss = float("inf")
         patience_counter = 0
         actual_epochs = 0
-        
+
         # Setup mixed precision training
         # for faster and more efficient training
         scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
 
         for epoch in tqdm(range(max_epochs)):
-            actual_epochs = epoch + 1  # Track actual epochs trained
+            actual_epochs = epoch + 1
 
-            # Training
             train_losses, train_mccs = [], []
             for batch in train_loader:
                 loss, mcc = self.train_step(batch, scaler)
@@ -290,7 +289,6 @@ class SOMPredictor(nn.Module):
             avg_train_loss = sum(train_losses) / len(train_losses)
             avg_train_mcc = sum(train_mccs) / len(train_mccs)
 
-            # Validation
             if val_loader:
                 val_losses, val_mccs = [], []
                 for batch in val_loader:
@@ -301,14 +299,12 @@ class SOMPredictor(nn.Module):
                 avg_val_loss = sum(val_losses) / len(val_losses)
                 avg_val_mcc = sum(val_mccs) / len(val_mccs)
 
-                # Logging
                 if writer:
                     writer.add_scalar("train/loss", avg_train_loss, epoch)
                     writer.add_scalar("train/mcc", avg_train_mcc, epoch)
                     writer.add_scalar("val/loss", avg_val_loss, epoch)
                     writer.add_scalar("val/mcc", avg_val_mcc, epoch)
 
-                # Early stopping and checkpointing based on validation loss
                 if avg_val_loss < best_val_loss:
                     best_val_loss = avg_val_loss
                     patience_counter = 0
@@ -348,7 +344,6 @@ def predict_ensemble(
     models = [SOMPredictor.load(path) for path in model_paths]
     all_logits: List[torch.Tensor] = []
 
-    # Predefine outputs for mypy
     y_trues: Optional[torch.Tensor] = None
     mol_ids: Optional[torch.Tensor] = None
     atom_ids: Optional[torch.Tensor] = None

@@ -27,7 +27,6 @@ class SOM(InMemoryDataset):
             shutil.rmtree(processed_folder)
             print(f"Deleted existing processed folder at: {processed_folder}")
 
-        # Call the superclass constructor
         super().__init__(root, transform, pre_transform, pre_filter)
 
         self.root = root
@@ -61,12 +60,10 @@ class SOM(InMemoryDataset):
         """Process the input file and create Data objects."""
         _, file_extension = os.path.splitext(input_file)
 
-        # Load molecules and labels
         molecules, labels, descriptions = self.load_molecules(
             input_file, file_extension
         )
 
-        # Process each molecule
         data_list = []
         for mol_id, (mol, soms, description) in enumerate(
             zip(molecules, labels, descriptions)
@@ -74,13 +71,11 @@ class SOM(InMemoryDataset):
             if mol is None:
                 continue
 
-            # Remove hydrogens and update SoM indices
             mol, soms = self.remove_hydrogens_and_update_soms(mol, soms)
 
             if len(soms) == 0 and self.labeled:
                 continue  # Skip molecules without SoMs in labeled mode
 
-            # Create Data object
             data = self.mol_to_data(mol, soms, mol_id, description)
             if data is not None:
                 data_list.append(data)
@@ -96,19 +91,16 @@ class SOM(InMemoryDataset):
         descriptions: List[str] = []
 
         if file_extension == ".sdf":
-            # Load SD file
             suppl = Chem.SDMolSupplier(input_file, removeHs=False)
             for mol in suppl:
                 if mol is None:
                     continue
 
-                # Get SoM information
                 soms = []
                 if self.labeled:
                     soms_prop = mol.GetProp("soms") if mol.HasProp("soms") else "[]"
                     soms = literal_eval(soms_prop)
 
-                # Get description
                 desc = (
                     mol.GetProp("_Name")
                     if mol.HasProp("_Name")
@@ -120,7 +112,6 @@ class SOM(InMemoryDataset):
                 descriptions.append(desc)
 
         elif file_extension in [".smi", ".smiles"]:
-            # Load SMILES file
             with open(input_file, "r") as f:
                 for line_num, line in enumerate(f):
                     line = line.strip()
@@ -135,7 +126,6 @@ class SOM(InMemoryDataset):
                     if mol is None:
                         continue
 
-                    # Get SoM information
                     soms = []
                     if self.labeled and len(parts) > 2:
                         soms_str = parts[2]
@@ -144,7 +134,6 @@ class SOM(InMemoryDataset):
                         except ValueError:
                             soms = []
 
-                    # Get description
                     desc = parts[1] if len(parts) > 1 else f"{line_num}"
 
                     molecules.append(mol)
@@ -159,7 +148,6 @@ class SOM(InMemoryDataset):
         self, mol: Chem.Mol, soms: List[int]
     ) -> tuple[Chem.Mol, List[int]]:
         """Remove hydrogens and update SoM indices."""
-        # Mark SoM atoms
         for atom in mol.GetAtoms():
             atom_id = atom.GetIdx()
             if atom_id in soms:
@@ -167,10 +155,8 @@ class SOM(InMemoryDataset):
             else:
                 atom.SetIntProp("label", 0)
 
-        # Remove hydrogens
         mol_no_h = Chem.RemoveHs(mol)
 
-        # Get new SoM indices
         new_soms = []
         for atom in mol_no_h.GetAtoms():
             if atom.GetIntProp("label") == 1:
@@ -208,7 +194,9 @@ class SOM(InMemoryDataset):
 
             # Convert to tensors
             x = torch.tensor(atom_features, dtype=torch.float32)
-            edge_index = torch.tensor(edge_index_list, dtype=torch.long).t().contiguous()
+            edge_index = (
+                torch.tensor(edge_index_list, dtype=torch.long).t().contiguous()
+            )
             edge_attr = torch.tensor(edge_attr_list, dtype=torch.float32)
             y = torch.tensor(som_labels, dtype=torch.long)
             mol_ids = torch.full((len(atom_ids),), mol_id, dtype=torch.long)
@@ -233,7 +221,6 @@ class SOM(InMemoryDataset):
 
     def get_atom_features(self, atom: Chem.Atom) -> List[float]:
         """Generate atom features."""
-        # Element type one-hot encoding
         atomic_num = atom.GetAtomicNum()
         element_list = [
             5,
@@ -252,26 +239,20 @@ class SOM(InMemoryDataset):
         features = []
         for element in element_list:
             features.append(1.0 if atomic_num == element else 0.0)
-        features.append(
-            1.0 if atomic_num not in element_list else 0.0
-        )  # Other elements
+        features.append(1.0 if atomic_num not in element_list else 0.0)
 
         return features
 
     def get_bond_features(self, bond: Chem.Bond) -> List[float]:
         """Generate bond features."""
-        # Bond type one-hot encoding
         bond_types = ["SINGLE", "DOUBLE", "TRIPLE", "AROMATIC"]
         bond_type_str = str(bond.GetBondType())
 
         features = []
         for bond_type in bond_types:
             features.append(1.0 if bond_type_str == bond_type else 0.0)
-        features.append(
-            1.0 if bond_type_str not in bond_types else 0.0
-        )  # Other bond types
+        features.append(1.0 if bond_type_str not in bond_types else 0.0)
 
-        # Additional bond features
         features.append(1.0 if bond.IsInRing() else 0.0)
         features.append(1.0 if bond.GetIsConjugated() else 0.0)
 

@@ -45,7 +45,6 @@ def main() -> None:
 
     print_device_info()
 
-    # Load data
     print("Loading data...")
     data: SOM = SOM(root=args.input, transform=T.ToUndirected())
     print(f"Loaded {len(data)} training instances")
@@ -55,11 +54,9 @@ def main() -> None:
         "num_edge_features": data.num_edge_features,
     }
 
-    # Load hyperparameters
     with open(os.path.join(args.config, "best_hparams.yaml"), "r") as f:
         hyperparams: Dict[str, Union[int, float]] = yaml.safe_load(f)
 
-    # Train ensemble with progress bar
     print(f"\nTraining ensemble of {args.ensemble_size} models...")
     random_seeds: List[int] = random.sample(range(1000), args.ensemble_size)
 
@@ -67,20 +64,16 @@ def main() -> None:
         print(f"Training model {i+1}/{args.ensemble_size} with seed {seed}")
         set_seed(seed)
 
-        # Create model
         model: SOMPredictor = SOMPredictor(data_params, hyperparams)
 
-        # Create dataloader
         train_loader: DataLoader = DataLoader(
             data, batch_size=args.batch_size, shuffle=True
         )
 
-        # Setup output directories
         model_dir: str = os.path.join(args.output, f"model_{i}")
         log_dir: str = os.path.join(model_dir, "logs")
         checkpoint_dir: str = os.path.join(model_dir, "checkpoints")
 
-        # Train using the new fit method
         model.fit(
             train_loader=train_loader,
             max_epochs=int(hyperparams["epochs"]),
@@ -89,7 +82,6 @@ def main() -> None:
             patience=20,
         )
 
-    # Save seeds for reproducibility
     with open(os.path.join(args.output, "seeds.txt"), "w") as f:
         for seed in random_seeds:
             f.write(f"{seed}\n")

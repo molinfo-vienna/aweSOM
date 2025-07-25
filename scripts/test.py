@@ -58,26 +58,21 @@ def main() -> None:
 
     print_device_info()
 
-    # Load data
     labeled: bool = args.mode == "test"
     data: SOM = SOM(root=args.input, labeled=labeled, transform=T.ToUndirected())
 
     print(f"Loaded {len(data)} instances for {args.mode}")
 
-    # Find model checkpoints
     model_paths: List[str] = find_model_paths(args.checkpoints)
     print(f"Found {len(model_paths)} model checkpoints")
 
-    # Create dataloader
     dataloader: DataLoader = DataLoader(data, batch_size=len(data), shuffle=False)
 
-    # Run ensemble predictions
     predictions = predict_ensemble(dataloader, model_paths)
 
     print("Saving results...")
 
     if predictions:
-        # Log results using the unified function
         results_logger = ResultsLogger(args.output)
         results_logger.save_results(predictions.to(torch.device("cpu")), args.mode)
 
