@@ -3,7 +3,7 @@ aweSOM
 
 A model predicting sites-of-metabolism (SOMs) in xenobiotics with aleatoric and epistemic uncertainty estimation.
 
-Preprint: [https://chemrxiv.org/engage/chemrxiv/article-details/6703a2a851558a15ef56fbea](https://chemrxiv.org/engage/chemrxiv/article-details/67ee93de6dde43c908425567)
+Paper: https://pubs.acs.org/doi/10.1021/acs.jcim.5c00762
 
 ⚠️ **Important Notice (June 10, 2025)**
 
