@@ -45,7 +45,7 @@ To predict the SOMs of one or multiple *unlabeled* molecules and output the pred
 ```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m infer```
 
 **Arguments:**
-- `-i, --input`: The path to the input data. For inference, both SD-files (.sdf) and smiles files (.smi, .smiles) are currently supported. Running test.py will create processed data files and place them into `INPUT_PATH/processed/`.
+- `-i, --input`: The path to the folder containing the input data file. For inference, both SD-files (.sdf) and smiles files (.smi, .smiles) are currently supported. Running test.py will create processed data files and place them into `INPUT_PATH/processed/`.
 - `-c, --checkpoints`: The path to the trained ensemble model's checkpoints directory.
 - `-o, --output`: The desired output's location. The individual predictions will be saved to `results.csv`.
 - `-m, --mode`: Must be set to `infer` for inference mode.
@@ -60,7 +60,7 @@ To predict the SOMs of one or multiple *unlabeled* molecules and output the pred
 ```python scripts/cv_hp_search.py -i INPUT_PATH -o OUTPUT_PATH [OPTIONS]```
 
 **Required Arguments:**
-- `-i, --input`: The folder holding the input data file. Only `.sdf` input files are currently supported. Running cv_hp_search.py will create processed data files and place them into `INPUT_PATH/processed/`.
+- `-i, --input`: The path to the folder containing the input data file. Only `.sdf` input files are currently supported. Running cv_hp_search.py will create processed data files and place them into `INPUT_PATH/processed/`.
 - `-o, --output`: The desired output's location. The best hyperparameters will be stored in `best_hparams.yaml`. The individual validation metrics of each fold will be stored in CSV files (`validation_fold_0.csv`, `validation_fold_1.csv`, etc.). The averaged validation metrics with standard deviations will be stored in `validation.txt`.
 
 **Optional Arguments:**
@@ -77,7 +77,7 @@ To predict the SOMs of one or multiple *unlabeled* molecules and output the pred
 ```python scripts/train.py -i INPUT_PATH -c CONFIG_PATH -o OUTPUT_PATH [OPTIONS]```
 
 **Required Arguments:**
-- `-i, --input`: The path to the input data. Only `.sdf` input files are currently supported. Running train.py will create processed data files and place them into `INPUT_PATH/processed/`.
+- `-i, --input`: The path to the folder containing the input data file. Only `.sdf` input files are currently supported. Running train.py will create processed data files and place them into `INPUT_PATH/processed/`.
 - `-c, --config`: The path to the directory containing the `best_hparams.yaml` file with hyperparameters that were previously determined by running the cv_hp_search.py script.
 - `-o, --output`: The desired output's location. Per default, training generates an ensemble of 10 models.
 
@@ -95,7 +95,7 @@ To predict the SOMs of one or multiple *labeled* molecules and output the predic
 ```python scripts/test.py -i INPUT_PATH -c CHECKPOINTS_PATH -o OUTPUT_PATH -m test```
 
 **Arguments:**
-- `-i, --input`: The path to the input data. For model testing, only `.sdf` files are currently supported. Running test.py will create processed data files and place them into `INPUT_PATH/processed/`.
+- `-i, --input`: The path to the folder containing the input data file. For model testing, only `.sdf` files are currently supported. Running test.py will create processed data files and place them into `INPUT_PATH/processed/`.
 - `-c, --checkpoints`: The path to the trained ensemble model's checkpoints directory.
 - `-o, --output`: The desired output's location. The performance metrics are written to `results.txt` and the individual predictions to `results.csv`.
 - `-m, --mode`: Must be set to `test` for testing mode.
