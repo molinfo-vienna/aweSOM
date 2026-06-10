@@ -144,8 +144,9 @@ class SOM(InMemoryDataset):
 
         return molecules, labels, descriptions
 
+    @staticmethod
     def remove_hydrogens_and_update_soms(
-        self, mol: Chem.Mol, soms: list[int]
+        mol: Chem.Mol, soms: list[int]
     ) -> tuple[Chem.Mol, list[int]]:
         """Remove hydrogens and update SoM indices."""
         for atom in mol.GetAtoms():
@@ -164,8 +165,9 @@ class SOM(InMemoryDataset):
 
         return mol_no_h, new_soms
 
+    @staticmethod
     def mol_to_data(
-        self, mol: Chem.Mol, soms: list[int], mol_id: int, description: str
+        mol: Chem.Mol, soms: list[int], mol_id: int, description: str
     ) -> Data | None:
         """Convert a molecule to a PyTorch Geometric Data object."""
         try:
@@ -176,7 +178,7 @@ class SOM(InMemoryDataset):
 
             for atom in mol.GetAtoms():
                 atom_id = atom.GetIdx()
-                features = self.get_atom_features(atom)
+                features = SOMDataset.get_atom_features(atom)
                 atom_features.append(features)
                 atom_ids.append(atom_id)
                 som_labels.append(1 if atom_id in soms else 0)
@@ -189,7 +191,7 @@ class SOM(InMemoryDataset):
                 begin_idx = bond.GetBeginAtomIdx()
                 end_idx = bond.GetEndAtomIdx()
                 edge_index_list.append([begin_idx, end_idx])
-                bond_features = self.get_bond_features(bond)
+                bond_features = SOMDataset.get_bond_features(bond)
                 edge_attr_list.extend([bond_features])
 
             # Convert to tensors
@@ -219,7 +221,8 @@ class SOM(InMemoryDataset):
             print(f"Error processing molecule {description}: {e}")
             return None
 
-    def get_atom_features(self, atom: Chem.Atom) -> list[float]:
+    @staticmethod
+    def get_atom_features(atom: Chem.Atom) -> list[float]:
         """Generate atom features."""
         atomic_num = atom.GetAtomicNum()
         element_list = [
@@ -243,7 +246,8 @@ class SOM(InMemoryDataset):
 
         return features
 
-    def get_bond_features(self, bond: Chem.Bond) -> list[float]:
+    @staticmethod
+    def get_bond_features(bond: Chem.Bond) -> list[float]:
         """Generate bond features."""
         bond_types = ["SINGLE", "DOUBLE", "TRIPLE", "AROMATIC"]
         bond_type_str = str(bond.GetBondType())
