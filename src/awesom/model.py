@@ -193,6 +193,8 @@ class SOMPredictor(nn.Module):
         self, batch: Data, scaler: torch.cuda.amp.GradScaler | None = None
     ) -> tuple[float, float]:
         """Single training step with optional mixed precision."""
+        assert isinstance(batch.y, torch.Tensor)
+
         self.train()
         self.optimizer.zero_grad()
 
@@ -220,6 +222,8 @@ class SOMPredictor(nn.Module):
 
     def val_step(self, batch: Data) -> tuple[float, float]:
         """Single validation step."""
+        assert isinstance(batch.y, torch.Tensor)
+
         self.eval()
         with torch.no_grad():
             logits = self(batch)
@@ -231,6 +235,8 @@ class SOMPredictor(nn.Module):
         self, batch: Data
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list[str]]:
         """Prediction step."""
+        assert isinstance(batch.y, torch.Tensor)
+
         self.eval()
         with torch.no_grad():
             logits = self(batch)
