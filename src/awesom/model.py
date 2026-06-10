@@ -337,11 +337,10 @@ class SOMPredictor(nn.Module):
 
 
 def predict_ensemble(
-    data: DataLoader[Data], models: list[str]
+    data: DataLoader[Data], models: list[SOMPredictor]
 ) -> EnsemblePredictions:
     """Run ensemble predictions and return structured results."""
 
-    models = [SOMPredictor.load(path) for path in model_paths]
     all_logits: list[torch.Tensor] = []
 
     y_trues: torch.Tensor | None = None
