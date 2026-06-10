@@ -112,7 +112,7 @@ def train(
             train_loader=train_loader,
             max_epochs=int(hyperparams["epochs"]),
             log_dir=None,
-            checkpoint_dir=str(output_path / f"model_{i}"),
+            checkpoint_dir=str(output_path / f"model_{i}" / "checkpoints"),
             patience=20,
         )
 

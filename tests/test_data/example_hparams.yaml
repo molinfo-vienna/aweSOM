@@ -1,0 +1,7 @@
+epochs: 10
+learning_rate: 0.0002465283818060049
+num_conv_layers: 2
+pos_class_weight: 2.8268527164613175
+size_conv_layers: 131
+size_final_mlp_layers: 749
+weight_decay: 8.763516004814906e-05
