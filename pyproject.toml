@@ -29,10 +29,13 @@ dependencies = [
     "tqdm>=4.64.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 vis = [
-  "ipykernel", 
+  "ipykernel",
   "ipywidgets"
+]
+ci = [
+    "pytest>=8.4.1",
 ]
 
 [tool.isort]
