@@ -122,6 +122,14 @@ def train(
     help="Predict SOMs using an existing aweSOM model ensemble.",
 )
 def predict(
+    input_path: Annotated[
+        Path,
+        typer.Option(
+            "--input",
+            "-i",
+            help="Path to input data for which to predict SOMs (SDF, SMILES).",
+        ),
+    ],
     models_path: Annotated[
         Path,
         typer.Option(
@@ -139,7 +147,7 @@ def predict(
         ),
     ],
 ):
-    data = SOMDataset(root=str(models_path), labeled=True, transform=T.ToUndirected())
+    data = SOMDataset(root=str(input_path), labeled=True, transform=T.ToUndirected())
     dataloader: DataLoader = DataLoader(data, batch_size=len(data), shuffle=False)
 
     models = load_models(models_path)
