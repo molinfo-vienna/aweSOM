@@ -1,7 +1,6 @@
 import csv
 import os
 from statistics import mean, stdev
-from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import torch
@@ -21,7 +20,7 @@ class MetricsCalculator:
     @staticmethod
     def compute_torchmetrics(
         y_probs: torch.Tensor, y_true: torch.Tensor
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Compute all classification metrics."""
         y_pred = (y_probs >= THRESHOLD).int()
 
@@ -82,7 +81,7 @@ class ResultsLogger:
 
     def save_metrics(
         self,
-        bootstrap_metrics: Dict[str, List[float]],
+        bootstrap_metrics: dict[str, list[float]],
     ) -> None:
         """Save metrics and bootstrap confidence intervals to text file."""
         with open(os.path.join(self.output_path, "results.txt"), "w") as f:
@@ -100,8 +99,8 @@ class ResultsLogger:
         y_trues: torch.Tensor,  # (num_atoms,)
         y_probs: torch.Tensor,  # (num_atoms,)
         rankings: torch.Tensor,  # (num_atoms,)
-        uncertainties: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],  # (num_atoms,)
-        descriptions: List[str],  # (num_molecules,)
+        uncertainties: tuple[torch.Tensor, torch.Tensor, torch.Tensor],  # (num_atoms,)
+        descriptions: list[str],  # (num_molecules,)
     ) -> None:
         """Save detailed predictions to CSV file."""
         y_preds = (y_probs >= THRESHOLD).int()
@@ -161,9 +160,9 @@ class ResultsLogger:
         y_trues: torch.Tensor,
         mol_ids: torch.Tensor,
         n_bootstrap: int = NUM_BOOTSTRAPS,
-    ) -> Dict[str, List[float]]:
+    ) -> dict[str, list[float]]:
         """Compute metrics with bootstrap confidence intervals."""
-        bootstrap_results: Dict[str, List[float]] = {
+        bootstrap_results: dict[str, list[float]] = {
             metric: []
             for metric in [
                 "ROC-AUC",

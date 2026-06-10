@@ -1,7 +1,7 @@
 import os
 import shutil
 from ast import literal_eval
-from typing import Callable, List, Optional
+from typing import Callable
 
 import torch
 from rdkit import Chem
@@ -15,9 +15,9 @@ class SOM(InMemoryDataset):
         self,
         root: str,
         labeled: bool = True,
-        transform: Optional[Callable[[Data], Data]] = None,
-        pre_transform: Optional[Callable[[Data], Data]] = None,
-        pre_filter: Optional[Callable[[Data], Data]] = None,
+        transform: Callable[[Data], Data] | None = None,
+        pre_transform: Callable[[Data], Data] | None = None,
+        pre_filter: Callable[[Data], Data] | None = None,
     ) -> None:
         self.labeled = labeled
 
@@ -34,12 +34,12 @@ class SOM(InMemoryDataset):
         self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
 
     @property
-    def processed_file_names(self) -> List[str]:
+    def processed_file_names(self) -> list[str]:
         return ["data.pt"]
 
     def find_input_file(
-        self, extensions: List[str] = [".sdf", ".smi", ".smiles"]
-    ) -> Optional[str]:
+        self, extensions: list[str] = [".sdf", ".smi", ".smiles"]
+    ) -> str | None:
         """Finds the first file in the root directory with one of the allowed extensions."""
         for file_name in os.listdir(self.root):
             if any(file_name.endswith(ext) for ext in extensions):
@@ -56,7 +56,7 @@ class SOM(InMemoryDataset):
         data_list = self.data_processing(input_file=input_file)
         torch.save((self.collate(data_list)), self.processed_paths[0])
 
-    def data_processing(self, input_file: str) -> List[Data]:
+    def data_processing(self, input_file: str) -> list[Data]:
         """Process the input file and create Data objects."""
         _, file_extension = os.path.splitext(input_file)
 
@@ -84,11 +84,11 @@ class SOM(InMemoryDataset):
 
     def load_molecules(
         self, input_file: str, file_extension: str
-    ) -> tuple[List[Chem.Mol], List[List[int]], List[str]]:
+    ) -> tuple[list[Chem.Mol], list[list[int]], list[str]]:
         """Load molecules from file based on extension."""
-        molecules: List[Chem.Mol] = []
-        labels: List[List[int]] = []
-        descriptions: List[str] = []
+        molecules: list[Chem.Mol] = []
+        labels: list[list[int]] = []
+        descriptions: list[str] = []
 
         if file_extension == ".sdf":
             suppl = Chem.SDMolSupplier(input_file, removeHs=False)
@@ -145,8 +145,8 @@ class SOM(InMemoryDataset):
         return molecules, labels, descriptions
 
     def remove_hydrogens_and_update_soms(
-        self, mol: Chem.Mol, soms: List[int]
-    ) -> tuple[Chem.Mol, List[int]]:
+        self, mol: Chem.Mol, soms: list[int]
+    ) -> tuple[Chem.Mol, list[int]]:
         """Remove hydrogens and update SoM indices."""
         for atom in mol.GetAtoms():
             atom_id = atom.GetIdx()
@@ -165,8 +165,8 @@ class SOM(InMemoryDataset):
         return mol_no_h, new_soms
 
     def mol_to_data(
-        self, mol: Chem.Mol, soms: List[int], mol_id: int, description: str
-    ) -> Optional[Data]:
+        self, mol: Chem.Mol, soms: list[int], mol_id: int, description: str
+    ) -> Data | None:
         """Convert a molecule to a PyTorch Geometric Data object."""
         try:
             # Generate atom features
@@ -219,7 +219,7 @@ class SOM(InMemoryDataset):
             print(f"Error processing molecule {description}: {e}")
             return None
 
-    def get_atom_features(self, atom: Chem.Atom) -> List[float]:
+    def get_atom_features(self, atom: Chem.Atom) -> list[float]:
         """Generate atom features."""
         atomic_num = atom.GetAtomicNum()
         element_list = [
@@ -243,7 +243,7 @@ class SOM(InMemoryDataset):
 
         return features
 
-    def get_bond_features(self, bond: Chem.Bond) -> List[float]:
+    def get_bond_features(self, bond: Chem.Bond) -> list[float]:
         """Generate bond features."""
         bond_types = ["SINGLE", "DOUBLE", "TRIPLE", "AROMATIC"]
         bond_type_str = str(bond.GetBondType())

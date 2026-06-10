@@ -1,5 +1,3 @@
-from typing import List, Tuple
-
 import torch
 
 
@@ -11,15 +9,15 @@ def get_device() -> torch.device:
         return torch.device("cpu")
 
 
-def get_gpu_info() -> Tuple[List[str], List[int]]:
+def get_gpu_info() -> tuple[list[str], list[int]]:
     """
     Get information about the available GPU.
 
     Returns:
-        Tuple[List[str], List[int]]: (GPU name, GPU memory in GB)
+        tuple[list[str], list[int]]: (GPU name, GPU memory in GB)
     """
-    gpu_names: List[str] = []
-    gpu_memories: List[int] = []
+    gpu_names: list[str] = []
+    gpu_memories: list[int] = []
     for i in range(torch.cuda.device_count()):
         gpu_names.append(torch.cuda.get_device_name(i))
         gpu_memories.append(

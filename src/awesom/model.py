@@ -1,6 +1,5 @@
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
 
 import optuna
 import torch
@@ -24,7 +23,7 @@ class EnsemblePredictions:
     y_trues: torch.Tensor  # Shape: (num_atoms,)
     mol_ids: torch.Tensor  # Shape: (num_atoms,)
     atom_ids: torch.Tensor  # Shape: (num_atoms,)
-    descriptions: List[str]  # Length: num_atoms
+    descriptions: list[str]  # Length: num_atoms
 
     def shannon_entropy(self, p: torch.Tensor) -> torch.Tensor:
         """Compute Shannon entropy."""
@@ -34,7 +33,7 @@ class EnsemblePredictions:
         """Get probabilities."""
         return torch.sigmoid(self.logits)
 
-    def get_uncertainties(self) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def get_uncertainties(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Get aleatoric, epistemic, and total uncertainties."""
 
         # Total uncertainty (entropy of the mean probability)
@@ -67,7 +66,7 @@ class GINEWithContextPooling(nn.Module):
     """
 
     def __init__(
-        self, params: Dict[str, int], hyperparams: Dict[str, Union[int, float]]
+        self, params: dict[str, int], hyperparams: dict[str, int | float]
     ) -> None:
         super(GINEWithContextPooling, self).__init__()
 
@@ -114,6 +113,7 @@ class GINEWithContextPooling(nn.Module):
             if i != len(self.conv) - 1:
                 x = batch_norm(x)
             x = F.leaky_relu(x)
+        assert isinstance(x, torch.Tensor)
 
         # Pooling for context
         x_pool = global_add_pool(x, data.batch)
@@ -131,7 +131,7 @@ class GINEWithContextPooling(nn.Module):
         return torch.flatten(x)
 
     @classmethod
-    def get_params(cls, trial: optuna.trial.Trial) -> Dict[str, Union[int, float]]:
+    def get_params(cls, trial: optuna.trial.Trial) -> dict[str, int | float]:
         learning_rate: float = trial.suggest_float(
             "learning_rate", 1e-6, 1e-3, log=True
         )
@@ -163,7 +163,7 @@ class SOMPredictor(nn.Module):
     """Graph Neural Network for site-of-metabolism prediction with integrated training logic."""
 
     def __init__(
-        self, data_params: Dict[str, int], hyperparams: Dict[str, Union[int, float]]
+        self, data_params: dict[str, int], hyperparams: dict[str, int | float]
     ) -> None:
         super().__init__()
 
@@ -190,8 +190,8 @@ class SOMPredictor(nn.Module):
         return self.model(batch)
 
     def train_step(
-        self, batch: Data, scaler: Optional[torch.cuda.amp.GradScaler] = None
-    ) -> Tuple[float, float]:
+        self, batch: Data, scaler: torch.cuda.amp.GradScaler | None = None
+    ) -> tuple[float, float]:
         """Single training step with optional mixed precision."""
         self.train()
         self.optimizer.zero_grad()
@@ -218,7 +218,7 @@ class SOMPredictor(nn.Module):
 
         return loss.item(), mcc.item()
 
-    def val_step(self, batch: Data) -> Tuple[float, float]:
+    def val_step(self, batch: Data) -> tuple[float, float]:
         """Single validation step."""
         self.eval()
         with torch.no_grad():
@@ -229,7 +229,7 @@ class SOMPredictor(nn.Module):
 
     def predict(
         self, batch: Data
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, List[str]]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list[str]]:
         """Prediction step."""
         self.eval()
         with torch.no_grad():
@@ -260,10 +260,10 @@ class SOMPredictor(nn.Module):
     def fit(
         self,
         train_loader: DataLoader[Data],
-        val_loader: Optional[DataLoader[Data]] = None,
+        val_loader: DataLoader[Data] | None = None,
         max_epochs: int = 500,
-        log_dir: Optional[str] = None,
-        checkpoint_dir: Optional[str] = None,
+        log_dir: str | None = None,
+        checkpoint_dir: str | None = None,
         patience: int = 20,
     ) -> int:
         """Train the model with integrated training loop. Returns the number of epochs trained."""
@@ -337,26 +337,26 @@ class SOMPredictor(nn.Module):
 
 
 def predict_ensemble(
-    data: DataLoader[Data], model_paths: List[str]
+    data: DataLoader[Data], models: list[str]
 ) -> EnsemblePredictions:
     """Run ensemble predictions and return structured results."""
 
     models = [SOMPredictor.load(path) for path in model_paths]
-    all_logits: List[torch.Tensor] = []
+    all_logits: list[torch.Tensor] = []
 
-    y_trues: Optional[torch.Tensor] = None
-    mol_ids: Optional[torch.Tensor] = None
-    atom_ids: Optional[torch.Tensor] = None
-    descriptions: Optional[List[str]] = None
+    y_trues: torch.Tensor | None = None
+    mol_ids: torch.Tensor | None = None
+    atom_ids: torch.Tensor | None = None
+    descriptions: list[str] | None = None
 
     with torch.no_grad():
         for i, model in enumerate(models):
-            print(f"Predicting with model {i+1} of {len(models)}")
-            logits_list: List[torch.Tensor] = []
-            y_trues_list: List[torch.Tensor] = []
-            mol_ids_list: List[torch.Tensor] = []
-            atom_ids_list: List[torch.Tensor] = []
-            descriptions_list: List[str] = []
+            print(f"Predicting with model {i + 1} of {len(models)}")
+            logits_list: list[torch.Tensor] = []
+            y_trues_list: list[torch.Tensor] = []
+            mol_ids_list: list[torch.Tensor] = []
+            atom_ids_list: list[torch.Tensor] = []
+            descriptions_list: list[str] = []
 
             for batch in data:
                 pred_logits, pred_y, pred_mol, pred_atom, pred_desc = model.predict(
