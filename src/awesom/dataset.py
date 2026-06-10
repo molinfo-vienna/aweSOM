@@ -8,7 +8,7 @@ from rdkit import Chem
 from torch_geometric.data import Data, InMemoryDataset
 
 
-class SOM(InMemoryDataset):
+class SOMDataset(InMemoryDataset):
     """PyTorch Geometric Dataset for site-of-metabolism prediction from SD-Files or SMILES files."""
 
     def __init__(

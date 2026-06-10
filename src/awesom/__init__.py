@@ -1,6 +1,6 @@
-from .create_dataset import SOM
+from .dataset import SOMDataset
 from .gpu_utils import get_device, print_device_info
-from .metrics_utils import (
+from .metrics import (
     MetricsCalculator,
     ResultsLogger,
 )
@@ -12,7 +12,7 @@ from .model import (
 )
 
 __all__ = [
-    "SOM",
+    "SOMDataset",
     "SOMPredictor",
     "GINEWithContextPooling",
     "get_device",
