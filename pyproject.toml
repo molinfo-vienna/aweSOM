@@ -33,9 +33,21 @@ dependencies = [
 ci = [
     "pytest>=8.4.1",
 ]
+cli = [
+    "typer>=0.16.0",
+]
+nerdd = [
+    "nerdd-link>=0.5.15",
+    "nerdd-module>=0.3.52",
+]
+dev = [
+    { include-group = "ci" },
+    { include-group = "cli" },
+    { include-group = "nerdd" },
+]
 
-[tool.isort]
-profile = "black"
+[project.scripts]
+awesom = "awesom._cli:app"
 
 [tool.pytest.ini_options]
 addopts = [
