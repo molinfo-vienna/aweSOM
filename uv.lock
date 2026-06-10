@@ -275,11 +275,8 @@ version = "2.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "matplotlib" },
-    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "numpy" },
     { name = "optuna" },
-    { name = "pandas" },
     { name = "pyyaml" },
     { name = "rdkit" },
     { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -315,11 +312,9 @@ nerdd = [
 
 [package.metadata]
 requires-dist = [
-    { name = "matplotlib", specifier = ">=3.10.0" },
-    { name = "networkx", specifier = ">=3.4.2" },
+    { name = "matplotlib", specifier = ">=3.10.9" },
     { name = "numpy", specifier = ">=1.26.4,<2" },
     { name = "optuna", specifier = ">=4.1.0" },
-    { name = "pandas", specifier = ">=1.5.2,<2.2.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rdkit", specifier = "==2023.3.3" },
     { name = "scikit-learn", specifier = ">=1.6.1" },

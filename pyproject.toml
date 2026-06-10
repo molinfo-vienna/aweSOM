@@ -14,11 +14,8 @@ authors = [
 ]
 
 dependencies = [
-    "matplotlib>=3.10.0",
-    "networkx>=3.4.2",
     "numpy>=1.26.4,<2",
     "optuna>=4.1.0",
-    "pandas>=1.5.2,<2.2.0",
     "rdkit==2023.3.3",
     "scikit-learn>=1.6.1",
     "tensorboard>=2.18.0",
@@ -27,6 +24,7 @@ dependencies = [
     "torch-geometric>=2.6.1",
     "PyYAML>=6.0",
     "tqdm>=4.64.0",
+    "matplotlib>=3.10.9",
 ]
 
 [dependency-groups]
@@ -57,6 +55,9 @@ awesom = "awesom._cli:app"
 addopts = [
     "--import-mode=importlib",
 ]
+
+[tool.ruff.lint]
+extend-select = ["I"]
 
 [[tool.ty.overrides]]
 include = ["**"]
