@@ -42,6 +42,6 @@ ci = [
 profile = "black"
 
 [tool.pytest.ini_options]
-filterwarnings = [
-    "ignore:'DataFrame.swapaxes' is deprecated:FutureWarning"
+addopts = [
+    "--import-mode=importlib",
 ]
