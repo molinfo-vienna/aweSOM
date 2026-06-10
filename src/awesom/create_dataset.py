@@ -22,10 +22,9 @@ class SOM(InMemoryDataset):
         self.labeled = labeled
 
         # Delete the processed folder if it exists
-        processed_folder = os.path.join(root, "processed")
-        if os.path.exists(processed_folder):
-            shutil.rmtree(processed_folder)
-            print(f"Deleted existing processed folder at: {processed_folder}")
+        if os.path.exists(self.processed_dir):
+            shutil.rmtree(self.processed_dir)
+            print(f"Deleted existing processed folder at: {self.processed_dir}")
 
         super().__init__(root, transform, pre_transform, pre_filter)
 
