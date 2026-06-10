@@ -21,12 +21,7 @@ class SOMDataset(InMemoryDataset):
     ) -> None:
         self.labeled = labeled
 
-        # Delete the processed folder if it exists
-        if os.path.exists(self.processed_dir):
-            shutil.rmtree(self.processed_dir)
-            print(f"Deleted existing processed folder at: {self.processed_dir}")
-
-        super().__init__(root, transform, pre_transform, pre_filter)
+        super().__init__(root, transform, pre_transform, pre_filter, force_reload=True)
 
         self.root = root
         self.process()
