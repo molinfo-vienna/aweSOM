@@ -1,4 +1,5 @@
 import os
+import statistics
 from pathlib import Path
 from typing import Annotated
 
@@ -75,19 +76,25 @@ def objective(
     batch_size: int,
     output_path: Path,
 ) -> float:
-    def save_average_metrics(metrics_list: list[dict[str, float]]) -> None:
-        metric_names = set.intersection(
+    def compute_and_save_average_metrics(
+        metrics_list: list[dict[str, float]],
+    ) -> dict[str, float]:
+        avg_metrics = {}
+        metric_names: set[str] = set.intersection(
             *(set(metrics.keys()) for metrics in metrics_list)
         )
 
         with (output_path / "validation.txt").open("w") as f:
             for metric_name in metric_names:
                 values = [metrics[metric_name] for metrics in metrics_list]
-                mean_val = np.mean(values)
-                std_val = np.std(values) if len(values) > 1 else 0.0
+                mean_val = statistics.mean(values)
+                std_val = statistics.stdev(values) if len(values) > 1 else 0.0
+                avg_metrics[metric_name] = mean_val
                 f.write(
                     f"{metric_name}: {round(mean_val, 4)} +/- {round(std_val, 4)}\n"
                 )
+
+        return avg_metrics
 
     data_params = {
         "num_node_features": data.num_node_features,
@@ -100,7 +107,6 @@ def objective(
     kfold = KFold(n_splits=num_folds, shuffle=True, random_state=42)
 
     fold_metrics = []
-    fold_scores = []
     fold_epochs = []
 
     for fold, (train_idx, val_idx) in enumerate(
@@ -149,7 +155,8 @@ def objective(
 
         fold_metrics.append(
             MetricsCalculator.compute_torchmetrics(
-                y_probs=predictions.get_probabilities(), y_true=predictions.y_trues
+                y_probs=predictions.get_probabilities()[0],
+                y_true=predictions.y_trues,
             )
         )
 
@@ -157,12 +164,12 @@ def objective(
             predictions, mode="test"
         )
 
-    avg_optimal_epochs = int(sum(fold_epochs) / len(fold_epochs))
-    trial.set_user_attr("optimal_epochs", avg_optimal_epochs)
+    optimal_epochs = int(sum(fold_epochs) / len(fold_epochs))
+    trial.set_user_attr("optimal_epochs", optimal_epochs)
 
-    save_average_metrics(fold_metrics)
+    metrics = compute_and_save_average_metrics(fold_metrics)
 
-    return sum(fold_scores) / len(fold_scores)
+    return metrics["MCC"]
 
 
 @app.command(
@@ -343,6 +350,8 @@ def hyperparameters(
         ),
     ] = None,
 ):
+    output_path.mkdir(exist_ok=True, parents=True)
+
     study = optuna.create_study(
         direction="maximize",
         load_if_exists=True,
