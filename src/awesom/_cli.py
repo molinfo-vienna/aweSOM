@@ -3,16 +3,23 @@ from pathlib import Path
 from typing import Annotated
 
 import numpy as np
+import optuna
+import torch
 import torch_geometric
 import typer
 import yaml
 from rich.console import Console
+from sklearn.model_selection import KFold
 from torch_geometric import transforms as T
+from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
+from tqdm import tqdm
 
+from awesom import MetricsCalculator
 from awesom.dataset import SOMDataset
+from awesom.gpu_utils import get_device
 from awesom.metrics import ResultsLogger
-from awesom.model import SOMPredictor, predict_ensemble
+from awesom.model import GINEWithContextPooling, SOMPredictor, predict_ensemble
 
 app = typer.Typer(add_completion=False)
 
@@ -36,6 +43,126 @@ def load_models(checkpoints_path: Path) -> list[SOMPredictor]:
         raise FileNotFoundError(f"No model checkpoints found in {checkpoints_path}")
 
     return models
+
+
+def get_optimal_batch_size() -> int:
+    """Automatically determine optimal batch size based on GPU memory."""
+    if torch.cuda.is_available():
+        device = get_device()
+        gpu_memory = (
+            torch.cuda.get_device_properties(device).total_memory / 1024**3
+        )  # GB
+
+        if gpu_memory >= 24:  # 24GB+ GPU (e.g., RTX 4090, A100)
+            return 256
+        elif gpu_memory >= 16:  # 16-24GB GPU (e.g., RTX 4080, V100)
+            return 192
+        elif gpu_memory >= 12:  # 12-16GB GPU (e.g., RTX 3080 Ti)
+            return 128
+        elif gpu_memory >= 8:  # 8-12GB GPU (e.g., RTX 3080, RTX 4070)
+            return 96
+        else:  # <8GB GPU
+            return 64
+    else:
+        return 32  # CPU fallback
+
+
+def objective(
+    trial: optuna.trial.Trial,
+    data: Dataset,
+    num_folds: int,
+    max_epochs: int,
+    batch_size: int,
+    output_path: Path,
+) -> float:
+    def save_average_metrics(metrics_list: list[dict[str, float]]) -> None:
+        metric_names = set.intersection(
+            *(set(metrics.keys()) for metrics in metrics_list)
+        )
+
+        with (output_path / "validation.txt").open("w") as f:
+            for metric_name in metric_names:
+                values = [metrics[metric_name] for metrics in metrics_list]
+                mean_val = np.mean(values)
+                std_val = np.std(values) if len(values) > 1 else 0.0
+                f.write(
+                    f"{metric_name}: {round(mean_val, 4)} +/- {round(std_val, 4)}\n"
+                )
+
+    data_params = {
+        "num_node_features": data.num_node_features,
+        "num_edge_features": data.num_edge_features,
+    }
+
+    hyperparams: dict[str, int | float] = GINEWithContextPooling.get_params(trial)
+    hyperparams["epochs"] = max_epochs
+
+    kfold = KFold(n_splits=num_folds, shuffle=True, random_state=42)
+
+    fold_metrics = []
+    fold_scores = []
+    fold_epochs = []
+
+    for fold, (train_idx, val_idx) in enumerate(
+        tqdm(kfold.split(data), total=num_folds, desc=f"Trial {trial.number}")
+    ):
+        print(f"Trial {trial.number}, Fold {fold + 1}/{num_folds}")
+
+        train_data = data[train_idx]
+        val_data = data[val_idx]
+
+        assert isinstance(train_data, Dataset)
+        assert isinstance(val_data, Dataset)
+
+        train_loader = DataLoader(
+            train_data,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=4,  # Parallel data loading
+            pin_memory=True,  # Faster data transfer to GPU
+            persistent_workers=True,  # Keep workers alive between epochs
+        )
+        val_loader = DataLoader(
+            val_data,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=4,  # Parallel data loading
+            pin_memory=True,  # Faster data transfer to GPU
+            persistent_workers=True,  # Keep workers alive between epochs
+        )
+
+        model = SOMPredictor(data_params, hyperparams)
+        actual_epochs = model.fit(
+            train_loader=train_loader,
+            val_loader=val_loader,
+            max_epochs=max_epochs,
+            patience=20,
+        )
+
+        fold_epochs.append(actual_epochs)
+        print(f"  Fold {fold + 1} stopped at epoch {actual_epochs}")
+
+        # Evaluate on validation set and collect predictions
+        model.eval()
+
+        predictions = predict_ensemble(val_loader, [model])
+
+        fold_metrics.append(
+            MetricsCalculator.compute_torchmetrics(
+                y_probs=predictions.get_probabilities(), y_true=predictions.y_trues
+            )
+        )
+
+        ResultsLogger(str(output_path / f"fold_{fold}")).save_results(
+            predictions, mode="test"
+        )
+
+    avg_optimal_epochs = int(sum(fold_epochs) / len(fold_epochs))
+    trial.set_user_attr("optimal_epochs", avg_optimal_epochs)
+
+    save_average_metrics(fold_metrics)
+
+    return sum(fold_scores) / len(fold_scores)
 
 
 @app.command(
@@ -75,12 +202,12 @@ def train(
         ),
     ] = 42,
     batch_size: Annotated[
-        int,
+        int | None,
         typer.Option(
             "--batch-size",
             help="Batch size during training.",
         ),
-    ] = 32,
+    ] = None,
     ensemble_size: Annotated[
         int,
         typer.Option(
@@ -106,7 +233,9 @@ def train(
         torch_geometric.seed_everything(seed)
 
         model = SOMPredictor(data_params, hyperparams)
-        train_loader: DataLoader = DataLoader(data, batch_size=batch_size, shuffle=True)
+        train_loader: DataLoader = DataLoader(
+            data, batch_size=batch_size or get_optimal_batch_size(), shuffle=True
+        )
 
         model.fit(
             train_loader=train_loader,
@@ -143,7 +272,7 @@ def predict(
         typer.Option(
             "--output",
             "-o",
-            help="Path to output prediction directory.",
+            help="Path to prediction output directory.",
         ),
     ],
 ):
@@ -166,7 +295,78 @@ def metrics():
 
 @app.command(
     name="hyperparameters",
-    help="...",
+    help="Perform CV hyperparameter search for a aweSOM model ensemble.",
 )
-def hyperparameters():
-    raise NotImplementedError()
+def hyperparameters(
+    input_path: Annotated[
+        Path,
+        typer.Option(
+            "--input",
+            "-i",
+            help="Path to input training data (SDF, SMILES).",
+        ),
+    ],
+    output_path: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Path to output directory.",
+        ),
+    ],
+    num_epochs: Annotated[
+        int,
+        typer.Option(
+            "--epochs",
+            help="Maximum number of epochs to train for.",
+        ),
+    ] = 500,
+    num_folds: Annotated[
+        int,
+        typer.Option(
+            "--folds",
+            help="Number of CV folds to use during cross validation.",
+        ),
+    ] = 10,
+    num_trials: Annotated[
+        int,
+        typer.Option(
+            "--trials",
+            help="Number of trials to run for hyperparameter search.",
+        ),
+    ] = 20,
+    batch_size: Annotated[
+        int | None,
+        typer.Option(
+            "--batch-size",
+            help="Batch size during training (default).",
+        ),
+    ] = None,
+):
+    study = optuna.create_study(
+        direction="maximize",
+        load_if_exists=True,
+        storage=f"sqlite:///{output_path}/study.db",
+        study_name="cv_hp_search",
+    )
+
+    data = SOMDataset(root=str(input_path), transform=T.ToUndirected()).shuffle()
+    assert isinstance(data, Dataset)
+
+    study.optimize(
+        lambda trial: objective(
+            trial,
+            data,
+            num_trials,
+            num_epochs,
+            batch_size or get_optimal_batch_size(),
+            output_path,
+        ),
+        n_trials=num_trials,
+    )
+
+    best_params = study.best_trial.params
+    best_params["epochs"] = study.best_trial.user_attrs["optimal_epochs"]
+
+    with (output_path / "best_hparams.yaml").open("w") as f:
+        yaml.dump(best_params, f, default_flow_style=False)
