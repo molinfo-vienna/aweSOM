@@ -10,8 +10,8 @@
 *.sh
 
 # Example data
-data/
-output/
+/data/
+/output/
 
 # Test files
 tests/testmodule/test_data/train/processed

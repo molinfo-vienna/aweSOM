@@ -1,0 +1,115 @@
+module:
+  rank: 4
+  name: awesom
+  visible_name: AweSOM
+  visible: True
+  logo: !image logo.svg
+  logo_title: Sites of Metabolism
+  logo_caption: GNN-based prediction of sites of metabolism
+  example_smiles: CN1CCN(Cc2ccc(cc2)C(=O)Nc3ccc(C)c(Nc4nccc(n4)c5cccnc5)c3)CC1 (imatinib)
+  batch_size: 10
+
+  title: Site-of-Metabolism Prediction with Aleatoric and Epistemic Uncertainty Quantification
+  description: |
+    TODO
+
+    AweSOM is free for non-commercial research purposes. For-profit institutions require a commercial license from the Università degli Studi di Milano to use the MetaQSAR-derived models.
+
+  partners:
+    - name: University of Vienna
+      logo: !image logo_vienna.gif
+      url: https://www.univie.ac.at/en
+
+  publications:
+    - title: Site-of-Metabolism Prediction with Aleatoric and Epistemic Uncertainty Quantification
+      authors:
+        - first_name: Roxane Axel
+          last_name: Jacob
+        - first_name: Oliver
+          last_name: Wieder
+        - first_name: Ya
+          last_name: Chen
+        - first_name: Angelica
+          last_name: Mazzolari
+        - first_name: Andreas
+          last_name: Bergner
+        - first_name: Klaus-Juergen
+          last_name: Schleifer
+        - first_name: Johannes
+          last_name: Kirchmair
+          email: johannes.kirchmair@univie.ac.at
+      year: 2025
+      journal: Journal of Chemical Information and Modeling
+      doi: 10.1021/acs.jcim.5c00762
+
+  about: |
+    The documentation can be found at [TODO](TODO).
+
+  job_parameters:
+
+  result_properties:
+    - name: prediction
+      visible_name: Probability
+      type: float
+      sortable: True
+      level: atom
+      format: .2f
+      color_palette:
+        type: sequential
+        domain:
+          - 0
+          - 1
+        range:
+          - neutral
+          - positive
+    - name: prediction_binary
+      visible_name: SOM
+      type: bool
+      sortable: True
+      level: atom
+      color_palette:
+        range:
+          - negative
+          - positive
+    - name: aleatoric_uncertainty
+      visible_name: Aleatoric uncertainty
+      type: float
+      sortable: True
+      level: atom
+      format: .2f
+      color_palette:
+        type: sequential
+        domain:
+          - 0
+          - 1
+        range:
+          - neutral
+          - negative
+    - name: epistemic_uncertainty
+      visible_name: Epistemic uncertainty
+      type: float
+      sortable: True
+      level: atom
+      format: .2f
+      color_palette:
+        type: sequential
+        domain:
+          - 0
+          - 1
+        range:
+          - neutral
+          - negative
+    - name: total_uncertainty
+      visible_name: Total uncertainty
+      type: float
+      sortable: True
+      level: atom
+      format: .2f
+      color_palette:
+        type: sequential
+        domain:
+          - 0
+          - 1
+        range:
+          - neutral
+          - negative
