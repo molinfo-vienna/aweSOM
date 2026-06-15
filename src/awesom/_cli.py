@@ -279,7 +279,7 @@ def metrics():
 
 @app.command(
     name="hyperparameters",
-    help="Perform CV hyperparameter search for a aweSOM model ensemble.",
+    help="Perform CV hyperparameter search for an aweSOM model ensemble.",
 )
 def hyperparameters(
     input_path: Annotated[
@@ -343,7 +343,7 @@ def hyperparameters(
         lambda trial: objective(
             trial,
             data,
-            num_trials,
+            num_folds,
             num_epochs,
             batch_size or get_optimal_batch_size(),
             output_path,
