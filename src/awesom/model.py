@@ -281,7 +281,7 @@ class SOMPredictor(nn.Module):
 
         # Setup mixed precision training
         # for faster and more efficient training
-        scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
+        scaler = torch.amp.GradScaler() if torch.cuda.is_available() else None
 
         for epoch in tqdm(range(max_epochs)):
             actual_epochs = epoch + 1
