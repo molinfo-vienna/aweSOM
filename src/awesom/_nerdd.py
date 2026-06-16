@@ -2,15 +2,15 @@ import os
 from pathlib import Path
 from typing import Any, Iterable
 
-import torch
 from nerdd_module import Model, Mol
+from nerdd_module.preprocessing import Sanitize
 from torch_geometric.loader import DataLoader
 
 from awesom.dataset import SOMDataset
 from awesom.model import SOMPredictor, predict_ensemble
+from awesom.metrics import THRESHOLD
 
 MODEL_DIRECTORY = Path(os.environ["AWESOM_MODEL_DIRECTORY"])
-THRESHOLD = 0.5
 
 
 def load_models() -> list[SOMPredictor]:
@@ -36,7 +36,7 @@ class AweSOMModel(Model):
         for mol_id, atom_id, probability, u_ale, u_epi, u_tot in zip(
             predictions.mol_ids,
             predictions.atom_ids,
-            torch.mean(predictions.get_probabilities(), dim=0),
+            predictions.get_probabilities().mean(dim=0),
             *predictions.get_uncertainties(),
         ):
             yield {
