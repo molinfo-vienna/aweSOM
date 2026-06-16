@@ -200,7 +200,7 @@ def train(
         ),
     ] = 10,
 ) -> None:
-    rng = np.random.default_rng(0)
+    rng = np.random.default_rng(seed)
     seeds = rng.choice(1000, ensemble_size, replace=False)
 
     data = SOMDataset(root=str(input_path), transform=T.ToUndirected())
