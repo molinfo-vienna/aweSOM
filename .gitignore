@@ -12,8 +12,3 @@
 # Example data
 /data/
 /output/
-
-# Test files
-tests/testmodule/test_data/train/processed
-tests/testmodule/test_data/test/processed
-test_output/
