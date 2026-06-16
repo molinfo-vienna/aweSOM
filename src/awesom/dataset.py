@@ -22,8 +22,6 @@ class SOMDataset(InMemoryDataset):
 
         super().__init__(root, transform, pre_transform, pre_filter, force_reload=True)
 
-        self.root = root
-        self.process()
         self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
 
     @property
