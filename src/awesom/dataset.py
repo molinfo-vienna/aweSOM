@@ -70,8 +70,7 @@ class SOMDataset(InMemoryDataset):
                 continue  # Skip molecules without SoMs in labeled mode
 
             data = self.mol_to_data(mol, soms, mol_id, description)
-            if data is not None:
-                data_list.append(data)
+            data_list.append(data)
 
         return data_list
 
@@ -161,58 +160,53 @@ class SOMDataset(InMemoryDataset):
     @staticmethod
     def mol_to_data(
         mol: Chem.Mol, soms: list[int], mol_id: int, description: str
-    ) -> Data | None:
+    ) -> Data:
         """Convert a molecule to a PyTorch Geometric Data object."""
-        try:
-            # Generate atom features
-            atom_features = []
-            atom_ids = []
-            som_labels = []
+        # Generate atom features
+        atom_features = []
+        atom_ids = []
+        som_labels = []
 
-            for atom in mol.GetAtoms():
-                atom_id = atom.GetIdx()
-                features = SOMDataset.get_atom_features(atom)
-                atom_features.append(features)
-                atom_ids.append(atom_id)
-                som_labels.append(1 if atom_id in soms else 0)
+        for atom in mol.GetAtoms():
+            atom_id = atom.GetIdx()
+            features = SOMDataset.get_atom_features(atom)
+            atom_features.append(features)
+            atom_ids.append(atom_id)
+            som_labels.append(1 if atom_id in soms else 0)
 
-            # Generate bond features and edge indices
-            edge_index_list = []
-            edge_attr_list = []
+        # Generate bond features and edge indices
+        edge_index_list = []
+        edge_attr_list = []
 
-            for bond in mol.GetBonds():
-                begin_idx = bond.GetBeginAtomIdx()
-                end_idx = bond.GetEndAtomIdx()
-                edge_index_list.append([begin_idx, end_idx])
-                bond_features = SOMDataset.get_bond_features(bond)
-                edge_attr_list.extend([bond_features])
+        for bond in mol.GetBonds():
+            begin_idx = bond.GetBeginAtomIdx()
+            end_idx = bond.GetEndAtomIdx()
+            edge_index_list.append([begin_idx, end_idx])
+            bond_features = SOMDataset.get_bond_features(bond)
+            edge_attr_list.extend([bond_features])
 
-            # Convert to tensors
-            x = torch.tensor(atom_features, dtype=torch.float32)
-            edge_index = (
-                torch.tensor(edge_index_list, dtype=torch.long).t().contiguous()
-            )
-            edge_attr = torch.tensor(edge_attr_list, dtype=torch.float32)
-            y = torch.tensor(som_labels, dtype=torch.long)
-            mol_ids = torch.full((len(atom_ids),), mol_id, dtype=torch.long)
-            atom_ids_tensor = torch.tensor(atom_ids, dtype=torch.long)
+        # Convert to tensors
+        x = torch.tensor(atom_features, dtype=torch.float32)
+        edge_index = torch.tensor(edge_index_list, dtype=torch.long).t().contiguous()
+        edge_attr = torch.tensor(edge_attr_list, dtype=torch.float32)
+        y = torch.tensor(som_labels, dtype=torch.long)
+        mol_ids = torch.full((len(atom_ids),), mol_id, dtype=torch.long)
+        atom_ids_tensor = torch.tensor(atom_ids, dtype=torch.long)
 
-            # Create Data object
-            data = Data(
-                x=x,
-                edge_index=edge_index,
-                edge_attr=edge_attr,
-                y=y,
-                mol_id=mol_ids,
-                atom_id=atom_ids_tensor,
-            )
-            data.description = description
+        # Create Data object
+        data = Data(
+            x=x,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+            y=y,
+            mol_id=mol_ids,
+            atom_id=atom_ids_tensor,
+            description=description,
+            smiles=Chem.MolToSmiles(mol)
+        )
+        data.description = description
 
-            return data
-
-        except Exception as e:
-            print(f"Error processing molecule {description}: {e}")
-            return None
+        return data
 
     @staticmethod
     def get_atom_features(atom: Chem.Atom) -> list[float]:
