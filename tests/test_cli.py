@@ -13,7 +13,6 @@ def test_train_then_predict():
             output_path=Path(tmpdir) / "models",
             config_path=data / "example_hparams.yaml",
         )
-        print(list(Path(tmpdir).glob("**/*")))
         predict(
             input_path=data / "test",
             models_path=Path(tmpdir) / "models",
