@@ -1,14 +1,19 @@
+import csv
+import json
 import os
 import statistics
+from collections import Counter
 from pathlib import Path
 from typing import Annotated
 
 import numpy as np
 import optuna
+import torch
 import torch_geometric
 import typer
 import yaml
 from rich.console import Console
+from rich.json import JSON
 from sklearn.model_selection import KFold
 from torch_geometric import transforms as T
 from torch_geometric.data import Dataset
@@ -18,7 +23,7 @@ from tqdm import tqdm
 from awesom import MetricsCalculator
 from awesom.dataset import SOMDataset
 from awesom.gpu_utils import get_optimal_batch_size
-from awesom.metrics import ResultsLogger
+from awesom.metrics import THRESHOLD
 from awesom.model import GINEWithContextPooling, SOMPredictor, predict_ensemble
 
 app = typer.Typer(add_completion=False)
@@ -132,14 +137,12 @@ def objective(
 
         fold_metrics.append(
             MetricsCalculator.compute_torchmetrics(
-                y_probs=predictions.get_probabilities()[0],
+                y_probs=predictions.get_probabilities().mean(dim=0),
                 y_true=predictions.y_trues,
             )
         )
 
-        ResultsLogger(str(output_path / f"fold_{fold}")).save_results(
-            predictions, mode="test"
-        )
+        # TODO: maybe write intermediate information
 
     optimal_epochs = int(sum(fold_epochs) / len(fold_epochs))
     trial.set_user_attr("optimal_epochs", optimal_epochs)
@@ -266,15 +269,137 @@ def predict(
     models = load_models(models_path)
     predictions = predict_ensemble(dataloader, models)
 
-    ResultsLogger(str(output_path)).save_results(predictions, mode="inference")
+    mol_id_to_smiles = {datum.mol_id[0].item(): datum.smiles for datum in data}
+
+    with output_path.open("w", encoding="UTF-8", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "smiles",
+                "mol_id",
+                "atom_id",
+                "y_true",
+                "y_pred",
+                "y_prob",
+                "aleatoric_uncertainty",
+                "epistemic_uncertainty",
+                "total_uncertainty",
+            ],
+        )
+        writer.writeheader()
+
+        for mol_id, atom_id, true_label, probability, u_ale, u_epi, u_tot in zip(
+            predictions.mol_ids.tolist(),
+            predictions.atom_ids.tolist(),
+            predictions.y_trues.tolist(),
+            predictions.get_probabilities().mean(dim=0).tolist(),
+            *predictions.get_uncertainties(),
+        ):
+            writer.writerow(
+                {
+                    "smiles": mol_id_to_smiles[mol_id],
+                    "mol_id": mol_id,
+                    "atom_id": atom_id,
+                    "y_true": int(true_label),
+                    "y_pred": int(probability < THRESHOLD),
+                    "y_prob": np.round(probability, 2),
+                    "aleatoric_uncertainty": np.round(u_ale.item(), 2),
+                    "epistemic_uncertainty": np.round(u_epi.item(), 2),
+                    "total_uncertainty": np.round(u_tot.item(), 2),
+                }
+            )
 
 
 @app.command(
     name="metrics",
     help="Calculate metrics for existing SOM predictions.",
 )
-def metrics():
-    raise NotImplementedError()
+def metrics(
+    input_path: Annotated[
+        Path,
+        typer.Option(
+            "--input",
+            "-i",
+            help="Path to input prediction CSV file.",
+        ),
+    ],
+    output_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Path to output metrics JSON file.",
+        ),
+    ] = None,
+    n_bootstrap_samples: Annotated[
+        int | None,
+        typer.Option(
+            "--bootstrap",
+            help="Number of bootstrapping samples to perform.",
+        ),
+    ] = None,
+):
+    def compute_metrics(y_true, y_prob, mol_ids):
+        return MetricsCalculator.compute_torchmetrics(
+            y_true=torch.from_numpy(y_true), y_probs=torch.from_numpy(y_prob)
+        ) | {
+            "top2_rate": MetricsCalculator.compute_top2_accuracy(
+                y_true=torch.from_numpy(y_true),
+                y_probs=torch.from_numpy(y_prob),
+                mol_ids=torch.from_numpy(mol_ids),
+            )
+        }
+
+    rows = [row for row in csv.DictReader(input_path.open())]
+
+    smiles_full = np.array([row["smiles"] for row in rows], dtype=str)
+    mol_ids_full = np.array([row["mol_id"] for row in rows], dtype=int)
+    y_true_full = np.array([int(row["y_true"]) for row in rows], dtype=bool)
+    y_pred_full = np.array([int(row["y_pred"]) for row in rows], dtype=bool)
+    y_prob_full = np.array([row["y_prob"] for row in rows], dtype=float)
+
+    computed_metrics_samples = []
+    unique_smiles = np.unique(smiles_full)
+    rng = np.random.default_rng(0)
+
+    if n_bootstrap_samples:
+        with stderr.status(f"Performing {n_bootstrap_samples} bootstraps"):
+            for _ in range(n_bootstrap_samples):
+                counter: Counter[str] = Counter(
+                    rng.choice(unique_smiles, size=len(unique_smiles), replace=True)
+                )
+                repeats = [counter[it] for it in smiles_full]
+
+                smiles = np.repeat(smiles_full, repeats)
+                mol_ids = np.repeat(mol_ids_full, repeats)
+                y_true = np.repeat(y_true_full, repeats)
+                y_pred = np.repeat(y_pred_full, repeats)
+                y_prob = np.repeat(y_prob_full, repeats)
+
+                computed_metrics_samples.append(
+                    compute_metrics(y_true, y_prob, mol_ids)
+                )
+    else:
+        computed_metrics_samples.append(
+            compute_metrics(y_true_full, y_prob_full, mol_ids_full)
+        )
+
+    computed_metrics = {
+        key: {
+            "mean": np.round(np.mean(values), 4),
+            "std": np.round(np.std(values), 4),
+        }
+        for key, values in {
+            key: [sample[key] for sample in computed_metrics_samples]
+            for key in computed_metrics_samples[0].keys()
+        }.items()
+    }
+
+    if output_path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(json.dumps(computed_metrics, indent=4))
+    else:
+        stderr.print(JSON.from_data(computed_metrics))
 
 
 @app.command(

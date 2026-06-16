@@ -1,5 +1,5 @@
 from .dataset import SOMDataset
-from .metrics import MetricsCalculator, ResultsLogger
+from .metrics import MetricsCalculator
 from .model import (
     EnsemblePredictions,
     GINEWithContextPooling,
@@ -14,5 +14,4 @@ __all__ = [
     "predict_ensemble",
     "EnsemblePredictions",
     "MetricsCalculator",
-    "ResultsLogger",
 ]
