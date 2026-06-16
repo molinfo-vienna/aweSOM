@@ -149,7 +149,7 @@ def objective(
 
     metrics = compute_and_save_average_metrics(fold_metrics)
 
-    return metrics["MCC"]
+    return metrics["matthew_corrcoef"]
 
 
 @app.command(
