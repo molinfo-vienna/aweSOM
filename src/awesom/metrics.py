@@ -1,10 +1,4 @@
-import csv
-import os
-from statistics import mean, stdev
-
-import matplotlib.pyplot as plt
 import torch
-from sklearn.metrics import RocCurveDisplay
 from torchmetrics import AUROC, AveragePrecision, F1Score, MatthewsCorrCoef
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
 
@@ -29,7 +23,9 @@ class MetricsCalculator:
             .to(device)(y_probs, y_true)
             .item(),
             "f1": F1Score(task="binary").to(device)(y_pred, y_true).item(),
-            "matthew_corrcoef": MatthewsCorrCoef(task="binary").to(device)(y_pred, y_true).item(),
+            "matthew_corrcoef": MatthewsCorrCoef(task="binary")
+            .to(device)(y_pred, y_true)
+            .item(),
             "precision": BinaryPrecision().to(device)(y_pred, y_true).item(),
             "recall": BinaryRecall().to(device)(y_pred, y_true).item(),
         }

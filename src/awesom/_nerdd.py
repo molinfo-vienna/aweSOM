@@ -7,8 +7,8 @@ from nerdd_module.preprocessing import Sanitize
 from torch_geometric.loader import DataLoader
 
 from awesom.dataset import SOMDataset
-from awesom.model import SOMPredictor, predict_ensemble
 from awesom.metrics import THRESHOLD
+from awesom.model import SOMPredictor, predict_ensemble
 
 MODEL_DIRECTORY = Path(os.environ["AWESOM_MODEL_DIRECTORY"])
 

@@ -355,7 +355,6 @@ def metrics(
     smiles_full = np.array([row["smiles"] for row in rows], dtype=str)
     mol_ids_full = np.array([row["mol_id"] for row in rows], dtype=int)
     y_true_full = np.array([int(row["y_true"]) for row in rows], dtype=bool)
-    y_pred_full = np.array([int(row["y_pred"]) for row in rows], dtype=bool)
     y_prob_full = np.array([row["y_prob"] for row in rows], dtype=float)
 
     computed_metrics_samples = []
@@ -370,10 +369,8 @@ def metrics(
                 )
                 repeats = [counter[it] for it in smiles_full]
 
-                smiles = np.repeat(smiles_full, repeats)
                 mol_ids = np.repeat(mol_ids_full, repeats)
                 y_true = np.repeat(y_true_full, repeats)
-                y_pred = np.repeat(y_pred_full, repeats)
                 y_prob = np.repeat(y_prob_full, repeats)
 
                 computed_metrics_samples.append(

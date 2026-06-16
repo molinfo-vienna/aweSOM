@@ -190,7 +190,7 @@ class SOMPredictor(nn.Module):
         return self.model(batch)
 
     def train_step(
-        self, batch: Data, scaler: torch.cuda.amp.GradScaler | None = None
+        self, batch: Data, scaler: torch.amp.GradScaler | None = None
     ) -> tuple[float, float]:
         """Single training step with optional mixed precision."""
         assert isinstance(batch.y, torch.Tensor)

@@ -200,7 +200,7 @@ class SOMDataset(InMemoryDataset):
             mol_id=mol_ids,
             atom_id=atom_ids_tensor,
             description=description,
-            smiles=Chem.MolToSmiles(mol)
+            smiles=Chem.MolToSmiles(mol),
         )
         data.description = description
 
