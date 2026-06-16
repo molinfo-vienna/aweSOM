@@ -443,7 +443,7 @@ def hyperparameters(
             "--trials",
             help="Number of trials to run for hyperparameter search.",
         ),
-    ] = 20,
+    ] = 100,
     batch_size: Annotated[
         int | None,
         typer.Option(

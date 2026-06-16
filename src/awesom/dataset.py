@@ -211,18 +211,18 @@ class SOMDataset(InMemoryDataset):
         """Generate atom features."""
         atomic_num = atom.GetAtomicNum()
         element_list = [
-            5,
-            6,
-            7,
-            8,
-            9,
-            14,
-            15,
-            16,
-            17,
-            35,
-            53,
-        ]  # B, C, N, O, F, Si, P, S, Cl, Br, I
+            5,  # B
+            6,  # C
+            7,  # N
+            8,  # O
+            9,  # F
+            14,  # Si
+            15,  # P
+            16,  # S
+            17,  # Cl
+            35,  # Br
+            53,  # I
+        ]
 
         features = []
         for element in element_list:
