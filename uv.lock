@@ -288,6 +288,15 @@ dependencies = [
     { name = "tqdm" },
 ]
 
+[package.optional-dependencies]
+cli = [
+    { name = "typer" },
+]
+nerdd = [
+    { name = "nerdd-link" },
+    { name = "nerdd-module" },
+]
+
 [package.dev-dependencies]
 build = [
     { name = "build" },
@@ -297,26 +306,18 @@ ci = [
     { name = "ruff" },
     { name = "ty" },
 ]
-cli = [
-    { name = "typer" },
-]
 dev = [
     { name = "build" },
-    { name = "nerdd-link" },
-    { name = "nerdd-module" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "ty" },
-    { name = "typer" },
-]
-nerdd = [
-    { name = "nerdd-link" },
-    { name = "nerdd-module" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.9" },
+    { name = "nerdd-link", marker = "extra == 'nerdd'", specifier = ">=0.5.15" },
+    { name = "nerdd-module", marker = "extra == 'nerdd'", specifier = ">=0.3.52" },
     { name = "numpy", specifier = ">=1.26.4,<2" },
     { name = "optuna", specifier = ">=4.1.0" },
     { name = "pyyaml", specifier = ">=6.0" },
@@ -327,7 +328,9 @@ requires-dist = [
     { name = "torch-geometric", specifier = ">=2.6.1" },
     { name = "torchmetrics", specifier = ">=1.0.3" },
     { name = "tqdm", specifier = ">=4.64.0" },
+    { name = "typer", marker = "extra == 'cli'", specifier = ">=0.16.0" },
 ]
+provides-extras = ["cli", "nerdd"]
 
 [package.metadata.requires-dev]
 build = [{ name = "build" }]
@@ -336,19 +339,11 @@ ci = [
     { name = "ruff", specifier = ">=0.15.16" },
     { name = "ty", specifier = ">=0.0.46" },
 ]
-cli = [{ name = "typer", specifier = ">=0.16.0" }]
 dev = [
     { name = "build" },
-    { name = "nerdd-link", specifier = ">=0.5.15" },
-    { name = "nerdd-module", specifier = ">=0.3.52" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "ruff", specifier = ">=0.15.16" },
     { name = "ty", specifier = ">=0.0.46" },
-    { name = "typer", specifier = ">=0.16.0" },
-]
-nerdd = [
-    { name = "nerdd-link", specifier = ">=0.5.15" },
-    { name = "nerdd-module", specifier = ">=0.3.52" },
 ]
 
 [[package]]

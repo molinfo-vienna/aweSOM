@@ -27,13 +27,7 @@ dependencies = [
     "matplotlib>=3.10.9",
 ]
 
-[dependency-groups]
-build = ["build"]
-ci = [
-    "pytest>=8.4.1",
-    "ruff>=0.15.16",
-    "ty>=0.0.46",
-]
+[project.optional-dependencies]
 cli = [
     "typer>=0.16.0",
 ]
@@ -41,11 +35,17 @@ nerdd = [
     "nerdd-link>=0.5.15",
     "nerdd-module>=0.3.52",
 ]
+
+[dependency-groups]
+build = ["build"]
+ci = [
+    "pytest>=8.4.1",
+    "ruff>=0.15.16",
+    "ty>=0.0.46",
+]
 dev = [
     { include-group = "build" },
     { include-group = "ci" },
-    { include-group = "cli" },
-    { include-group = "nerdd" },
 ]
 
 [project.scripts]
