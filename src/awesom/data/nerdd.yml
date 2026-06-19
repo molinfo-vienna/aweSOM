@@ -11,10 +11,9 @@ module:
 
   title: Site-of-Metabolism Prediction with Aleatoric and Epistemic Uncertainty Quantification
   description: |
-    TODO
+    AweSOM is a model predicting sites-of-metabolism (SOMs) in xenobiotics with aleatoric and epistemic uncertainty estimation. SOMs are the atoms where metabolic reactions are initiated, making them the starting points for understanding the metabolic fate of xenobiotic compounds. The source code for aweSOM is publicly available on GitHub: [https://github.com/molinfo-vienna/aweSOM](https://github.com/molinfo-vienna/aweSOM).
 
     AweSOM is free for non-commercial research purposes. For-profit institutions require a commercial license from the Università degli Studi di Milano to use the MetaQSAR-derived models.
-
   partners:
     - name: University of Vienna
       logo: !image logo_vienna.gif
@@ -43,7 +42,7 @@ module:
       doi: 10.1021/acs.jcim.5c00762
 
   about: |
-    The documentation can be found at [TODO](TODO).
+    The documentation can be found at [https://github.com/molinfo-vienna/aweSOM](https://github.com/molinfo-vienna/aweSOM).
 
   job_parameters:
 
