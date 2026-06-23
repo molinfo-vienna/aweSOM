@@ -1,5 +1,5 @@
 module:
-  rank: 4
+  rank: 10
   name: awesom
   visible_name: AweSOM
   visible: True
