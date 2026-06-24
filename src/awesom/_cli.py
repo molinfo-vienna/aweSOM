@@ -162,7 +162,7 @@ def train(
         typer.Option(
             "--input",
             "-i",
-            help="Path to input training data (SDF, SMILES).",
+            help="Path to file containing input training data (SDF, SMILES).",
         ),
     ],
     output_path: Annotated[
@@ -206,7 +206,7 @@ def train(
     rng = np.random.default_rng(seed)
     seeds = rng.choice(1000, ensemble_size, replace=False)
 
-    data = SOMDataset(root=str(input_path), transform=T.ToUndirected())
+    data = SOMDataset(input_path=str(input_path), transform=T.ToUndirected())
     data_params = {
         "num_node_features": data.num_node_features,
         "num_edge_features": data.num_edge_features,
@@ -243,7 +243,7 @@ def predict(
         typer.Option(
             "--input",
             "-i",
-            help="Path to input data for which to predict SOMs (SDF, SMILES).",
+            help="Path to file containing input data for which to predict SOMs (SDF, SMILES).",
         ),
     ],
     models_path: Annotated[
@@ -263,7 +263,7 @@ def predict(
         ),
     ],
 ):
-    data = SOMDataset(root=str(input_path), labeled=True, transform=T.ToUndirected())
+    data = SOMDataset(input_path=str(input_path), labeled=True, transform=T.ToUndirected())
     dataloader: DataLoader = DataLoader(data, batch_size=len(data), shuffle=False)
 
     models = load_models(models_path)
@@ -409,7 +409,7 @@ def hyperparameters(
         typer.Option(
             "--input",
             "-i",
-            help="Path to input training data (SDF, SMILES).",
+            help="Path to file containing input training data (SDF, SMILES).",
         ),
     ],
     output_path: Annotated[
@@ -458,7 +458,7 @@ def hyperparameters(
         study_name="cv_hp_search",
     )
 
-    data = SOMDataset(root=str(input_path), transform=T.ToUndirected()).shuffle()
+    data = SOMDataset(input_path=str(input_path), transform=T.ToUndirected()).shuffle()
     assert isinstance(data, Dataset)
 
     study.optimize(

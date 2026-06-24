@@ -4,48 +4,28 @@ from typing import Callable
 
 import torch
 from rdkit import Chem
-from torch_geometric.data import Data, InMemoryDataset
+from torch_geometric.data import Data, Dataset
 
 
-class SOMDataset(InMemoryDataset):
+class SOMDataset(Dataset):
     """PyTorch Geometric Dataset for site-of-metabolism prediction from SD-Files or SMILES files."""
 
     def __init__(
         self,
-        root: str,
+        input_path: str,
         labeled: bool = True,
         transform: Callable[[Data], Data] | None = None,
-        pre_transform: Callable[[Data], Data] | None = None,
-        pre_filter: Callable[[Data], Data] | None = None,
     ) -> None:
+        super().__init__(input_path, transform=transform)
+
         self.labeled = labeled
+        self.data = self.data_processing(input_path)
 
-        super().__init__(root, transform, pre_transform, pre_filter, force_reload=True)
+    def len(self) -> int:
+        return len(self.data)
 
-        self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
-
-    @property
-    def processed_file_names(self) -> list[str]:
-        return ["data.pt"]
-
-    def find_input_file(
-        self, extensions: list[str] = [".sdf", ".smi", ".smiles"]
-    ) -> str | None:
-        """Finds the first file in the root directory with one of the allowed extensions."""
-        for file_name in os.listdir(self.root):
-            if any(file_name.endswith(ext) for ext in extensions):
-                return os.path.join(self.root, file_name)
-        return None
-
-    def process(self) -> None:
-        input_file = self.find_input_file()
-        if input_file is None:
-            raise NotImplementedError(
-                "Data file must be either .sdf, .smi, or .smiles."
-            )
-
-        data_list = self.data_processing(input_file=input_file)
-        torch.save((self.collate(data_list)), self.processed_paths[0])
+    def get(self, idx: int) -> Data:
+        return self.data[idx]
 
     def data_processing(self, input_file: str) -> list[Data]:
         """Process the input file and create Data objects."""
