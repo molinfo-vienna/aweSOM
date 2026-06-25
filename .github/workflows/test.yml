@@ -15,5 +15,5 @@ jobs:
     - uses: astral-sh/setup-uv@v8.2.0
       with:
         enable-cache: true
-    - run: uv sync --group ci
+    - run: uv sync --group ci --all-extras
     - run: uv run python -m pytest -vv
