@@ -263,7 +263,9 @@ def predict(
         ),
     ],
 ):
-    data = SOMDataset(input_path=str(input_path), labeled=True, transform=T.ToUndirected())
+    data = SOMDataset(
+        input_path=str(input_path), labeled=True, transform=T.ToUndirected()
+    )
     dataloader: DataLoader = DataLoader(data, batch_size=len(data), shuffle=False)
 
     models = load_models(models_path)
