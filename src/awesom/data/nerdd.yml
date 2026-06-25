@@ -44,7 +44,7 @@ module:
   about: |
     The documentation can be found at [https://github.com/molinfo-vienna/aweSOM](https://github.com/molinfo-vienna/aweSOM).
 
-  job_parameters:
+  job_parameters: []
 
   result_properties:
     - name: prediction
