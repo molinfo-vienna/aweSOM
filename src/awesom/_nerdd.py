@@ -23,6 +23,8 @@ def load_models() -> list[SOMPredictor]:
 
 class AweSOMModel(Model):
     def __init__(self, preprocessing_steps=[Sanitize()]):
+        super().__init__(preprocessing_steps)
+
         self.model_ensemble = load_models()
 
     def _predict_mols(self, mols: list[Mol], **kwargs: Any) -> Iterable[dict]:
