@@ -1842,7 +1842,7 @@ wheels = [
 
 [[package]]
 name = "nerdd-module"
-version = "0.3.54"
+version = "0.3.55"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chardet" },
@@ -1856,9 +1856,9 @@ dependencies = [
     { name = "rich-click" },
     { name = "stringcase" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e7/92/7e6b239ed83526469f74c3d52fc33a87829e845c299c982da309fdb478e2/nerdd_module-0.3.54.tar.gz", hash = "sha256:4d5327a20cea717787b9a89ff131c5bc3f4d7242b1bceca14b5230ce6b0b0e09", size = 45635, upload-time = "2026-06-27T11:22:07.588Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7e/73/e558fda23a7d111c7f43acedaa093775afd9d5ec75d8596c4d02dab47a05/nerdd_module-0.3.55.tar.gz", hash = "sha256:a6c7a45b6cd833477343ef577744a378a5a43a30a9a8651a357c5013916421a0", size = 45574, upload-time = "2026-06-28T04:45:00.86Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/72/2f/c68214364d3a6d6655b09e8b33c25bbb6914d4614b6a0ccd7ddc0d257aa5/nerdd_module-0.3.54-py3-none-any.whl", hash = "sha256:e2c201c3b41c1da27609d72d739d070679cf15d71d7c2c27ab725d26bd157d18", size = 74582, upload-time = "2026-06-27T11:22:06.108Z" },
+    { url = "https://files.pythonhosted.org/packages/85/af/0464ddf9386452e80c743c0aeeabd251293a62b15109dbfcd4953fc64385/nerdd_module-0.3.55-py3-none-any.whl", hash = "sha256:e41c3020607c17f41a940beb294f24d1fe77fbdfb95f9b0ac385a3d85edfaf3f", size = 74527, upload-time = "2026-06-28T04:44:59.615Z" },
 ]
 
 [[package]]
