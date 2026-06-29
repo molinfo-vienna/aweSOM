@@ -4,6 +4,7 @@ from typing import Any, Iterable
 
 from nerdd_module import Model, Mol
 from nerdd_module.preprocessing import Sanitize
+from torch_geometric import transforms as T
 from torch_geometric.loader import DataLoader
 
 from awesom.dataset import SOMDataset
@@ -25,11 +26,14 @@ class AweSOMModel(Model):
     def __init__(self, preprocessing_steps=[Sanitize()]):
         super().__init__(preprocessing_steps)
 
+        self.to_undirected = T.ToUndirected()
         self.model_ensemble = load_models()
 
     def _predict_mols(self, mols: list[Mol], **kwargs: Any) -> Iterable[dict]:
         data = [
-            SOMDataset.mol_to_data(mol, soms=[], mol_id=mol_id, description="")
+            self.to_undirected(
+                SOMDataset.mol_to_data(mol, soms=[], mol_id=mol_id, description="")
+            )
             for mol_id, mol in enumerate(mols)
         ]
 
