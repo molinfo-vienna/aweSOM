@@ -5,7 +5,7 @@ module:
   visible: True
   logo: !image logo.svg
   logo_title: Sites of Metabolism
-  logo_caption: Site-of-metabolism prediction with GNNs, featuring uncertainty estimation
+  logo_caption: Site-of-metabolism prediction featuring uncertainty estimation
   example_smiles: CN1CCN(Cc2ccc(cc2)C(=O)Nc3ccc(C)c(Nc4nccc(n4)c5cccnc5)c3)CC1 (imatinib)
   batch_size: 10
 
