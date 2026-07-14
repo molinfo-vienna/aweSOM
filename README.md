@@ -32,7 +32,7 @@ uv run awesom predict -i INPUT.sdf -m ./models -o OUTPUT.csv
 
 ## Models
 
-Models are available...
+We provide access to AweSOM models trained on data derived from the proprietary MetaQSAR database. The models are freely available for non-commercial research via our [Zenodo repository](https://zenodo.org/records/21353620).
 
 ## License
 
