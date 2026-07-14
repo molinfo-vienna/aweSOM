@@ -15,7 +15,6 @@ import yaml
 from rich.console import Console
 from rich.json import JSON
 from sklearn.model_selection import KFold
-from torch_geometric import transforms as T
 from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
@@ -206,7 +205,7 @@ def train(
     rng = np.random.default_rng(seed)
     seeds = rng.choice(1000, ensemble_size, replace=False)
 
-    data = SOMDataset(input_path=str(input_path), transform=T.ToUndirected())
+    data = SOMDataset(input_path=str(input_path))
     data_params = {
         "num_node_features": data.num_node_features,
         "num_edge_features": data.num_edge_features,
@@ -263,9 +262,7 @@ def predict(
         ),
     ],
 ):
-    data = SOMDataset(
-        input_path=str(input_path), labeled=True, transform=T.ToUndirected()
-    )
+    data = SOMDataset(input_path=str(input_path))
     dataloader: DataLoader = DataLoader(data, batch_size=len(data), shuffle=False)
 
     models = load_models(models_path)
@@ -460,7 +457,7 @@ def hyperparameters(
         study_name="cv_hp_search",
     )
 
-    data = SOMDataset(input_path=str(input_path), transform=T.ToUndirected()).shuffle()
+    data = SOMDataset(input_path=str(input_path))
     assert isinstance(data, Dataset)
 
     study.optimize(
