@@ -258,7 +258,7 @@ def predict(
         typer.Option(
             "--output",
             "-o",
-            help="Path to prediction output directory.",
+            help="Path to output prediction CSV file.",
         ),
     ],
 ):
