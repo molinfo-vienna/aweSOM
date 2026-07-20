@@ -300,7 +300,7 @@ def predict(
                     "mol_id": mol_id,
                     "atom_id": atom_id,
                     "y_true": int(true_label),
-                    "y_pred": int(probability < THRESHOLD),
+                    "y_pred": int(probability >= THRESHOLD),
                     "y_prob": np.round(probability, 2),
                     "aleatoric_uncertainty": np.round(u_ale.item(), 2),
                     "epistemic_uncertainty": np.round(u_epi.item(), 2),

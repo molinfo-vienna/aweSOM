@@ -44,7 +44,7 @@ class AweSOMModel(Model):
                 "mol_id": mol_id,
                 "atom_id": atom_id,
                 "prediction": probability,
-                "prediction_binary": probability > THRESHOLD,
+                "prediction_binary": probability >= THRESHOLD,
                 # "ranking": 0,
                 "aleatoric_uncertainty": u_ale,
                 "epistemic_uncertainty": u_epi,
