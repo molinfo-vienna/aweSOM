@@ -14,7 +14,7 @@ authors = [
 ]
 
 dependencies = [
-    "numpy>=1.26.4,<2",
+    "numpy>=1.26.4",
     "optuna>=4.1.0",
     "rdkit>=2023.3.3",
     "scikit-learn>=1.6.1",
