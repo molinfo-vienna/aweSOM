@@ -16,7 +16,7 @@ authors = [
 dependencies = [
     "numpy>=1.26.4,<2",
     "optuna>=4.1.0",
-    "rdkit==2023.3.3",
+    "rdkit>=2023.3.3",
     "scikit-learn>=1.6.1",
     "tensorboard>=2.18.0",
     "torch>=2.5.1",
