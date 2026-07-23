@@ -356,7 +356,6 @@ def predict_ensemble(
 
     with torch.no_grad():
         for i, model in enumerate(models):
-            print(f"Predicting with model {i + 1} of {len(models)}")
             logits_list: list[torch.Tensor] = []
             y_trues_list: list[torch.Tensor] = []
             mol_ids_list: list[torch.Tensor] = []
