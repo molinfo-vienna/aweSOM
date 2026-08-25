@@ -213,10 +213,12 @@ def train(
 
     hyperparams = yaml.safe_load(config_path.open("r"))
 
-    for i, seed in enumerate(seeds):
-        stderr.print(f"Training model {i + 1}/{ensemble_size} with seed {seed}...")
+    for i, model_seed in enumerate(seeds):
+        stderr.print(
+            f"Training model {i + 1}/{ensemble_size} with seed {model_seed}..."
+        )
 
-        torch_geometric.seed_everything(seed)
+        torch_geometric.seed_everything(model_seed)
 
         model = SOMPredictor(data_params, hyperparams)
         train_loader: DataLoader = DataLoader(
@@ -387,7 +389,7 @@ def metrics(
         }
         for key, values in {
             key: [sample[key] for sample in computed_metrics_samples]
-            for key in computed_metrics_samples[0].keys()
+            for key in computed_metrics_samples[0]
         }.items()
     }
 

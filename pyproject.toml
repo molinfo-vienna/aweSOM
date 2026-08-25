@@ -58,6 +58,7 @@ addopts = [
 
 [tool.ruff.lint]
 extend-select = ["I"]
+ignore = ["B006", "B008"]
 
 [[tool.ty.overrides]]
 include = ["**"]

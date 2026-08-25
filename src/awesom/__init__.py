@@ -8,10 +8,10 @@ from .model import (
 )
 
 __all__ = [
+    "EnsemblePredictions",
+    "GINEWithContextPooling",
+    "MetricsCalculator",
     "SOMDataset",
     "SOMPredictor",
-    "GINEWithContextPooling",
     "predict_ensemble",
-    "EnsemblePredictions",
-    "MetricsCalculator",
 ]

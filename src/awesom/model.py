@@ -3,8 +3,8 @@ from dataclasses import dataclass
 
 import optuna
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.data import Data
@@ -68,7 +68,7 @@ class GINEWithContextPooling(nn.Module):
     def __init__(
         self, params: dict[str, int], hyperparams: dict[str, int | float]
     ) -> None:
-        super(GINEWithContextPooling, self).__init__()
+        super().__init__()
 
         self.conv = nn.ModuleList()
         self.batch_norm = nn.ModuleList()

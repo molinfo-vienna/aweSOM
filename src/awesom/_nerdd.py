@@ -1,6 +1,7 @@
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from nerdd_module import Model, Mol
 from nerdd_module.preprocessing import Sanitize

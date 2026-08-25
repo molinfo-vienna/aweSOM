@@ -28,12 +28,9 @@ def test_train_then_nerdd():
         model = AweSOMModel()
         predictions = model._predict_mols([IMATINIB])
 
-        try:
-            # Acessing the config property will raise an exception
-            # when `nerdd.yml` is malformed.
-            _ = model.config
-        except Exception:
-            raise
+        # Acessing the config property will raise an exception when
+        # `nerdd.yml` is malformed.
+        _ = model.config
 
         for prediction in predictions:
             assert isinstance(prediction, dict)
